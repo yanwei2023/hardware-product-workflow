@@ -19,6 +19,7 @@ import {
 } from "./permissionStore.mjs";
 
 const port = Number(process.env.PORT || 3001);
+const host = process.env.HOST || "127.0.0.1";
 const workspaceRoot = path.resolve(import.meta.dirname, "../../..");
 const staticRoot = path.join(workspaceRoot, "apps/static");
 
@@ -695,6 +696,7 @@ export function approveGate(gateId, body = {}) {
   }
 
   const phase = store.phases.find((item) => item.id === gate.phaseId);
+  const project = store.projects.find((item) => item.id === gate.projectId) || currentProject();
   gate.status = "APPROVED";
   gate.approvedByUserId = actorUserId;
   gate.approvedAt = new Date().toISOString();
@@ -706,18 +708,18 @@ export function approveGate(gateId, body = {}) {
       .sort((a, b) => a.sequence - b.sequence)[0];
     if (nextPhase) {
       nextPhase.status = "IN_PROGRESS";
-      store.projects[0].currentPhaseId = nextPhase.id;
+      project.currentPhaseId = nextPhase.id;
       const nextGate = store.gates.find((item) => item.phaseId === nextPhase.id);
       if (nextGate && nextGate.status === "NOT_STARTED") {
         nextGate.status = "GATE_BLOCKED";
       }
     } else {
-      store.projects[0].status = "COMPLETED";
+      project.status = "COMPLETED";
     }
   }
 
   audit("GATE_APPROVED", "human", actorUserId, "gate", gate.id, {
-    nextPhaseId: store.projects[0].currentPhaseId,
+    nextPhaseId: project.currentPhaseId,
   });
   persistStore();
 
@@ -725,7 +727,7 @@ export function approveGate(gateId, body = {}) {
     statusCode: 200,
     body: {
       gate,
-      project: store.projects[0],
+      project,
       phases: store.phases,
     },
   };
@@ -805,7 +807,12 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "GET" && url.pathname === "/health") {
-      return writeJson(res, 200, { ok: true, service: "hardware-flow-api" });
+      return writeJson(res, 200, {
+        ok: true,
+        service: "hardware-flow-api",
+        activeProjectId: store.activeProjectId,
+        projectCount: store.projects.length,
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {
@@ -908,7 +915,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   });
 
-  server.listen(port, () => {
-    console.log(`Hardware Flow API listening on http://localhost:${port}`);
+  server.listen(port, host, () => {
+    const displayHost = host === "0.0.0.0" ? "localhost" : host;
+    console.log(`Hardware Flow API listening on http://${displayHost}:${port}`);
+    if (host === "0.0.0.0") {
+      console.log("LAN mode enabled. Use this machine's LAN IP from other devices.");
+    }
   });
 }

@@ -5,7 +5,7 @@
 ## 启动
 
 ```text
-node apps/api/src/server.mjs
+npm start
 ```
 
 默认监听：
@@ -17,7 +17,13 @@ http://localhost:3001
 如果需要修改端口：
 
 ```text
-PORT=3100 node apps/api/src/server.mjs
+PORT=3100 npm start
+```
+
+如果需要让局域网内其他电脑访问：
+
+```text
+npm run start:lan
 ```
 
 ## 打开页面
@@ -55,6 +61,12 @@ data/demo-store.json
 服务重启后数据不会丢失。
 
 点击页面左侧“重置演示数据”会删除并重建演示项目数据。
+
+如果需要指定其他数据文件：
+
+```text
+HARDWARE_FLOW_STORE_PATH=/path/to/store.json npm start
+```
 
 ## 可试用链路
 

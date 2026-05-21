@@ -32,13 +32,23 @@ infra          本地部署配置
 
 ## 本地开发
 
-依赖已经声明，但当前工作区还没有安装依赖。
+当前无依赖试用版可以直接启动：
 
 ```text
-npm install
-npm run dev:web
-npm run dev:api
+npm start
+```
+
+局域网试用：
+
+```text
+npm run start:lan
+```
+
+开发脚本：
+
+```text
 npm --workspace apps/api run demo
+npm run demo:multi-phase
 npm run agent:sample
 ```
 
@@ -67,6 +77,7 @@ http://localhost:3001
 
 ```text
 docs/quick-use.md
+docs/lan-deployment.md
 ```
 
 ## 当前骨架
