@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>人机协同硬件开发流程系统</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <h1>硬件流程</h1>
+      <nav>
+        <button class="nav active" data-view="overview">项目总览</button>
+        <button class="nav" data-view="projects">项目管理</button>
+        <button class="nav" data-view="workpackages">工作包</button>
+        <button class="nav" data-view="gate">阶段门</button>
+        <button class="nav" data-view="audit">审计</button>
+      </nav>
+      <button id="resetDemo" class="danger">重置演示数据</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p id="projectMeta" class="muted">加载中</p>
+          <h2 id="pageTitle">项目总览</h2>
+        </div>
+        <div class="top-actions">
+          <label>
+            当前操作者
+            <select id="actorUser"></select>
+          </label>
+          <button id="refresh">刷新</button>
+        </div>
+      </header>
+      <div id="message"></div>
+
+      <section id="overviewView" class="view"></section>
+      <section id="projectsView" class="view hidden"></section>
+      <section id="workpackagesView" class="view hidden"></section>
+      <section id="gateView" class="view hidden"></section>
+      <section id="auditView" class="view hidden"></section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

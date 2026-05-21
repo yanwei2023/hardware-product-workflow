@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>人机协同硬件开发流程系统 - 预览</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <h1>硬件流程</h1>
+      <nav>
+        <button class="nav active">项目总览</button>
+        <button class="nav">工作包</button>
+        <button class="nav">阶段门</button>
+        <button class="nav">审计</button>
+      </nav>
+      <button class="danger">重置演示数据</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="muted">智能控制器项目 · 当前阶段 EVT Exit</p>
+          <h2>工作包审核</h2>
+        </div>
+        <div class="top-actions">
+          <label>
+            当前操作者
+            <select>
+              <option>测试工程师 · 测试工程师/责任工程师</option>
+            </select>
+          </label>
+          <button>刷新</button>
+        </div>
+      </header>
+
+      <div class="split">
+        <article class="panel">
+          <h3>当前阶段工作包</h3>
+          <div class="work-list">
+            <button class="work-item selected">
+              <strong>EVT 测试计划</strong>
+              <span>TEST_PLAN</span>
+              <span><span class="status HUMAN_APPROVED">人类已批准</span> <span class="status APPROVED">已批准</span></span>
+            </button>
+            <button class="work-item">
+              <strong>EVT Exit 报告</strong>
+              <span>TEST_REPORT</span>
+              <span><span class="status AGENT_DRAFT_READY">Agent 草稿完成</span> <span class="status PENDING_REVIEW">待审核</span></span>
+            </button>
+            <button class="work-item">
+              <strong>EVT 问题关闭计划</strong>
+              <span>ISSUE_CLOSURE_PLAN</span>
+              <span><span class="status NEEDS_AGENT_REVISION">需要 Agent 修改</span></span>
+            </button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="detail-head">
+            <div>
+              <h3>EVT Exit 报告</h3>
+              <p class="muted">TEST_REPORT · test_report_v0_1</p>
+            </div>
+            <div><span class="status AGENT_DRAFT_READY">Agent 草稿完成</span></div>
+          </div>
+
+          <div class="actions">
+            <button>Agent 生成</button>
+            <button class="secondary">人类批准</button>
+            <button class="ghost">模拟无效输出</button>
+          </div>
+
+          <section class="subpanel">
+            <h4>模板校验</h4>
+            <p><span class="status READY">可通过</span></p>
+            <p><strong>缺失项：</strong>无</p>
+            <p><strong>空内容项：</strong>失败项、审核结论</p>
+          </section>
+
+          <section class="subpanel">
+            <h4>审核记录</h4>
+            <p class="muted">尚无人类审核。</p>
+          </section>
+
+          <section class="subpanel">
+            <h4>Agent 输出草稿</h4>
+            <pre class="markdown-preview"># 测试报告模板
+
+## 1. 基本信息
+
+| 字段 | 内容 |
+|---|---|
+| 项目名称 | 智能控制器项目 |
+| 测试阶段 | EVT |
+| 测试负责人 | 测试工程师 |
+| 对应 Agent | Test Agent |
+
+## 2. 测试概览
+
+- 测试目标：验证 EVT 样机功能、风险和阶段退出条件
+- 测试结论摘要：等待人类审核确认</pre>
+          </section>
+        </article>
+      </div>
+    </main>
+  </body>
+</html>
+

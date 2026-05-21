@@ -1,0 +1,262 @@
+{
+  "templateKey": "standard_hardware_development_v0_1",
+  "name": "标准硬件产品开发流程模板",
+  "version": "0.1.0",
+  "description": "第一版硬件产品开发阶段门模板，用于自动生成阶段、工作包、交付物和阶段门要求。",
+  "phases": [
+    {
+      "phaseKey": "initiation",
+      "name": "立项",
+      "sequence": 10,
+      "gateName": "立项评审",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "business_case",
+          "title": "商业目标与立项说明",
+          "agentKey": "product_agent",
+          "humanRole": "产品经理",
+          "requiredArtifactType": "BUSINESS_CASE",
+          "requiredForGate": true,
+          "artifactTemplateKey": "business_case_v0_1"
+        },
+        {
+          "workPackageKey": "initial_project_plan",
+          "title": "初版项目计划",
+          "agentKey": "pm_agent",
+          "humanRole": "项目经理",
+          "requiredArtifactType": "PROJECT_PLAN",
+          "requiredForGate": true,
+          "artifactTemplateKey": "project_plan_v0_1"
+        },
+        {
+          "workPackageKey": "initial_risk_register",
+          "title": "初版风险清单",
+          "agentKey": "pm_agent",
+          "humanRole": "项目经理",
+          "requiredArtifactType": "RISK_REGISTER",
+          "requiredForGate": true,
+          "artifactTemplateKey": "risk_register_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "requirements_freeze",
+      "name": "需求冻结",
+      "sequence": 20,
+      "gateName": "需求冻结评审",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "prd",
+          "title": "PRD 产品需求文档",
+          "agentKey": "product_agent",
+          "humanRole": "产品经理",
+          "requiredArtifactType": "PRD",
+          "requiredForGate": true,
+          "artifactTemplateKey": "prd_v0_1"
+        },
+        {
+          "workPackageKey": "requirement_traceability",
+          "title": "需求追踪矩阵",
+          "agentKey": "product_agent",
+          "humanRole": "产品经理",
+          "requiredArtifactType": "REQUIREMENT_TRACE_MATRIX",
+          "requiredForGate": true,
+          "artifactTemplateKey": "requirement_trace_matrix_v0_1"
+        },
+        {
+          "workPackageKey": "system_architecture",
+          "title": "系统架构草案",
+          "agentKey": "system_agent",
+          "humanRole": "系统工程师",
+          "requiredArtifactType": "SYSTEM_ARCHITECTURE",
+          "requiredForGate": true,
+          "artifactTemplateKey": "system_architecture_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "design_freeze",
+      "name": "设计冻结",
+      "sequence": 30,
+      "gateName": "设计冻结评审",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "ee_design_review",
+          "title": "硬件设计评审包",
+          "agentKey": "ee_agent",
+          "humanRole": "硬件工程师",
+          "requiredArtifactType": "EE_DESIGN_REVIEW_PACK",
+          "requiredForGate": true,
+          "artifactTemplateKey": "ee_design_review_pack_v0_1"
+        },
+        {
+          "workPackageKey": "me_design_review",
+          "title": "结构设计评审包",
+          "agentKey": "me_agent",
+          "humanRole": "结构工程师",
+          "requiredArtifactType": "ME_DESIGN_REVIEW_PACK",
+          "requiredForGate": true,
+          "artifactTemplateKey": "me_design_review_pack_v0_1"
+        },
+        {
+          "workPackageKey": "fw_design_review",
+          "title": "固件设计评审包",
+          "agentKey": "fw_agent",
+          "humanRole": "固件工程师",
+          "requiredArtifactType": "FW_DESIGN_REVIEW_PACK",
+          "requiredForGate": true,
+          "artifactTemplateKey": "fw_design_review_pack_v0_1"
+        },
+        {
+          "workPackageKey": "bom_risk_review",
+          "title": "BOM 风险评审",
+          "agentKey": "supply_agent",
+          "humanRole": "供应链工程师",
+          "requiredArtifactType": "BOM_RISK_REPORT",
+          "requiredForGate": true,
+          "artifactTemplateKey": "bom_risk_report_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "evt_exit",
+      "name": "EVT Exit",
+      "sequence": 40,
+      "gateName": "EVT Exit 阶段门",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "evt_test_plan",
+          "title": "EVT 测试计划",
+          "agentKey": "test_agent",
+          "humanRole": "测试工程师",
+          "requiredArtifactType": "TEST_PLAN",
+          "requiredForGate": true,
+          "artifactTemplateKey": "test_plan_v0_1"
+        },
+        {
+          "workPackageKey": "evt_test_report",
+          "title": "EVT Exit 报告",
+          "agentKey": "test_agent",
+          "humanRole": "测试工程师",
+          "requiredArtifactType": "TEST_REPORT",
+          "requiredForGate": true,
+          "artifactTemplateKey": "test_report_v0_1"
+        },
+        {
+          "workPackageKey": "evt_issue_closure",
+          "title": "EVT 问题关闭计划",
+          "agentKey": "quality_agent",
+          "humanRole": "质量工程师",
+          "requiredArtifactType": "ISSUE_CLOSURE_PLAN",
+          "requiredForGate": true,
+          "artifactTemplateKey": "issue_closure_plan_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "dvt_exit",
+      "name": "DVT Exit",
+      "sequence": 50,
+      "gateName": "DVT Exit 阶段门",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "dvt_test_report",
+          "title": "DVT 测试报告",
+          "agentKey": "test_agent",
+          "humanRole": "测试工程师",
+          "requiredArtifactType": "DVT_TEST_REPORT",
+          "requiredForGate": true,
+          "artifactTemplateKey": "dvt_test_report_v0_1"
+        },
+        {
+          "workPackageKey": "reliability_summary",
+          "title": "可靠性验证摘要",
+          "agentKey": "quality_agent",
+          "humanRole": "质量工程师",
+          "requiredArtifactType": "RELIABILITY_SUMMARY",
+          "requiredForGate": true,
+          "artifactTemplateKey": "reliability_summary_v0_1"
+        },
+        {
+          "workPackageKey": "certification_readiness",
+          "title": "认证准备状态",
+          "agentKey": "quality_agent",
+          "humanRole": "质量工程师",
+          "requiredArtifactType": "CERTIFICATION_READINESS",
+          "requiredForGate": true,
+          "artifactTemplateKey": "certification_readiness_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "pvt_exit",
+      "name": "PVT Exit",
+      "sequence": 60,
+      "gateName": "PVT Exit 阶段门",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "pvt_yield_report",
+          "title": "PVT 良率报告",
+          "agentKey": "manufacturing_agent",
+          "humanRole": "制造工程师",
+          "requiredArtifactType": "PVT_YIELD_REPORT",
+          "requiredForGate": true,
+          "artifactTemplateKey": "pvt_yield_report_v0_1"
+        },
+        {
+          "workPackageKey": "process_readiness",
+          "title": "工艺准备状态",
+          "agentKey": "manufacturing_agent",
+          "humanRole": "NPI 工程师",
+          "requiredArtifactType": "PROCESS_READINESS",
+          "requiredForGate": true,
+          "artifactTemplateKey": "process_readiness_v0_1"
+        },
+        {
+          "workPackageKey": "supply_readiness",
+          "title": "供应准备状态",
+          "agentKey": "supply_agent",
+          "humanRole": "供应链工程师",
+          "requiredArtifactType": "SUPPLY_READINESS",
+          "requiredForGate": true,
+          "artifactTemplateKey": "supply_readiness_v0_1"
+        }
+      ]
+    },
+    {
+      "phaseKey": "mp_readiness",
+      "name": "量产准备",
+      "sequence": 70,
+      "gateName": "量产放行评审",
+      "requiredWorkPackages": [
+        {
+          "workPackageKey": "mp_readiness_pack",
+          "title": "量产准备审核包",
+          "agentKey": "manufacturing_agent",
+          "humanRole": "制造工程师",
+          "requiredArtifactType": "MP_READINESS_PACK",
+          "requiredForGate": true,
+          "artifactTemplateKey": "mp_readiness_pack_v0_1"
+        },
+        {
+          "workPackageKey": "quality_release_summary",
+          "title": "质量放行摘要",
+          "agentKey": "quality_agent",
+          "humanRole": "质量负责人",
+          "requiredArtifactType": "QUALITY_RELEASE_SUMMARY",
+          "requiredForGate": true,
+          "artifactTemplateKey": "quality_release_summary_v0_1"
+        },
+        {
+          "workPackageKey": "final_project_gate_summary",
+          "title": "最终阶段门摘要",
+          "agentKey": "pm_agent",
+          "humanRole": "项目经理",
+          "requiredArtifactType": "FINAL_GATE_SUMMARY",
+          "requiredForGate": true,
+          "artifactTemplateKey": "gate_review_summary_v0_1"
+        }
+      ]
+    }
+  ]
+}

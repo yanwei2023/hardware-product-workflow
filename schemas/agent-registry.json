@@ -1,0 +1,85 @@
+{
+  "version": "0.1.0",
+  "agents": [
+    {
+      "agentKey": "product_agent",
+      "name": "产品需求 Agent",
+      "humanRole": "产品经理",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["PRD 草稿", "需求冲突清单", "需求追踪矩阵草稿", "需求冻结审核包"],
+      "forbiddenActions": ["冻结需求", "承诺交期", "承诺成本", "删除已确认需求"]
+    },
+    {
+      "agentKey": "pm_agent",
+      "name": "项目管理 Agent",
+      "humanRole": "项目经理",
+      "capabilityLevel": "L3",
+      "primaryOutputs": ["项目计划草稿", "阶段门缺口报告", "周报", "阻塞项清单", "阶段门审核包"],
+      "forbiddenActions": ["批准阶段门", "调整关键里程碑", "接受风险", "关闭高风险"]
+    },
+    {
+      "agentKey": "system_agent",
+      "name": "系统工程 Agent",
+      "humanRole": "系统工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["系统架构草稿", "接口控制文档草稿", "系统风险清单", "跨角色输入包"],
+      "forbiddenActions": ["冻结系统架构", "改变产品需求", "批准接口", "指定最终技术路线"]
+    },
+    {
+      "agentKey": "ee_agent",
+      "name": "硬件电路 Agent",
+      "humanRole": "硬件工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["硬件方案建议", "原理图 checklist", "BOM 风险报告", "ERC/DRC 摘要", "硬件设计评审包"],
+      "forbiddenActions": ["发布原理图", "发布 PCB", "批准关键器件", "提交投板文件", "接受 EMC/安规/热设计高风险"]
+    },
+    {
+      "agentKey": "me_agent",
+      "name": "结构设计 Agent",
+      "humanRole": "结构工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["结构设计 checklist", "结构风险清单", "DFM/DFA 评审清单", "结构评审包"],
+      "forbiddenActions": ["发布 CAD 文件", "批准开模", "接受结构高风险", "批准材料替换"]
+    },
+    {
+      "agentKey": "fw_agent",
+      "name": "固件 Agent",
+      "humanRole": "固件工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["固件任务拆解", "固件架构草稿", "测试用例草稿", "日志分析报告", "发布说明草稿"],
+      "forbiddenActions": ["提交正式代码", "发布固件版本", "关闭严重缺陷", "绕过代码评审"]
+    },
+    {
+      "agentKey": "test_agent",
+      "name": "测试 Agent",
+      "humanRole": "测试工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["测试计划草稿", "测试用例草稿", "需求覆盖矩阵", "测试报告草稿", "阶段退出测试包"],
+      "forbiddenActions": ["判定测试通过", "关闭 P0/P1 问题", "修改测试原始数据", "放行 EVT/DVT/PVT"]
+    },
+    {
+      "agentKey": "supply_agent",
+      "name": "供应链 Agent",
+      "humanRole": "采购/供应链工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["BOM 供应风险报告", "替代料候选清单", "报价对比表", "物料变更影响分析"],
+      "forbiddenActions": ["选择最终供应商", "承诺价格或交期", "切换关键物料", "发出采购承诺"]
+    },
+    {
+      "agentKey": "quality_agent",
+      "name": "质量 Agent",
+      "humanRole": "质量工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["质量风险报告", "DFMEA/PFMEA 草稿", "8D 报告草稿", "问题关闭证据检查"],
+      "forbiddenActions": ["判定质量放行", "关闭重大质量问题", "接受客户/法规/安全风险", "修改测试原始记录"]
+    },
+    {
+      "agentKey": "manufacturing_agent",
+      "name": "制造与 NPI Agent",
+      "humanRole": "NPI/制造工程师",
+      "capabilityLevel": "L2",
+      "primaryOutputs": ["试产准备 checklist", "工艺流程草稿", "治具需求清单", "良率分析报告", "量产准备审核包"],
+      "forbiddenActions": ["批准试产", "批准量产放行", "修改工艺标准", "接受低良率风险"]
+    }
+  ]
+}

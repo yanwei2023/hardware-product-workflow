@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0",
+  "users": [
+    {
+      "userId": "user-project-manager",
+      "name": "项目经理",
+      "roles": ["项目经理", "阶段门批准人"]
+    },
+    {
+      "userId": "user-product-owner",
+      "name": "产品经理",
+      "roles": ["产品经理"]
+    },
+    {
+      "userId": "user-system-lead",
+      "name": "系统工程师",
+      "roles": ["系统工程师"]
+    },
+    {
+      "userId": "user-ee-lead",
+      "name": "硬件工程师",
+      "roles": ["硬件工程师", "责任工程师"]
+    },
+    {
+      "userId": "user-me-lead",
+      "name": "结构工程师",
+      "roles": ["结构工程师", "责任工程师"]
+    },
+    {
+      "userId": "user-fw-lead",
+      "name": "固件工程师",
+      "roles": ["固件工程师", "责任工程师"]
+    },
+    {
+      "userId": "user-test-lead",
+      "name": "测试工程师",
+      "roles": ["测试工程师", "责任工程师"]
+    },
+    {
+      "userId": "user-quality-lead",
+      "name": "质量工程师",
+      "roles": ["质量工程师", "质量负责人"]
+    },
+    {
+      "userId": "user-supply-lead",
+      "name": "供应链工程师",
+      "roles": ["供应链工程师"]
+    },
+    {
+      "userId": "user-mfg-lead",
+      "name": "制造工程师",
+      "roles": ["制造工程师", "NPI 工程师"]
+    }
+  ]
+}
+

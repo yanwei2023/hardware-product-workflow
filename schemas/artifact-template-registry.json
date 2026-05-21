@@ -1,0 +1,455 @@
+{
+  "version": "0.1.0",
+  "description": "第一版交付物模板注册表。系统根据 artifactType 找到对应模板、必填字段和审核规则。",
+  "templates": [
+    {
+      "artifactType": "BUSINESS_CASE",
+      "templateKey": "business_case_v0_1",
+      "name": "商业目标与立项说明模板",
+      "path": "templates/artifacts/business-case.md",
+      "requiredReviewRoles": [
+        "产品经理",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "项目背景",
+        "商业目标",
+        "目标用户",
+        "范围边界",
+        "资源需求",
+        "主要风险",
+        "立项结论"
+      ]
+    },
+    {
+      "artifactType": "PRD",
+      "templateKey": "prd_v0_1",
+      "name": "PRD 产品需求文档模板",
+      "path": "templates/artifacts/prd.md",
+      "requiredReviewRoles": [
+        "产品经理",
+        "系统工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "产品目标",
+        "用户与场景",
+        "功能需求",
+        "性能需求",
+        "约束条件",
+        "验收标准",
+        "未决问题"
+      ]
+    },
+    {
+      "artifactType": "PROJECT_PLAN",
+      "templateKey": "project_plan_v0_1",
+      "name": "项目计划模板",
+      "path": "templates/artifacts/project-plan.md",
+      "requiredReviewRoles": [
+        "项目经理"
+      ],
+      "requiredSections": [
+        "项目目标",
+        "阶段计划",
+        "角色分工",
+        "关键里程碑",
+        "依赖关系",
+        "风险",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "RISK_REGISTER",
+      "templateKey": "risk_register_v0_1",
+      "name": "风险清单模板",
+      "path": "templates/artifacts/risk-register.md",
+      "requiredReviewRoles": [
+        "项目经理",
+        "质量工程师"
+      ],
+      "requiredSections": [
+        "风险列表",
+        "等级",
+        "影响范围",
+        "缓解措施",
+        "负责人",
+        "状态",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "REQUIREMENT_TRACE_MATRIX",
+      "templateKey": "requirement_trace_matrix_v0_1",
+      "name": "需求追踪矩阵模板",
+      "path": "templates/artifacts/requirement-trace-matrix.md",
+      "requiredReviewRoles": [
+        "产品经理",
+        "系统工程师",
+        "测试工程师"
+      ],
+      "requiredSections": [
+        "需求列表",
+        "设计映射",
+        "测试映射",
+        "覆盖缺口",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "SYSTEM_ARCHITECTURE",
+      "templateKey": "system_architecture_v0_1",
+      "name": "系统架构模板",
+      "path": "templates/artifacts/system-architecture.md",
+      "requiredReviewRoles": [
+        "系统工程师",
+        "硬件工程师",
+        "结构工程师",
+        "固件工程师"
+      ],
+      "requiredSections": [
+        "系统目标",
+        "模块划分",
+        "接口定义",
+        "关键约束",
+        "跨角色输入",
+        "系统风险"
+      ]
+    },
+    {
+      "artifactType": "EE_DESIGN_REVIEW_PACK",
+      "templateKey": "ee_design_review_pack_v0_1",
+      "name": "硬件设计评审包模板",
+      "path": "templates/artifacts/ee-design-review-pack.md",
+      "requiredReviewRoles": [
+        "硬件工程师",
+        "系统工程师",
+        "测试工程师"
+      ],
+      "requiredSections": [
+        "设计输入",
+        "电路方案",
+        "原理图检查",
+        "BOM 风险",
+        "PCB 风险",
+        "测试点",
+        "未关闭问题",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "BOM_RISK_REPORT",
+      "templateKey": "bom_risk_report_v0_1",
+      "name": "BOM 风险报告模板",
+      "path": "templates/artifacts/bom-risk-report.md",
+      "requiredReviewRoles": [
+        "供应链工程师",
+        "硬件工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "BOM 概览",
+        "关键物料",
+        "供应风险",
+        "成本风险",
+        "替代料",
+        "未决事项",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "ME_DESIGN_REVIEW_PACK",
+      "templateKey": "me_design_review_pack_v0_1",
+      "name": "结构设计评审包模板",
+      "path": "templates/artifacts/me-design-review-pack.md",
+      "requiredReviewRoles": [
+        "结构工程师",
+        "硬件工程师",
+        "制造工程师"
+      ],
+      "requiredSections": [
+        "设计输入",
+        "结构方案",
+        "装配风险",
+        "材料工艺",
+        "DFM/DFA",
+        "未关闭问题",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "FW_DESIGN_REVIEW_PACK",
+      "templateKey": "fw_design_review_pack_v0_1",
+      "name": "固件设计评审包模板",
+      "path": "templates/artifacts/fw-design-review-pack.md",
+      "requiredReviewRoles": [
+        "固件工程师",
+        "硬件工程师",
+        "测试工程师"
+      ],
+      "requiredSections": [
+        "设计输入",
+        "固件架构",
+        "接口协议",
+        "状态机",
+        "测试策略",
+        "未关闭问题",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "TEST_PLAN",
+      "templateKey": "test_plan_v0_1",
+      "name": "测试计划模板",
+      "path": "templates/artifacts/test-plan.md",
+      "requiredReviewRoles": [
+        "测试工程师",
+        "产品经理",
+        "硬件工程师",
+        "固件工程师"
+      ],
+      "requiredSections": [
+        "测试目标",
+        "测试范围",
+        "样机与版本",
+        "测试项目",
+        "通过标准",
+        "设备资源",
+        "风险与限制",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "TEST_REPORT",
+      "templateKey": "test_report_v0_1",
+      "name": "测试报告模板",
+      "path": "templates/artifacts/test-report.md",
+      "requiredReviewRoles": [
+        "测试工程师",
+        "质量工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "测试概览",
+        "版本信息",
+        "结果汇总",
+        "失败项",
+        "问题单",
+        "风险判断",
+        "阶段退出建议",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "DVT_TEST_REPORT",
+      "templateKey": "dvt_test_report_v0_1",
+      "name": "DVT 测试报告模板",
+      "path": "templates/artifacts/dvt-test-report.md",
+      "requiredReviewRoles": [
+        "测试工程师",
+        "质量工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "测试概览",
+        "版本信息",
+        "可靠性结果",
+        "认证预测试",
+        "失败项",
+        "风险判断",
+        "DVT 退出建议",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "RELIABILITY_SUMMARY",
+      "templateKey": "reliability_summary_v0_1",
+      "name": "可靠性验证摘要模板",
+      "path": "templates/artifacts/reliability-summary.md",
+      "requiredReviewRoles": [
+        "质量工程师",
+        "测试工程师"
+      ],
+      "requiredSections": [
+        "验证范围",
+        "样本信息",
+        "结果汇总",
+        "失败项",
+        "风险判断",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "CERTIFICATION_READINESS",
+      "templateKey": "certification_readiness_v0_1",
+      "name": "认证准备状态模板",
+      "path": "templates/artifacts/certification-readiness.md",
+      "requiredReviewRoles": [
+        "质量工程师",
+        "硬件工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "认证范围",
+        "资料状态",
+        "预测试状态",
+        "风险",
+        "缺口",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "ISSUE_CLOSURE_PLAN",
+      "templateKey": "issue_closure_plan_v0_1",
+      "name": "问题关闭计划模板",
+      "path": "templates/artifacts/issue-closure-plan.md",
+      "requiredReviewRoles": [
+        "质量工程师",
+        "项目经理",
+        "责任工程师"
+      ],
+      "requiredSections": [
+        "基本信息",
+        "问题列表",
+        "关闭标准",
+        "计划时间",
+        "风险接受",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "FINAL_GATE_SUMMARY",
+      "templateKey": "gate_review_summary_v0_1",
+      "name": "阶段门评审摘要模板",
+      "path": "templates/artifacts/gate-review-summary.md",
+      "requiredReviewRoles": [
+        "项目经理",
+        "阶段门批准人"
+      ],
+      "requiredSections": [
+        "阶段目标",
+        "交付物状态",
+        "审核状态",
+        "风险状态",
+        "阻塞项",
+        "阶段门结论",
+        "后续条件"
+      ]
+    },
+    {
+      "artifactType": "ECO",
+      "templateKey": "eco_v0_1",
+      "name": "ECO 工程变更单模板",
+      "path": "templates/artifacts/eco.md",
+      "requiredReviewRoles": [
+        "变更发起人",
+        "硬件工程师",
+        "质量工程师",
+        "供应链工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "变更原因",
+        "变更前",
+        "变更后",
+        "影响范围",
+        "验证要求",
+        "回退方案",
+        "审批结论"
+      ]
+    },
+    {
+      "artifactType": "MP_READINESS_PACK",
+      "templateKey": "mp_readiness_pack_v0_1",
+      "name": "量产准备审核包模板",
+      "path": "templates/artifacts/mp-readiness-pack.md",
+      "requiredReviewRoles": [
+        "制造工程师",
+        "质量负责人",
+        "供应链工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "生产准备",
+        "质量准备",
+        "供应准备",
+        "工艺准备",
+        "良率状态",
+        "未关闭问题",
+        "量产建议"
+      ]
+    },
+    {
+      "artifactType": "PVT_YIELD_REPORT",
+      "templateKey": "pvt_yield_report_v0_1",
+      "name": "PVT 良率报告模板",
+      "path": "templates/artifacts/pvt-yield-report.md",
+      "requiredReviewRoles": [
+        "制造工程师",
+        "质量工程师"
+      ],
+      "requiredSections": [
+        "批次信息",
+        "良率汇总",
+        "失败原因",
+        "改善措施",
+        "未关闭问题",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "PROCESS_READINESS",
+      "templateKey": "process_readiness_v0_1",
+      "name": "工艺准备状态模板",
+      "path": "templates/artifacts/process-readiness.md",
+      "requiredReviewRoles": [
+        "NPI 工程师",
+        "制造工程师"
+      ],
+      "requiredSections": [
+        "工艺路线",
+        "治具状态",
+        "作业指导书",
+        "生产测试",
+        "风险",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "SUPPLY_READINESS",
+      "templateKey": "supply_readiness_v0_1",
+      "name": "供应准备状态模板",
+      "path": "templates/artifacts/supply-readiness.md",
+      "requiredReviewRoles": [
+        "供应链工程师",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "关键物料",
+        "供应商状态",
+        "交期风险",
+        "库存状态",
+        "替代方案",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "QUALITY_RELEASE_SUMMARY",
+      "templateKey": "quality_release_summary_v0_1",
+      "name": "质量放行摘要模板",
+      "path": "templates/artifacts/quality-release-summary.md",
+      "requiredReviewRoles": [
+        "质量负责人",
+        "项目经理"
+      ],
+      "requiredSections": [
+        "质量目标",
+        "测试结论",
+        "问题关闭",
+        "风险接受",
+        "放行建议",
+        "审核结论"
+      ]
+    }
+  ]
+}
