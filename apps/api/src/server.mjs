@@ -119,7 +119,7 @@ export function resetDemoStore() {
   deleteStoreFromDisk();
   store = createDemoStore();
   persistStore();
-  return getDemoProject();
+  return getActiveProjectView();
 }
 
 function writeJson(res, statusCode, body) {
@@ -393,7 +393,7 @@ export function checkGate(gateId) {
   };
 }
 
-export function getDemoProject() {
+export function getActiveProjectView() {
   const project = currentProject();
   const gate = currentGate();
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
@@ -418,6 +418,10 @@ export function getDemoProject() {
     auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
     latestGateCheck: gate ? checkGate(gate.id) : null,
   };
+}
+
+export function getDemoProject() {
+  return getActiveProjectView();
 }
 
 export function getProjectSnapshot(projectId) {
@@ -535,7 +539,7 @@ export function createProject(body = {}) {
 
   return {
     statusCode: 201,
-    body: getDemoProject(),
+    body: getActiveProjectView(),
   };
 }
 
@@ -551,7 +555,7 @@ export function selectProject(projectId) {
   persistStore();
   return {
     statusCode: 200,
-    body: getDemoProject(),
+    body: getActiveProjectView(),
   };
 }
 
@@ -587,7 +591,7 @@ export function updateRolePair(rolePairId, body = {}) {
     statusCode: 200,
     body: {
       rolePair,
-      project: getDemoProject(),
+      project: getActiveProjectView(),
     },
   };
 }
@@ -1277,11 +1281,11 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {
       store = createDemoStore();
-      return writeJson(res, 200, getDemoProject());
+      return writeJson(res, 200, getActiveProjectView());
     }
 
     if (req.method === "GET" && url.pathname === "/projects/demo") {
-      return writeJson(res, 200, getDemoProject());
+      return writeJson(res, 200, getActiveProjectView());
     }
 
     if (req.method === "POST" && url.pathname === "/projects") {
