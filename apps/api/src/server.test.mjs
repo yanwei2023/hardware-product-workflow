@@ -436,11 +436,12 @@ test("risk close endpoint enforces risk decision permission", async () => {
 
   const approved = await dispatch("/risks/risk-thermal-margin/close", {
     method: "POST",
-    body: JSON.stringify({ userId: "user-project-manager" }),
+    body: JSON.stringify({ userId: "user-project-manager", comment: "热仿真复测通过。" }),
   });
 
   assert.equal(approved.status, 200);
   assert.equal(approved.body.risk.status, "CLOSED");
+  assert.equal(approved.body.risk.closedComment, "热仿真复测通过。");
 });
 
 test("current phase risk endpoint creates custom risks", async () => {

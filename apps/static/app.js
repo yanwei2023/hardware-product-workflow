@@ -641,7 +641,12 @@ function renderRisks() {
                     return `
                       <tr>
                         <td>${escapeHtml(phase?.name || risk.phaseId)}</td>
-                        <td>${escapeHtml(risk.title)}${risk.acceptedByUserId ? `<br><span class="muted">接受人：${escapeHtml(risk.acceptedByUserId)}</span>` : ""}</td>
+                        <td>
+                          ${escapeHtml(risk.title)}
+                          ${risk.acceptedByUserId ? `<br><span class="muted">接受人：${escapeHtml(risk.acceptedByUserId)}</span>` : ""}
+                          ${risk.closedByUserId ? `<br><span class="muted">关闭人：${escapeHtml(risk.closedByUserId)}</span>` : ""}
+                          ${risk.acceptedComment || risk.closedComment ? `<br><span class="muted">说明：${escapeHtml(risk.closedComment || risk.acceptedComment)}</span>` : ""}
+                        </td>
                         <td>${escapeHtml(risk.severity)}</td>
                         <td>${statusBadge(risk.status)}</td>
                         <td>
@@ -971,20 +976,24 @@ async function submitReview(workPackageId, decision) {
 }
 
 async function acceptRisk(riskId) {
+  const comment = window.prompt("请输入接受风险的说明", "已评估影响和缓解措施，可接受。");
+  if (comment === null) return;
   await withBusy(async () => {
     await api(`/risks/${riskId}/accept`, {
       method: "POST",
-      body: JSON.stringify({ userId: state.actorUserId }),
+      body: JSON.stringify({ userId: state.actorUserId, comment }),
     });
     await loadProject();
   });
 }
 
 async function closeRisk(riskId) {
+  const comment = window.prompt("请输入关闭风险的说明", "风险已处理并验证关闭。");
+  if (comment === null) return;
   await withBusy(async () => {
     await api(`/risks/${riskId}/close`, {
       method: "POST",
-      body: JSON.stringify({ userId: state.actorUserId }),
+      body: JSON.stringify({ userId: state.actorUserId, comment }),
     });
     await loadProject();
   });

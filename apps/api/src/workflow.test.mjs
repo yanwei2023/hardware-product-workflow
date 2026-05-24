@@ -285,9 +285,12 @@ test("risk close uses the same privileged roles as risk acceptance", () => {
 
   const approved = workflow.updateRiskStatus("risk-thermal-margin", "CLOSED", {
     userId: "user-quality-lead",
+    comment: "热仿真复测通过。",
   });
   assert.equal(approved.statusCode, 200);
   assert.equal(approved.body.risk.status, "CLOSED");
+  assert.equal(approved.body.risk.closedComment, "热仿真复测通过。");
+  assert.equal(approved.body.risk.closedByUserId, "user-quality-lead");
 });
 
 test("review decisions are constrained to known workflow values", () => {
@@ -458,10 +461,14 @@ test("project risk register summarizes blocking and resolved risks", () => {
   assert.equal(register.risks[0].blocksGate, true);
   assert.equal(register.risks[0].phaseName, "EVT Exit");
 
-  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", { userId: "user-project-manager" });
+  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
+    userId: "user-project-manager",
+    comment: "项目经理接受该残余风险。",
+  });
   register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.summary.openBlockingRiskCount, 0);
   assert.equal(register.summary.acceptedRiskCount, 1);
+  assert.equal(register.risks[0].decisionComment, "项目经理接受该残余风险。");
   assert.equal(workflow.getProjectRiskRegister("missing-project"), null);
 });
 

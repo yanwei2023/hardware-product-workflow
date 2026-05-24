@@ -234,8 +234,10 @@ function renderProjectSnapshotMarkdown(snapshot) {
     )
     .join("\n");
   const riskRows = snapshot.risks.length
-    ? snapshot.risks.map((risk) => `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} |`).join("\n")
-    : "| 无 | - | - | - |";
+    ? snapshot.risks
+        .map((risk) => `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.decisionComment || "-"} |`)
+        .join("\n")
+    : "| 无 | - | - | - | - |";
   const auditRows = snapshot.auditEvents.length
     ? snapshot.auditEvents
         .slice(-12)
@@ -282,8 +284,8 @@ ${workPackageRows}
 
 ## 风险
 
-| 阶段 | 风险 | 严重度 | 状态 |
-|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 处置说明 |
+|---|---|---|---|---|
 ${riskRows}
 
 ## 最近通知
@@ -355,10 +357,10 @@ function renderRiskRegisterMarkdown(register) {
     ? register.risks
         .map(
           (risk) =>
-            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.acceptedByUserId || "-"} |`,
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.decisionUserId || "-"} | ${risk.decisionComment || "-"} |`,
         )
         .join("\n")
-    : "| 无 | - | - | - | - | - |";
+    : "| 无 | - | - | - | - | - | - |";
 
   return `# ${register.project.name} 风险台账
 
@@ -375,8 +377,8 @@ function renderRiskRegisterMarkdown(register) {
 
 ## 风险明细
 
-| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 接受人 |
-|---|---|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 处置人 | 处置说明 |
+|---|---|---|---|---|---|---|
 ${riskRows}
 `;
 }
@@ -686,6 +688,8 @@ export function getProjectRiskRegister(projectId) {
     .map((risk) => ({
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
+      decisionUserId: risk.closedByUserId || risk.acceptedByUserId || null,
+      decisionComment: risk.closedComment || risk.acceptedComment || "",
       blocksGate:
         (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
         risk.status !== "CLOSED" &&
@@ -1838,9 +1842,19 @@ export function updateRiskStatus(riskId, status, body = {}) {
   risk.status = status;
   if (status === "ACCEPTED") {
     risk.acceptedByUserId = actorUserId;
+    risk.acceptedAt = new Date().toISOString();
+    risk.acceptedComment = body.comment || "";
   }
 
-  audit(`RISK_${status}`, "human", actorUserId, "risk", risk.id);
+  if (status === "CLOSED") {
+    risk.closedByUserId = actorUserId;
+    risk.closedAt = new Date().toISOString();
+    risk.closedComment = body.comment || "";
+  }
+
+  audit(`RISK_${status}`, "human", actorUserId, "risk", risk.id, {
+    comment: body.comment || "",
+  });
   notifyRole("项目经理", {
     title: status === "ACCEPTED" ? "风险已接受" : "风险已关闭",
     message: `${risk.title} 状态更新为 ${status}。`,
