@@ -322,6 +322,30 @@ test("risk creation and role assignment reject unknown values", () => {
   assert.equal(invalidRolePair.body.error, "负责人用户不存在");
 });
 
+test("work package schedule tracks overdue and due soon owner work", () => {
+  const overdue = workflow.updateWorkPackageSchedule("wp-evt_exit-evt_test_report", {
+    dueAt: "2020-01-01",
+    actorUserId: "user-project-manager",
+  });
+  assert.equal(overdue.statusCode, 200);
+  assert.equal(overdue.body.workPackage.scheduleStatus, "OVERDUE");
+
+  let testLeadItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(testLeadItems.scheduleAlerts.length, 1);
+  assert.equal(testLeadItems.scheduleAlerts[0].scheduleStatus, "OVERDUE");
+
+  const project = workflow.getDemoProject();
+  assert.equal(project.scheduleSummary.overdueWorkPackageCount, 1);
+
+  const clear = workflow.updateWorkPackageSchedule("wp-evt_exit-evt_test_report", {
+    dueAt: "",
+    actorUserId: "user-project-manager",
+  });
+  assert.equal(clear.body.workPackage.scheduleStatus, "UNSCHEDULED");
+  testLeadItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(testLeadItems.scheduleAlerts.length, 0);
+});
+
 test("audit events keep payload details and stay scoped to the active project", () => {
   runAgent("wp-evt_exit-evt_test_report", "test_agent");
   const denied = workflow.submitHumanReview({
@@ -428,7 +452,16 @@ test("project snapshot summarizes project state without changing active project"
   assert.equal(createdSnapshot.project.name, "Snapshot Device");
   assert.equal(createdSnapshot.summary.phaseCount, 7);
   assert.equal(createdSnapshot.summary.workPackageCount, createdSnapshot.workPackages.length);
+  assert.equal(createdSnapshot.summary.overdueWorkPackageCount, 0);
   assert.equal(createdSnapshot.currentPhase.name, "EVT Exit");
+
+  workflow.updateWorkPackageSchedule(`${created.body.project.id}-wp-evt_exit-evt_test_report`, {
+    dueAt: "2020-01-01",
+    actorUserId: "user-project-manager",
+  });
+  const scheduledSnapshot = workflow.getProjectSnapshot(created.body.project.id);
+  assert.equal(scheduledSnapshot.summary.overdueWorkPackageCount, 1);
+  assert.equal(scheduledSnapshot.workPackages.some((item) => item.scheduleStatus === "OVERDUE"), true);
 
   const demoSnapshot = workflow.getProjectSnapshot("project-smart-controller");
   assert.equal(demoSnapshot.project.name, "智能控制器项目");

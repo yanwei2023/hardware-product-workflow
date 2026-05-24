@@ -198,6 +198,33 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.body.total, 1);
 });
 
+test("work package schedule endpoint updates due dates and action items", async () => {
+  const updateResult = await dispatch("/work-packages/wp-evt_exit-evt_test_report/schedule", {
+    method: "PATCH",
+    body: JSON.stringify({
+      dueAt: "2020-01-01",
+      actorUserId: "user-project-manager",
+    }),
+  });
+  assert.equal(updateResult.status, 200);
+  assert.equal(updateResult.body.workPackage.dueAt, "2020-01-01");
+  assert.equal(updateResult.body.workPackage.scheduleStatus, "OVERDUE");
+
+  const actionItems = await dispatch("/users/user-test-lead/action-items");
+  assert.equal(actionItems.body.scheduleAlerts.length, 1);
+  assert.equal(actionItems.body.scheduleAlerts[0].workPackageId, "wp-evt_exit-evt_test_report");
+});
+
+test("work package schedule endpoint validates dates", async () => {
+  const result = await dispatch("/work-packages/wp-evt_exit-evt_test_report/schedule", {
+    method: "PATCH",
+    body: JSON.stringify({ dueAt: "tomorrow" }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "dueAt 必须是 YYYY-MM-DD 格式");
+});
+
 test("notification endpoints show and mark user notifications", async () => {
   await dispatch("/agent-runs", {
     method: "POST",

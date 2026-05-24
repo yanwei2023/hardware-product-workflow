@@ -27,6 +27,7 @@ const staticRoot = path.join(workspaceRoot, "apps/static");
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+const closedWorkPackageStatuses = new Set(["HUMAN_APPROVED", "LOCKED", "REJECTED", "CANCELLED"]);
 
 function validationError(message, details = {}) {
   return {
@@ -36,6 +37,33 @@ function validationError(message, details = {}) {
       ...details,
     },
   };
+}
+
+function dateOnly(value = new Date()) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function daysUntil(dateValue, fromValue = new Date()) {
+  const target = Date.parse(`${dateValue}T00:00:00.000Z`);
+  const from = Date.parse(`${dateOnly(fromValue)}T00:00:00.000Z`);
+  return Math.round((target - from) / 86400000);
+}
+
+function workPackageScheduleStatus(workPackage, today = new Date()) {
+  if (!workPackage.dueAt) {
+    return "UNSCHEDULED";
+  }
+  if (closedWorkPackageStatuses.has(workPackage.status)) {
+    return "DONE";
+  }
+  const remainingDays = daysUntil(workPackage.dueAt, today);
+  if (remainingDays < 0) {
+    return "OVERDUE";
+  }
+  if (remainingDays <= 3) {
+    return "DUE_SOON";
+  }
+  return "ON_TRACK";
 }
 
 export function createDemoStore() {
@@ -200,7 +228,10 @@ function renderProjectSnapshotMarkdown(snapshot) {
     .map((phase) => `| ${phase.sequence} | ${phase.name} | ${phase.status} |`)
     .join("\n");
   const workPackageRows = snapshot.workPackages
-    .map((item) => `| ${item.phaseName} | ${item.title} | ${item.requiredArtifactType} | ${item.status} | ${item.ownerUserId || "-"} |`)
+    .map(
+      (item) =>
+        `| ${item.phaseName} | ${item.title} | ${item.requiredArtifactType} | ${item.status} | ${item.dueAt || "-"} | ${item.scheduleStatus || "-"} | ${item.ownerUserId || "-"} |`,
+    )
     .join("\n");
   const riskRows = snapshot.risks.length
     ? snapshot.risks.map((risk) => `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} |`).join("\n")
@@ -230,6 +261,8 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 阶段：${snapshot.summary.phaseCount}
 - 工作包：${snapshot.summary.workPackageCount}
 - 已批准工作包：${snapshot.summary.approvedWorkPackageCount}
+- 逾期工作包：${snapshot.summary.overdueWorkPackageCount}
+- 临期工作包：${snapshot.summary.dueSoonWorkPackageCount}
 - 风险：${snapshot.summary.riskCount}
 - 打开高风险：${snapshot.summary.openHighRiskCount}
 - 站内通知：${snapshot.summary.notificationCount}
@@ -243,8 +276,8 @@ ${phaseRows}
 
 ## 工作包
 
-| 阶段 | 工作包 | 交付物类型 | 状态 | 负责人 |
-|---|---|---|---|---|
+| 阶段 | 工作包 | 交付物类型 | 状态 | 截止日期 | 计划状态 | 负责人 |
+|---|---|---|---|---|---|---|
 ${workPackageRows}
 
 ## 风险
@@ -287,6 +320,8 @@ function renderWorkPackageMarkdown(detail) {
 状态：${detail.workPackage.status}
 交付物类型：${detail.workPackage.requiredArtifactType}
 交付物模板：${detail.workPackage.artifactTemplateKey || "-"}
+截止日期：${detail.workPackage.dueAt || "-"}
+计划状态：${detail.scheduleStatus || "-"}
 负责人：${detail.rolePair?.humanUserId || "-"}
 Agent：${detail.rolePair?.agentKey || "-"}
 
@@ -536,6 +571,7 @@ export function getActiveProjectView() {
   const gate = currentGate();
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackageIds = new Set(store.workPackages.filter((item) => item.projectId === project.id).map((item) => item.id));
+  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   return {
     project,
     projects: store.projects,
@@ -547,7 +583,10 @@ export function getActiveProjectView() {
     phases: store.phases.filter((item) => item.projectId === project.id),
     gates: store.gates.filter((item) => item.projectId === project.id),
     rolePairs: store.rolePairs.filter((item) => item.projectId === project.id),
-    workPackages: store.workPackages.filter((item) => item.projectId === project.id),
+    workPackages: workPackages.map((item) => ({
+      ...item,
+      scheduleStatus: workPackageScheduleStatus(item),
+    })),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
     reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
@@ -555,6 +594,11 @@ export function getActiveProjectView() {
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
     latestGateCheck: gate ? checkGate(gate.id) : null,
+    scheduleSummary: {
+      overdueWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE").length,
+      dueSoonWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "DUE_SOON").length,
+      unscheduledWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "UNSCHEDULED").length,
+    },
   };
 }
 
@@ -590,6 +634,8 @@ export function getProjectSnapshot(projectId) {
       phaseCount: phases.length,
       workPackageCount: workPackages.length,
       approvedWorkPackageCount: workPackages.filter((item) => item.status === "HUMAN_APPROVED" || item.status === "LOCKED").length,
+      overdueWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE").length,
+      dueSoonWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "DUE_SOON").length,
       riskCount: risks.length,
       openHighRiskCount: risks.filter(
         (risk) =>
@@ -611,6 +657,7 @@ export function getProjectSnapshot(projectId) {
         phaseName: phases.find((phase) => phase.id === workPackage.phaseId)?.name || workPackage.phaseId,
         ownerUserId: rolePair?.humanUserId || null,
         agentKey: rolePair?.agentKey || null,
+        scheduleStatus: workPackageScheduleStatus(workPackage),
       };
     }),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
@@ -1173,6 +1220,47 @@ export function updateRolePair(rolePairId, body = {}) {
   };
 }
 
+export function updateWorkPackageSchedule(workPackageId, body = {}) {
+  const workPackage = store.workPackages.find((item) => item.id === workPackageId);
+  if (!workPackage) {
+    return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+
+  const dueAt = String(body.dueAt || "").trim();
+  if (dueAt && !/^\d{4}-\d{2}-\d{2}$/.test(dueAt)) {
+    return validationError("dueAt 必须是 YYYY-MM-DD 格式", {
+      dueAt,
+    });
+  }
+
+  workPackage.dueAt = dueAt || null;
+  audit("WORK_PACKAGE_SCHEDULE_UPDATED", "human", body.actorUserId || "user-project-manager", "workPackage", workPackage.id, {
+    dueAt: workPackage.dueAt,
+    scheduleStatus: workPackageScheduleStatus(workPackage),
+  });
+
+  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  notifyUser(rolePair?.humanUserId, {
+    title: "工作包截止日期已更新",
+    message: `${workPackage.title} 的截止日期更新为 ${workPackage.dueAt || "未设置"}。`,
+    type: "INFO",
+    objectType: "workPackage",
+    objectId: workPackage.id,
+  });
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: {
+      workPackage: {
+        ...workPackage,
+        scheduleStatus: workPackageScheduleStatus(workPackage),
+      },
+      project: getActiveProjectView(),
+    },
+  };
+}
+
 export function getWorkPackageDetail(workPackageId) {
   const workPackage = store.workPackages.find((item) => item.id === workPackageId);
   if (!workPackage) {
@@ -1185,6 +1273,7 @@ export function getWorkPackageDetail(workPackageId) {
     artifacts: store.artifactVersions.filter((item) => item.workPackageId === workPackageId),
     reviews: store.reviews.filter((item) => item.workPackageId === workPackageId),
     agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
+    scheduleStatus: workPackageScheduleStatus(workPackage),
   };
 }
 
@@ -1198,8 +1287,22 @@ export function getUserActionItems(userId) {
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   const pendingReviews = [];
+  const scheduleAlerts = [];
 
   for (const workPackage of workPackages) {
+    const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+    const scheduleStatus = workPackageScheduleStatus(workPackage);
+    if (rolePair?.humanUserId === userId && (scheduleStatus === "OVERDUE" || scheduleStatus === "DUE_SOON")) {
+      scheduleAlerts.push({
+        type: "WORK_PACKAGE_SCHEDULE",
+        workPackageId: workPackage.id,
+        title: workPackage.title,
+        phaseId: workPackage.phaseId,
+        dueAt: workPackage.dueAt,
+        scheduleStatus,
+      });
+    }
+
     const pendingArtifact = [...store.artifactVersions]
       .reverse()
       .find((item) => item.workPackageId === workPackage.id && item.status === "PENDING_REVIEW");
@@ -1207,7 +1310,6 @@ export function getUserActionItems(userId) {
       continue;
     }
 
-    const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
     const artifactTemplate =
       (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
       loadArtifactTemplateByType(workPackage.requiredArtifactType);
@@ -1264,9 +1366,10 @@ export function getUserActionItems(userId) {
     userId,
     projectId: project.id,
     pendingReviews,
+    scheduleAlerts,
     riskDecisions,
     gateApprovals,
-    total: pendingReviews.length + riskDecisions.length + gateApprovals.length,
+    total: pendingReviews.length + scheduleAlerts.length + riskDecisions.length + gateApprovals.length,
   };
 }
 
@@ -1959,6 +2062,11 @@ async function handleUpdateRolePair(req, res, rolePairId) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleUpdateWorkPackageSchedule(req, res, workPackageId) {
+  const result = updateWorkPackageSchedule(workPackageId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleGateApproval(req, res, gateId) {
   const result = approveGate(gateId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -2121,6 +2229,11 @@ export const server = http.createServer(async (req, res) => {
       return result
         ? writeText(res, 200, result, "text/markdown; charset=utf-8")
         : writeJson(res, 404, { error: "工作包不存在" });
+    }
+
+    const workPackageScheduleMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/schedule$/);
+    if (req.method === "PATCH" && workPackageScheduleMatch) {
+      return handleUpdateWorkPackageSchedule(req, res, workPackageScheduleMatch[1]);
     }
 
     if (req.method === "GET" && url.pathname === "/templates/hardware") {

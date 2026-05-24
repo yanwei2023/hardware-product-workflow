@@ -33,6 +33,11 @@ const statusText = {
   READY: "可通过",
   UNREAD: "未读",
   READ: "已读",
+  UNSCHEDULED: "未排期",
+  ON_TRACK: "正常",
+  DUE_SOON: "临期",
+  OVERDUE: "逾期",
+  DONE: "完成",
   LOCKED: "已锁定",
   IN_PROGRESS: "进行中",
 };
@@ -368,6 +373,10 @@ function renderOverview() {
         <h3>打开高风险</h3>
         <p class="metric">${state.project.risks.filter((risk) => (risk.severity === "HIGH" || risk.severity === "CRITICAL") && risk.status === "OPEN").length}</p>
       </article>
+      <article class="panel">
+        <h3>逾期/临期</h3>
+        <p class="metric">${state.project.scheduleSummary?.overdueWorkPackageCount || 0}/${state.project.scheduleSummary?.dueSoonWorkPackageCount || 0}</p>
+      </article>
     </div>
     <article class="panel">
       <div class="detail-head">
@@ -412,6 +421,15 @@ function renderActionItems() {
         <tr>
           <td>工作包审核</td>
           <td>${escapeHtml(item.title)}</td>
+          <td><button onclick="goWorkPackage('${item.workPackageId}')">处理</button></td>
+        </tr>
+      `,
+    ),
+    ...actionItems.scheduleAlerts.map(
+      (item) => `
+        <tr>
+          <td>计划提醒</td>
+          <td>${escapeHtml(item.title)} · ${statusText[item.scheduleStatus] || item.scheduleStatus} · ${escapeHtml(item.dueAt)}</td>
           <td><button onclick="goWorkPackage('${item.workPackageId}')">处理</button></td>
         </tr>
       `,
@@ -490,7 +508,7 @@ function renderWorkPackages() {
                 <button class="work-item ${item.id === state.selectedWorkPackageId ? "selected" : ""}" onclick="selectWorkPackage('${item.id}')">
                   <strong>${escapeHtml(item.title)}</strong>
                   <span>${escapeHtml(item.requiredArtifactType)}</span>
-                  <span>${statusBadge(item.status)} ${artifact ? statusBadge(artifact.status) : ""}</span>
+                  <span>${statusBadge(item.status)} ${statusBadge(item.scheduleStatus)} ${artifact ? statusBadge(artifact.status) : ""}</span>
                 </button>
               `;
             })
@@ -516,6 +534,7 @@ function renderWorkPackageDetail(workPackage) {
       <div>
         <h3>${escapeHtml(workPackage.title)}</h3>
         <p class="muted">${escapeHtml(workPackage.requiredArtifactType)} · ${escapeHtml(workPackage.artifactTemplateKey)}</p>
+        <p class="muted">截止日期：${escapeHtml(workPackage.dueAt || "未设置")} · ${statusBadge(workPackage.scheduleStatus)}</p>
       </div>
       <div>${statusBadge(workPackage.status)}</div>
     </div>
@@ -528,6 +547,15 @@ function renderWorkPackageDetail(workPackage) {
       <button class="ghost" onclick="runInvalidAgent('${workPackage.id}')" ${state.busy ? "disabled" : ""}>模拟无效输出</button>
       <button class="ghost" onclick="openWorkPackageMarkdown('${workPackage.id}')">导出 Markdown</button>
     </div>
+
+    <section class="subpanel">
+      <h4>计划</h4>
+      <label class="field">
+        截止日期
+        <input id="dueAt-${escapeHtml(workPackage.id)}" type="date" value="${escapeHtml(workPackage.dueAt || "")}" />
+      </label>
+      <button class="ghost" onclick="updateWorkPackageSchedule('${workPackage.id}')" ${state.busy ? "disabled" : ""}>保存截止日期</button>
+    </section>
 
     <section class="subpanel">
       <h4>模板校验</h4>
@@ -874,6 +902,20 @@ async function markAllNotificationsRead() {
     await api(`/users/${state.actorUserId}/notifications/read`, {
       method: "POST",
       body: JSON.stringify({}),
+    });
+    await loadProject();
+  });
+}
+
+async function updateWorkPackageSchedule(workPackageId) {
+  await withBusy(async () => {
+    const dueAt = q(`#dueAt-${CSS.escape(workPackageId)}`).value;
+    await api(`/work-packages/${workPackageId}/schedule`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        dueAt,
+        actorUserId: state.actorUserId,
+      }),
     });
     await loadProject();
   });

@@ -302,16 +302,29 @@ textarea {
 .status.GATE_BLOCKED,
 .status.BLOCKED,
 .status.NEEDS_AGENT_REVISION,
-.status.OUTPUT_INVALID {
+.status.OUTPUT_INVALID,
+.status.OVERDUE {
   background: #fee2e2;
   color: var(--red);
 }
 
 .status.AGENT_DRAFT_READY,
 .status.PENDING_REVIEW,
-.status.UNREAD {
+.status.UNREAD,
+.status.DUE_SOON {
   background: #fef3c7;
   color: var(--amber);
+}
+
+.status.ON_TRACK,
+.status.DONE {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.status.UNSCHEDULED {
+  background: #eef2f7;
+  color: var(--muted);
 }
 
 .table {
