@@ -122,6 +122,22 @@ test("risk close uses the same privileged roles as risk acceptance", () => {
   assert.equal(approved.body.risk.status, "CLOSED");
 });
 
+test("user action items reflect review and risk responsibilities", () => {
+  let testLeadItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(testLeadItems.pendingReviews.length, 1);
+  assert.equal(testLeadItems.pendingReviews[0].workPackageId, "wp-evt_exit-evt_test_plan");
+  assert.equal(testLeadItems.riskDecisions.length, 0);
+
+  const projectManagerItems = workflow.getUserActionItems("user-project-manager");
+  assert.equal(projectManagerItems.pendingReviews.length, 0);
+  assert.equal(projectManagerItems.riskDecisions.length, 1);
+  assert.equal(projectManagerItems.riskDecisions[0].riskId, "risk-thermal-margin");
+
+  approveWorkPackage("wp-evt_exit-evt_test_plan", "user-test-lead");
+  testLeadItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(testLeadItems.pendingReviews.length, 0);
+});
+
 test("project creation expands the standard phase template", () => {
   const result = workflow.createProject({
     name: "智能门锁 V2",
@@ -155,6 +171,17 @@ test("gate approval locks the current phase and advances to the next phase", () 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");
   assert.equal(project.phases.find((phase) => phase.id === "phase-dvt_exit").status, "GATE_BLOCKED");
+});
+
+test("ready gate appears in approver action items", () => {
+  completeEvtWorkPackages();
+  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
+    userId: "user-project-manager",
+  });
+
+  const projectManagerItems = workflow.getUserActionItems("user-project-manager");
+  assert.equal(projectManagerItems.gateApprovals.length, 1);
+  assert.equal(projectManagerItems.gateApprovals[0].gateId, "gate-evt_exit");
 });
 
 test("gate approval advances within the same project in multi-project stores", () => {

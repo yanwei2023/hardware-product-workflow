@@ -65,6 +65,16 @@ test("project endpoint returns the current workflow snapshot", async () => {
   assert.equal(result.body.latestGateCheck.status, "BLOCKED");
 });
 
+test("action items endpoint returns user-specific work", async () => {
+  const result = await dispatch("/users/user-project-manager/action-items");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.userId, "user-project-manager");
+  assert.equal(result.body.pendingReviews.length, 0);
+  assert.equal(result.body.riskDecisions.length, 1);
+  assert.equal(result.body.total, 1);
+});
+
 test("agent run endpoint rejects invalid draft output", async () => {
   const result = await dispatch("/agent-runs", {
     method: "POST",

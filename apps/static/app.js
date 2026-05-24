@@ -1,5 +1,6 @@
 const state = {
   project: null,
+  actionItems: null,
   users: [],
   actorUserId: "user-project-manager",
   currentView: "overview",
@@ -77,9 +78,14 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users] = await Promise.all([api("/projects/demo"), api("/users/demo")]);
+  const [project, users, actionItems] = await Promise.all([
+    api("/projects/demo"),
+    api("/users/demo"),
+    api(`/users/${state.actorUserId}/action-items`),
+  ]);
   state.project = project;
   state.users = users.users;
+  state.actionItems = actionItems;
   if (!state.selectedWorkPackageId) {
     state.selectedWorkPackageId = workPackagesForActivePhase()[0]?.id || null;
   }
@@ -261,6 +267,65 @@ function renderOverview() {
         <p class="metric">${workPackagesForActivePhase().length}</p>
       </article>
     </div>
+    <article class="panel">
+      <div class="detail-head">
+        <div>
+          <h3>我的待办</h3>
+          <p class="muted">${escapeHtml(currentActorName())}</p>
+        </div>
+        <p class="metric">${state.actionItems?.total || 0}</p>
+      </div>
+      ${renderActionItems()}
+    </article>
+  `;
+}
+
+function currentActorName() {
+  const user = state.users.find((item) => item.userId === state.actorUserId);
+  return user ? `${user.name} · ${user.roles.join("/")}` : state.actorUserId;
+}
+
+function renderActionItems() {
+  const actionItems = state.actionItems;
+  if (!actionItems || actionItems.total === 0) {
+    return "<p class='muted'>当前没有待办。</p>";
+  }
+
+  const rows = [
+    ...actionItems.pendingReviews.map(
+      (item) => `
+        <tr>
+          <td>工作包审核</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td><button onclick="goWorkPackage('${item.workPackageId}')">处理</button></td>
+        </tr>
+      `,
+    ),
+    ...actionItems.riskDecisions.map(
+      (item) => `
+        <tr>
+          <td>风险决策</td>
+          <td>${escapeHtml(item.title)} · ${escapeHtml(item.severity)}</td>
+          <td><button onclick="goGate()">处理</button></td>
+        </tr>
+      `,
+    ),
+    ...actionItems.gateApprovals.map(
+      (item) => `
+        <tr>
+          <td>阶段门批准</td>
+          <td>${escapeHtml(item.title)}</td>
+          <td><button onclick="goGate()">处理</button></td>
+        </tr>
+      `,
+    ),
+  ].join("");
+
+  return `
+    <table class="table">
+      <thead><tr><th>类型</th><th>事项</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
   `;
 }
 
@@ -458,6 +523,12 @@ function goWorkPackage(workPackageId) {
   render();
 }
 
+function goGate() {
+  state.currentView = "gate";
+  document.querySelectorAll(".nav").forEach((item) => item.classList.toggle("active", item.dataset.view === "gate"));
+  render();
+}
+
 async function runAgent(workPackageId) {
   await withBusy(async () => {
     await api("/agent-runs", {
@@ -606,6 +677,7 @@ document.querySelectorAll(".nav").forEach((button) => {
 q("#refresh").addEventListener("click", () => withBusy(loadProject));
 q("#actorUser").addEventListener("change", (event) => {
   state.actorUserId = event.target.value;
+  withBusy(loadProject);
 });
 q("#resetDemo").addEventListener("click", async () => {
   await withBusy(async () => {

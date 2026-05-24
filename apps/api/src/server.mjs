@@ -397,6 +397,83 @@ export function getWorkPackageDetail(workPackageId) {
   };
 }
 
+export function getUserActionItems(userId) {
+  const project = currentProject();
+  const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
+  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
+  const pendingReviews = [];
+
+  for (const workPackage of workPackages) {
+    const pendingArtifact = [...store.artifactVersions]
+      .reverse()
+      .find((item) => item.workPackageId === workPackage.id && item.status === "PENDING_REVIEW");
+    if (!pendingArtifact) {
+      continue;
+    }
+
+    const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+    const artifactTemplate =
+      (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
+      loadArtifactTemplateByType(workPackage.requiredArtifactType);
+    const reviewPermission = canReviewWorkPackage(userId, workPackage, rolePair, artifactTemplate);
+    if (!reviewPermission.allowed) {
+      continue;
+    }
+
+    pendingReviews.push({
+      type: "WORK_PACKAGE_REVIEW",
+      workPackageId: workPackage.id,
+      title: workPackage.title,
+      phaseId: workPackage.phaseId,
+      artifactType: workPackage.requiredArtifactType,
+      canApprove: canApproveWorkPackage(userId, rolePair).allowed,
+    });
+  }
+
+  const riskPermission = canAcceptRisk(userId);
+  const riskDecisions = riskPermission.allowed
+    ? store.risks
+        .filter(
+          (risk) =>
+            risk.projectId === project.id &&
+            phaseIds.has(risk.phaseId) &&
+            (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+            risk.status === "OPEN",
+        )
+        .map((risk) => ({
+          type: "RISK_DECISION",
+          riskId: risk.id,
+          title: risk.title,
+          phaseId: risk.phaseId,
+          severity: risk.severity,
+        }))
+    : [];
+
+  const gateApprovalPermission = canApproveGate(userId);
+  const gateApprovals = [];
+  const gate = currentGate();
+  if (gate && gateApprovalPermission.allowed) {
+    const readiness = checkGate(gate.id);
+    if (readiness.status === "READY") {
+      gateApprovals.push({
+        type: "GATE_APPROVAL",
+        gateId: gate.id,
+        title: gate.name,
+        phaseId: gate.phaseId,
+      });
+    }
+  }
+
+  return {
+    userId,
+    projectId: project.id,
+    pendingReviews,
+    riskDecisions,
+    gateApprovals,
+    total: pendingReviews.length + riskDecisions.length + gateApprovals.length,
+  };
+}
+
 export function runAgentWorkPackage(body) {
   const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
   if (!workPackage) {
@@ -859,6 +936,11 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/users/demo") {
       return writeJson(res, 200, { users: getDemoUsers() });
+    }
+
+    const userActionItemsMatch = url.pathname.match(/^\/users\/([^/]+)\/action-items$/);
+    if (req.method === "GET" && userActionItemsMatch) {
+      return writeJson(res, 200, getUserActionItems(userActionItemsMatch[1]));
     }
 
     const workPackageMatch = url.pathname.match(/^\/work-packages\/([^/]+)$/);
