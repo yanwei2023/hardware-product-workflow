@@ -125,6 +125,54 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
   res.end(body);
 }
 
+function renderGateReviewPackMarkdown(pack) {
+  const evidenceRows = pack.evidence
+    .map(
+      (item) =>
+        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.reviewerUserId || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
+    )
+    .join("\n");
+  const riskRows = pack.risks.length
+    ? pack.risks
+        .map((risk) => `| ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "YES" : "NO"} |`)
+        .join("\n")
+    : "| 无 | - | - | NO |";
+  const blockerRows = pack.blockers.length
+    ? pack.blockers.map((blocker) => `- ${blocker.code}: ${blocker.message}`).join("\n")
+    : "- 无";
+
+  return `# ${pack.gate.name} 审核包
+
+项目：${pack.project?.name || "-"}
+阶段：${pack.phase?.name || "-"}
+阶段门状态：${pack.gate.status}
+就绪状态：${pack.readiness.status}
+
+## 摘要
+
+- 必需证据：${pack.summary.readyEvidenceCount}/${pack.summary.requiredEvidenceCount}
+- 阻塞项：${pack.summary.blockerCount}
+- 阻塞风险：${pack.summary.openBlockingRiskCount}
+- 可批准：${pack.summary.readyForApproval ? "是" : "否"}
+
+## 必需证据
+
+| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 审核人 | 结论 |
+|---|---|---|---|---|---|
+${evidenceRows}
+
+## 风险
+
+| 风险 | 严重度 | 状态 | 阻塞阶段门 |
+|---|---|---|---|
+${riskRows}
+
+## 阻塞项
+
+${blockerRows}
+`;
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -1174,6 +1222,14 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && gateReviewPackMatch) {
       const result = getGateReviewPack(gateReviewPackMatch[1]);
       return result ? writeJson(res, 200, result) : writeJson(res, 404, { error: "阶段门不存在" });
+    }
+
+    const gateReviewPackMarkdownMatch = url.pathname.match(/^\/gates\/([^/]+)\/review-pack\.md$/);
+    if (req.method === "GET" && gateReviewPackMarkdownMatch) {
+      const result = getGateReviewPack(gateReviewPackMarkdownMatch[1]);
+      return result
+        ? writeText(res, 200, renderGateReviewPackMarkdown(result), "text/markdown; charset=utf-8")
+        : writeJson(res, 404, { error: "阶段门不存在" });
     }
 
     const gateApproveMatch = url.pathname.match(/^\/gates\/([^/]+)\/approve$/);

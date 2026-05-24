@@ -35,10 +35,12 @@ async function dispatch(pathname, options = {}) {
         this.headers = headers;
       },
       end(rawBody) {
+        const text = rawBody ? String(rawBody) : "";
+        const contentType = this.headers?.["content-type"] || "";
         resolve({
           status: this.statusCode,
           headers: this.headers,
-          body: rawBody ? JSON.parse(String(rawBody)) : null,
+          body: contentType.includes("application/json") && text ? JSON.parse(text) : text || null,
         });
       },
     };
@@ -85,6 +87,16 @@ test("gate review pack endpoint returns evidence and blockers", async () => {
   assert.equal(result.body.summary.openBlockingRiskCount, 1);
   assert.equal(result.body.readiness.status, "BLOCKED");
   assert.equal(result.body.evidence.length, 3);
+});
+
+test("gate review pack markdown endpoint exports a readable package", async () => {
+  const result = await dispatch("/gates/gate-evt_exit/review-pack.md");
+
+  assert.equal(result.status, 200);
+  assert.match(result.headers["content-type"], /text\/markdown/);
+  assert.match(result.body, /# EVT Exit 阶段门 审核包/);
+  assert.match(result.body, /## 必需证据/);
+  assert.match(result.body, /EVT 测试计划/);
 });
 
 test("agent run endpoint rejects invalid draft output", async () => {

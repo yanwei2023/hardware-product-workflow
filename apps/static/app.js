@@ -433,6 +433,7 @@ function renderGate() {
       <h3>阶段门检查</h3>
       <p>${statusBadge(check.status)}</p>
       <button onclick="checkGate()" ${state.busy ? "disabled" : ""}>重新检查阶段门</button>
+      <button class="ghost" onclick="openGateReviewPackMarkdown()" ${state.busy ? "disabled" : ""}>导出审核包 Markdown</button>
       <button class="secondary" onclick="approveGate()" ${state.busy || check.status !== "READY" ? "disabled" : ""}>批准阶段门并进入下一阶段</button>
     </article>
     ${renderGateReviewPack()}
@@ -697,6 +698,13 @@ async function checkGate() {
     await api(`/gates/${gate.id}/check`);
     await loadProject();
   });
+}
+
+function openGateReviewPackMarkdown() {
+  const gate = activeGate();
+  if (gate) {
+    window.open(`/gates/${gate.id}/review-pack.md`, "_blank");
+  }
 }
 
 async function createNewProject() {
