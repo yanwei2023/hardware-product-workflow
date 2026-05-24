@@ -51,7 +51,7 @@
 | `GET` | `/gates/:id/approval-pack` | 查看阶段门批准时固化的审核包归档 |
 | `GET` | `/gates/:id/approval-pack.md` | 导出阶段门批准包 Markdown |
 | `GET` | `/users/:id/action-items` | 查看指定用户在当前项目中的待办 |
-| `GET` | `/users/:id/notifications` | 查看指定用户在当前项目中的站内通知 |
+| `GET` | `/users/:id/notifications` | 查看指定用户在当前项目中的站内通知，可用 `status` 或 `type` 筛选 |
 | `POST` | `/notifications/:id/read` | 将站内通知标记为已读 |
 | `POST` | `/users/:id/notifications/read` | 将指定用户在当前项目中的全部通知标记为已读 |
 
@@ -69,5 +69,6 @@
 - 角色负责人变更必须写入审计事件，并通知新负责人、旧负责人和项目经理。
 - 工作包 Markdown 导出必须带上最新交付物、模板校验结果、审核记录、活动记录和 Agent 草稿，便于离线归档。
 - 工作包截止日期必须生成逾期/临期状态，并进入负责人待办。
+- 站内通知必须支持未读和类型筛选，同时保留全量计数便于前端分段展示。
 - 风险台账必须按项目隔离，并标记哪些打开的高/严重风险会阻塞阶段门。
 - Agent 输出、审核、风险和阶段门事件必须生成可追踪的站内通知，允许单条或批量标记已读，并随项目快照导入/复制。

@@ -1704,17 +1704,40 @@ export function getUserActionItems(userId) {
   };
 }
 
-export function getUserNotifications(userId) {
+export function getUserNotifications(userId, filters = {}) {
   const project = currentProject();
-  const notifications = (store.notifications || [])
+  const allNotifications = (store.notifications || [])
     .filter((item) => item.userId === userId && item.projectId === project.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const statusFilter = String(filters.status || "").toUpperCase();
+  const typeFilter = String(filters.type || "").toUpperCase();
+  const notifications = allNotifications.filter((item) => {
+    if (statusFilter && item.status !== statusFilter) {
+      return false;
+    }
+    if (typeFilter && item.type !== typeFilter) {
+      return false;
+    }
+    return true;
+  });
 
   return {
     userId,
     projectId: project.id,
-    unreadCount: notifications.filter((item) => item.status === "UNREAD").length,
-    total: notifications.length,
+    unreadCount: allNotifications.filter((item) => item.status === "UNREAD").length,
+    total: allNotifications.length,
+    filteredCount: notifications.length,
+    filters: {
+      status: statusFilter || null,
+      type: typeFilter || null,
+    },
+    counts: {
+      unread: allNotifications.filter((item) => item.status === "UNREAD").length,
+      read: allNotifications.filter((item) => item.status === "READ").length,
+      action: allNotifications.filter((item) => item.type === "ACTION").length,
+      warning: allNotifications.filter((item) => item.type === "WARNING").length,
+      info: allNotifications.filter((item) => item.type === "INFO").length,
+    },
     notifications,
   };
 }
@@ -2668,7 +2691,7 @@ export const server = http.createServer(async (req, res) => {
 
     const userNotificationsMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications$/);
     if (req.method === "GET" && userNotificationsMatch) {
-      return writeJson(res, 200, getUserNotifications(userNotificationsMatch[1]));
+      return writeJson(res, 200, getUserNotifications(userNotificationsMatch[1], Object.fromEntries(url.searchParams)));
     }
 
     const userNotificationsReadMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications\/read$/);

@@ -351,6 +351,24 @@ textarea {
   gap: 8px;
 }
 
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.segmented button {
+  background: #eef2f7;
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.segmented button.active {
+  background: var(--blue);
+  color: #fff;
+}
+
 .inline-form {
   align-items: end;
   display: grid;

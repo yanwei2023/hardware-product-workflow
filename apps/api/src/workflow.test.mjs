@@ -485,7 +485,14 @@ test("notifications follow work package and risk events", () => {
   runAgent("wp-evt_exit-evt_test_report", "test_agent");
   let testLeadNotifications = workflow.getUserNotifications("user-test-lead");
   assert.equal(testLeadNotifications.unreadCount, 1);
+  assert.equal(testLeadNotifications.filteredCount, 1);
+  assert.equal(testLeadNotifications.counts.action, 1);
   assert.equal(testLeadNotifications.notifications[0].objectId, "wp-evt_exit-evt_test_report");
+
+  const actionNotifications = workflow.getUserNotifications("user-test-lead", { type: "ACTION" });
+  assert.equal(actionNotifications.filteredCount, 1);
+  const infoNotifications = workflow.getUserNotifications("user-test-lead", { type: "INFO" });
+  assert.equal(infoNotifications.filteredCount, 0);
 
   const readResult = workflow.markNotificationRead(testLeadNotifications.notifications[0].id, {
     userId: "user-test-lead",
@@ -493,6 +500,7 @@ test("notifications follow work package and risk events", () => {
   assert.equal(readResult.statusCode, 200);
   testLeadNotifications = workflow.getUserNotifications("user-test-lead");
   assert.equal(testLeadNotifications.unreadCount, 0);
+  assert.equal(workflow.getUserNotifications("user-test-lead", { status: "UNREAD" }).filteredCount, 0);
 
   workflow.createDemoRiskForCurrentPhase({ title: "供应商交期风险", severity: "HIGH" });
   const managerNotifications = workflow.getUserNotifications("user-project-manager");

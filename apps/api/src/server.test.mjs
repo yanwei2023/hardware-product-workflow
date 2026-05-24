@@ -357,7 +357,18 @@ test("notification endpoints show and mark user notifications", async () => {
   const listResult = await dispatch("/users/user-test-lead/notifications");
   assert.equal(listResult.status, 200);
   assert.equal(listResult.body.unreadCount, 1);
+  assert.equal(listResult.body.filteredCount, 1);
+  assert.equal(listResult.body.counts.action, 1);
   assert.equal(listResult.body.notifications[0].title, "工作包待审核");
+
+  const actionResult = await dispatch("/users/user-test-lead/notifications?type=ACTION");
+  assert.equal(actionResult.status, 200);
+  assert.equal(actionResult.body.filters.type, "ACTION");
+  assert.equal(actionResult.body.filteredCount, 1);
+
+  const infoResult = await dispatch("/users/user-test-lead/notifications?type=INFO");
+  assert.equal(infoResult.status, 200);
+  assert.equal(infoResult.body.filteredCount, 0);
 
   const readResult = await dispatch(`/notifications/${listResult.body.notifications[0].id}/read`, {
     method: "POST",
@@ -365,6 +376,10 @@ test("notification endpoints show and mark user notifications", async () => {
   });
   assert.equal(readResult.status, 200);
   assert.equal(readResult.body.notifications.unreadCount, 0);
+
+  const unreadResult = await dispatch("/users/user-test-lead/notifications?status=UNREAD");
+  assert.equal(unreadResult.status, 200);
+  assert.equal(unreadResult.body.filteredCount, 0);
 });
 
 test("notification endpoint marks all current user notifications read", async () => {

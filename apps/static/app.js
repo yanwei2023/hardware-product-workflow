@@ -10,6 +10,7 @@ const state = {
   actorUserId: "user-project-manager",
   currentView: "overview",
   selectedWorkPackageId: null,
+  notificationFilter: "ALL",
   busy: false,
 };
 
@@ -106,7 +107,7 @@ async function loadProject() {
   const gate = activeGate();
   const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
-    api(`/users/${state.actorUserId}/notifications`),
+    api(notificationPath()),
     gate ? api(`/gates/${gate.id}/review-pack`) : Promise.resolve(null),
   ]);
   state.actionItems = actionItems;
@@ -118,6 +119,15 @@ async function loadProject() {
   q("#projectMeta").textContent = `${state.project.project.name} · 当前阶段 ${activePhase()?.name || "-"}`;
   renderActorSelector();
   render();
+}
+
+function notificationPath() {
+  const filters = {
+    UNREAD: "?status=UNREAD",
+    ACTION: "?type=ACTION",
+    INFO: "?type=INFO",
+  };
+  return `/users/${state.actorUserId}/notifications${filters[state.notificationFilter] || ""}`;
 }
 
 function renderActorSelector() {
@@ -481,11 +491,33 @@ function renderActionItems() {
 
 function renderNotifications() {
   const notifications = state.notifications;
-  if (!notifications || notifications.total === 0) {
-    return "<p class='muted'>当前没有通知。</p>";
+  if (!notifications) {
+    return "<p class='muted'>通知加载中。</p>";
   }
+  const counts = notifications.counts || {};
+  const filters = [
+    ["ALL", "全部", notifications.total || 0],
+    ["UNREAD", "未读", counts.unread || 0],
+    ["ACTION", "行动项", counts.action || 0],
+    ["INFO", "信息", counts.info || 0],
+  ];
 
   return `
+    <div class="segmented">
+      ${filters
+        .map(
+          ([value, label, count]) => `
+            <button class="${state.notificationFilter === value ? "active" : ""}" onclick="setNotificationFilter('${value}')" ${state.busy ? "disabled" : ""}>
+              ${escapeHtml(label)} · ${escapeHtml(count)}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+    ${
+      notifications.filteredCount === 0
+        ? "<p class='muted'>当前筛选下没有通知。</p>"
+        : `
     <table class="table">
       <thead><tr><th>状态</th><th>通知</th><th>时间</th><th>操作</th></tr></thead>
       <tbody>
@@ -508,6 +540,8 @@ function renderNotifications() {
           .join("")}
       </tbody>
     </table>
+    `
+    }
   `;
 }
 
@@ -1022,6 +1056,11 @@ async function markAllNotificationsRead() {
     });
     await loadProject();
   });
+}
+
+async function setNotificationFilter(filter) {
+  state.notificationFilter = filter;
+  await withBusy(loadProject);
 }
 
 async function updateWorkPackageSchedule(workPackageId) {
