@@ -57,6 +57,16 @@ test("health endpoint reports the active project", async () => {
   assert.equal(result.body.projectCount, 1);
 });
 
+test("storage status endpoint reports persistence metadata", async () => {
+  const result = await dispatch("/storage/status");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.exists, true);
+  assert.equal(result.body.activeProjectId, "project-smart-controller");
+  assert.equal(result.body.projectCount, 1);
+  assert.ok(result.body.storePath.endsWith("store.json"));
+});
+
 test("project endpoint returns the current workflow snapshot", async () => {
   const result = await dispatch("/projects/demo");
 

@@ -24,6 +24,7 @@
 | 方法 | 路径 | 作用 |
 |---|---|---|
 | `GET` | `/health` | 检查后台是否运行 |
+| `GET` | `/storage/status` | 查看当前 JSON 存储文件与项目统计 |
 | `POST` | `/demo/reset` | 重置演示数据 |
 | `GET` | `/projects/demo` | 查看演示项目状态 |
 | `GET` | `/projects/:id/snapshot` | 导出项目快照 JSON |

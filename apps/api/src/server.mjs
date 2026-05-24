@@ -9,7 +9,7 @@ import {
   loadArtifactTemplateByType,
 } from "./artifactTemplateStore.mjs";
 import { validateArtifactMarkdown } from "./artifactValidator.mjs";
-import { deleteStoreFromDisk, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
+import { deleteStoreFromDisk, getStorePath, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
 import {
   canAcceptRisk,
   canCloseRisk,
@@ -98,6 +98,21 @@ saveStoreToDisk(store);
 
 function persistStore() {
   saveStoreToDisk(store);
+}
+
+export function getStorageStatus() {
+  const storePath = getStorePath();
+  const exists = fs.existsSync(storePath);
+  const stat = exists ? fs.statSync(storePath) : null;
+  return {
+    storePath,
+    exists,
+    sizeBytes: stat?.size || 0,
+    updatedAt: stat?.mtime?.toISOString() || null,
+    activeProjectId: store.activeProjectId,
+    projectCount: store.projects.length,
+    auditEventCount: store.auditEvents.length,
+  };
 }
 
 export function resetDemoStore() {
@@ -1254,6 +1269,10 @@ export const server = http.createServer(async (req, res) => {
         activeProjectId: store.activeProjectId,
         projectCount: store.projects.length,
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/storage/status") {
+      return writeJson(res, 200, getStorageStatus());
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {

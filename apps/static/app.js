@@ -2,6 +2,7 @@ const state = {
   project: null,
   actionItems: null,
   gateReviewPack: null,
+  storageStatus: null,
   users: [],
   actorUserId: "user-project-manager",
   currentView: "overview",
@@ -81,12 +82,14 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users] = await Promise.all([
+  const [project, users, storageStatus] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
+    api("/storage/status"),
   ]);
   state.project = project;
   state.users = users.users;
+  state.storageStatus = storageStatus;
   const gate = activeGate();
   const [actionItems, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
@@ -245,7 +248,31 @@ function renderProjects() {
           </tbody>
         </table>
       </article>
+      <article class="panel wide">
+        <h3>本地数据</h3>
+        ${renderStorageStatus()}
+      </article>
     </div>
+  `;
+}
+
+function renderStorageStatus() {
+  const status = state.storageStatus;
+  if (!status) {
+    return "<p class='muted'>加载中。</p>";
+  }
+
+  return `
+    <table class="table">
+      <tbody>
+        <tr><th>数据文件</th><td>${escapeHtml(status.storePath)}</td></tr>
+        <tr><th>文件状态</th><td>${status.exists ? "存在" : "不存在"}</td></tr>
+        <tr><th>文件大小</th><td>${escapeHtml(status.sizeBytes)} bytes</td></tr>
+        <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
+        <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
+        <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
+      </tbody>
+    </table>
   `;
 }
 

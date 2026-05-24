@@ -88,6 +88,15 @@ test("EVT gate stays blocked until required artifacts and high risks are handled
   assert.equal(gateCheck.status, "READY");
 });
 
+test("storage status exposes local persistence metadata", () => {
+  const status = workflow.getStorageStatus();
+
+  assert.equal(status.exists, true);
+  assert.equal(status.activeProjectId, "project-smart-controller");
+  assert.equal(status.projectCount, 1);
+  assert.ok(status.sizeBytes > 0);
+});
+
 test("gate review pack summarizes required evidence and readiness", () => {
   let pack = workflow.getGateReviewPack("gate-evt_exit");
   assert.equal(pack.gate.id, "gate-evt_exit");
