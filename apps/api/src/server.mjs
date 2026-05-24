@@ -16,6 +16,7 @@ import {
   canApproveGate,
   canApproveWorkPackage,
   canReviewWorkPackage,
+  findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
 
@@ -23,6 +24,19 @@ const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || "127.0.0.1";
 const workspaceRoot = path.resolve(import.meta.dirname, "../../..");
 const staticRoot = path.join(workspaceRoot, "apps/static");
+const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
+const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
+const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+
+function validationError(message, details = {}) {
+  return {
+    statusCode: 400,
+    body: {
+      error: message,
+      ...details,
+    },
+  };
+}
 
 export function createDemoStore() {
   const projectId = "project-smart-controller";
@@ -307,6 +321,14 @@ export function createProject(body = {}) {
   }
 
   const activePhaseKey = body.activePhaseKey || "initiation";
+  const phaseDefinition = getHardwarePhaseTemplate().phases.find((phase) => phase.phaseKey === activePhaseKey);
+  if (!phaseDefinition) {
+    return validationError("activePhaseKey 不存在于硬件阶段模板", {
+      activePhaseKey,
+      allowedPhaseKeys: getHardwarePhaseTemplate().phases.map((phase) => phase.phaseKey),
+    });
+  }
+
   const project = {
     id: baseId,
     name,
@@ -365,6 +387,12 @@ export function updateRolePair(rolePairId, body = {}) {
       statusCode: 400,
       body: { error: "humanUserId 不能为空" },
     };
+  }
+
+  if (!findUser(body.humanUserId)) {
+    return validationError("负责人用户不存在", {
+      humanUserId: body.humanUserId,
+    });
   }
 
   rolePair.humanUserId = body.humanUserId;
@@ -480,6 +508,29 @@ export function runAgentWorkPackage(body) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
 
+  if (body.inputRefs && !Array.isArray(body.inputRefs)) {
+    return validationError("inputRefs 必须是数组");
+  }
+
+  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const agentKey = body.agentKey || rolePair?.agentKey;
+  if (!agentKey) {
+    return {
+      statusCode: 409,
+      body: {
+        error: "工作包缺少绑定 Agent",
+        workPackageId: workPackage.id,
+      },
+    };
+  }
+
+  if (body.agentKey && rolePair?.agentKey && body.agentKey !== rolePair.agentKey) {
+    return validationError("agentKey 与工作包绑定 Agent 不一致", {
+      expectedAgentKey: rolePair.agentKey,
+      receivedAgentKey: body.agentKey,
+    });
+  }
+
   const artifactTemplate =
     (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
     loadArtifactTemplateByType(workPackage.requiredArtifactType);
@@ -498,7 +549,7 @@ export function runAgentWorkPackage(body) {
   const agentRun = {
     id: randomUUID(),
     workPackageId: workPackage.id,
-    agentKey: body.agentKey || "test_agent",
+    agentKey,
     status: "OUTPUT_READY",
     inputRefs: body.inputRefs || [],
     artifactTemplateKey: artifactTemplate.templateKey,
@@ -575,6 +626,13 @@ export function submitHumanReview(body) {
   const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+
+  if (!allowedReviewDecisions.has(body.decision)) {
+    return validationError("审核决定不合法", {
+      decision: body.decision,
+      allowedDecisions: [...allowedReviewDecisions],
+    });
   }
 
   const reviewerUserId = body.reviewerUserId || "";
@@ -680,6 +738,13 @@ export function updateRiskStatus(riskId, status, body = {}) {
     return { statusCode: 404, body: { error: "风险不存在" } };
   }
 
+  if (!allowedRiskStatuses.has(status)) {
+    return validationError("风险状态不合法", {
+      status,
+      allowedStatuses: [...allowedRiskStatuses],
+    });
+  }
+
   const actorUserId = body.userId || "";
   if (status === "ACCEPTED") {
     const permission = canAcceptRisk(actorUserId);
@@ -734,12 +799,20 @@ export function createDemoRiskForCurrentPhase(body = {}) {
     return { statusCode: 404, body: { error: "当前阶段不存在" } };
   }
 
+  const severity = body.severity || "HIGH";
+  if (!allowedRiskSeverities.has(severity)) {
+    return validationError("风险严重度不合法", {
+      severity,
+      allowedSeverities: [...allowedRiskSeverities],
+    });
+  }
+
   const risk = {
     id: `risk-${phase.phaseKey}-${Date.now()}`,
     projectId: project.id,
     phaseId: phase.id,
     title: body.title || `${phase.name} 演示高风险`,
-    severity: body.severity || "HIGH",
+    severity,
     status: "OPEN",
   };
 

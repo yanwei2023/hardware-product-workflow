@@ -131,6 +131,28 @@ test("invalid agent output is rejected before human review", () => {
   assert.ok(result.body.validation.missingSections.length > 0);
 });
 
+test("agent execution defaults to the work package bound agent", () => {
+  const result = workflow.runAgentWorkPackage({
+    workPackageId: "wp-evt_exit-evt_issue_closure",
+    inputRefs: ["artifact:test-input"],
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.agentRun.agentKey, "quality_agent");
+});
+
+test("agent execution rejects mismatched agent keys", () => {
+  const result = workflow.runAgentWorkPackage({
+    workPackageId: "wp-evt_exit-evt_issue_closure",
+    agentKey: "test_agent",
+    inputRefs: ["artifact:test-input"],
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.error, "agentKey 与工作包绑定 Agent 不一致");
+  assert.equal(result.body.expectedAgentKey, "quality_agent");
+});
+
 test("risk close uses the same privileged roles as risk acceptance", () => {
   const denied = workflow.updateRiskStatus("risk-thermal-margin", "CLOSED", {
     userId: "user-test-lead",
@@ -143,6 +165,38 @@ test("risk close uses the same privileged roles as risk acceptance", () => {
   });
   assert.equal(approved.statusCode, 200);
   assert.equal(approved.body.risk.status, "CLOSED");
+});
+
+test("review decisions are constrained to known workflow values", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+
+  const result = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_report",
+    reviewerUserId: "user-test-lead",
+    decision: "SHIP_IT",
+    comment: "非法枚举。",
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.error, "审核决定不合法");
+});
+
+test("risk creation and role assignment reject unknown values", () => {
+  const invalidRisk = workflow.createDemoRiskForCurrentPhase({
+    title: "未知风险等级",
+    severity: "SEVERE",
+  });
+  assert.equal(invalidRisk.statusCode, 400);
+  assert.equal(invalidRisk.body.error, "风险严重度不合法");
+
+  const project = workflow.getDemoProject();
+  const rolePairId = project.rolePairs[0].id;
+  const invalidRolePair = workflow.updateRolePair(rolePairId, {
+    humanUserId: "user-missing",
+    actorUserId: "user-project-manager",
+  });
+  assert.equal(invalidRolePair.statusCode, 400);
+  assert.equal(invalidRolePair.body.error, "负责人用户不存在");
 });
 
 test("user action items reflect review and risk responsibilities", () => {
@@ -175,6 +229,19 @@ test("project creation expands the standard phase template", () => {
   assert.equal(result.body.gates.length, 7);
   assert.ok(result.body.workPackages.length >= 3);
   assert.equal(result.body.phases[0].status, "GATE_BLOCKED");
+});
+
+test("project creation rejects unknown active phase keys", () => {
+  const result = workflow.createProject({
+    name: "非法阶段项目",
+    productLine: "IoT 产品线",
+    activePhaseKey: "unknown_phase",
+    userId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.error, "activePhaseKey 不存在于硬件阶段模板");
+  assert.ok(result.body.allowedPhaseKeys.includes("evt_exit"));
 });
 
 test("gate approval locks the current phase and advances to the next phase", () => {

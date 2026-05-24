@@ -90,6 +90,33 @@ test("agent run endpoint rejects invalid draft output", async () => {
   assert.equal(result.body.workPackage.status, "NEEDS_AGENT_REVISION");
 });
 
+test("agent run endpoint rejects malformed input refs", async () => {
+  const result = await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: "artifact:test-input",
+    }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "inputRefs 必须是数组");
+});
+
+test("project endpoint rejects unknown active phase keys", async () => {
+  const result = await dispatch("/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "非法阶段项目",
+      activePhaseKey: "unknown_phase",
+    }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "activePhaseKey 不存在于硬件阶段模板");
+});
+
 test("unauthorized approval attempt returns a clear permission error", async () => {
   await dispatch("/agent-runs", {
     method: "POST",
