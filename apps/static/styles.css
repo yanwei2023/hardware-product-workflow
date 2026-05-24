@@ -326,7 +326,8 @@ textarea {
   color: #0369a1;
 }
 
-.status.UNSCHEDULED {
+.status.UNSCHEDULED,
+.status.ARCHIVED {
   background: #eef2f7;
   color: var(--muted);
 }

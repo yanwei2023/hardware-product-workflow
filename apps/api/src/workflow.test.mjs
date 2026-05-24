@@ -636,6 +636,40 @@ test("project clone creates an independent active project copy", () => {
   assert.equal(copy.gateApprovalPacks[0].reviewPack.gate.id, `${copy.project.id}-gate-evt_exit`);
 });
 
+test("projects can be archived and restored without deleting workflow data", () => {
+  const created = workflow.createProject({
+    name: "Archive Candidate",
+    productLine: "IoT 产品线",
+    activePhaseKey: "evt_exit",
+    userId: "user-project-manager",
+  });
+  assert.equal(created.statusCode, 201);
+  const projectId = created.body.project.id;
+
+  const archived = workflow.archiveProject(projectId, {
+    userId: "user-project-manager",
+  });
+  assert.equal(archived.statusCode, 200);
+  assert.equal(archived.body.project.id, "project-smart-controller");
+
+  const archivedSnapshot = workflow.getProjectSnapshot(projectId);
+  assert.equal(archivedSnapshot.project.status, "ARCHIVED");
+  assert.equal(archivedSnapshot.workPackages.length, created.body.workPackages.length);
+
+  const repeated = workflow.archiveProject(projectId, {
+    userId: "user-project-manager",
+  });
+  assert.equal(repeated.statusCode, 409);
+
+  const restored = workflow.restoreProject(projectId, {
+    userId: "user-project-manager",
+  });
+  assert.equal(restored.statusCode, 200);
+  assert.equal(restored.body.project.id, projectId);
+  assert.equal(restored.body.project.status, "IN_PROGRESS");
+  assert.equal(restored.body.auditEvents.some((event) => event.eventType === "PROJECT_RESTORED"), true);
+});
+
 test("project creation expands the standard phase template", () => {
   const result = workflow.createProject({
     name: "智能门锁 V2",

@@ -40,6 +40,7 @@ const statusText = {
   DONE: "完成",
   LOCKED: "已锁定",
   IN_PROGRESS: "进行中",
+  ARCHIVED: "已归档",
 };
 
 const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -222,12 +223,17 @@ function renderProjects() {
                   <tr>
                     <td>${escapeHtml(project.name)} ${isActive ? statusBadge("IN_PROGRESS") : ""}</td>
                     <td>${escapeHtml(project.currentPhaseName || project.currentPhaseId)}</td>
-                    <td>${escapeHtml(project.status)}</td>
+                    <td>${statusBadge(project.status)}</td>
                     <td>
                       <div class="actions">
                         <button onclick="selectProject('${project.id}')" ${state.busy || isActive ? "disabled" : ""}>切换</button>
                         <button class="ghost" onclick="openProjectSnapshotMarkdown('${project.id}')">导出快照</button>
                         <button class="ghost" onclick="cloneProject('${project.id}')" ${state.busy ? "disabled" : ""}>复制</button>
+                        ${
+                          project.status === "ARCHIVED"
+                            ? `<button class="secondary" onclick="restoreProject('${project.id}')" ${state.busy ? "disabled" : ""}>恢复</button>`
+                            : `<button class="ghost" onclick="archiveProject('${project.id}')" ${state.busy ? "disabled" : ""}>归档</button>`
+                        }
                       </div>
                     </td>
                   </tr>
@@ -1152,6 +1158,33 @@ async function selectProject(projectId) {
   await withBusy(async () => {
     await api(`/projects/${projectId}/select`, { method: "POST" });
     state.selectedWorkPackageId = null;
+    await loadProject();
+  });
+}
+
+async function archiveProject(projectId) {
+  const current = state.project.projectSummaries.find((item) => item.id === projectId);
+  const confirmed = window.confirm(`归档项目「${current?.name || projectId}」？项目数据会保留，可稍后恢复。`);
+  if (!confirmed) return;
+  await withBusy(async () => {
+    await api(`/projects/${projectId}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ userId: state.actorUserId }),
+    });
+    state.selectedWorkPackageId = null;
+    state.currentView = "projects";
+    await loadProject();
+  });
+}
+
+async function restoreProject(projectId) {
+  await withBusy(async () => {
+    await api(`/projects/${projectId}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ userId: state.actorUserId }),
+    });
+    state.selectedWorkPackageId = null;
+    state.currentView = "projects";
     await loadProject();
   });
 }

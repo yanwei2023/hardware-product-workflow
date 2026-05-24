@@ -207,6 +207,38 @@ test("project clone endpoint rejects unknown projects", async () => {
   assert.equal(result.body.error, "项目不存在");
 });
 
+test("project archive and restore endpoints preserve project data", async () => {
+  const created = await dispatch("/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "HTTP Archive Project",
+      userId: "user-project-manager",
+    }),
+  });
+  assert.equal(created.status, 201);
+  const projectId = created.body.project.id;
+
+  const archived = await dispatch(`/projects/${projectId}/archive`, {
+    method: "POST",
+    body: JSON.stringify({ userId: "user-project-manager" }),
+  });
+  assert.equal(archived.status, 200);
+  assert.equal(archived.body.project.id, "project-smart-controller");
+
+  const archivedSnapshot = await dispatch(`/projects/${projectId}/snapshot`);
+  assert.equal(archivedSnapshot.status, 200);
+  assert.equal(archivedSnapshot.body.project.status, "ARCHIVED");
+  assert.equal(archivedSnapshot.body.workPackages.length, created.body.workPackages.length);
+
+  const restored = await dispatch(`/projects/${projectId}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ userId: "user-project-manager" }),
+  });
+  assert.equal(restored.status, 200);
+  assert.equal(restored.body.project.id, projectId);
+  assert.equal(restored.body.project.status, "IN_PROGRESS");
+});
+
 test("post endpoints return 400 for malformed JSON bodies", async () => {
   const result = await dispatch("/projects/import/validate", {
     method: "POST",

@@ -1359,6 +1359,77 @@ export function selectProject(projectId) {
   };
 }
 
+export function archiveProject(projectId, body = {}) {
+  const project = store.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return {
+      statusCode: 404,
+      body: { error: "项目不存在" },
+    };
+  }
+  if (project.status === "ARCHIVED") {
+    return {
+      statusCode: 409,
+      body: { error: "项目已经归档", projectId: project.id },
+    };
+  }
+
+  project.previousStatus = project.status;
+  project.status = "ARCHIVED";
+  project.archivedAt = new Date().toISOString();
+  project.archivedByUserId = body.userId || body.actorUserId || "user-project-manager";
+
+  if (store.activeProjectId === project.id) {
+    const replacement = store.projects.find((item) => item.id !== project.id && item.status !== "ARCHIVED");
+    if (replacement) {
+      store.activeProjectId = replacement.id;
+    }
+  }
+
+  audit("PROJECT_ARCHIVED", "human", project.archivedByUserId, "project", project.id, {
+    previousStatus: project.previousStatus,
+  });
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: getActiveProjectView(),
+  };
+}
+
+export function restoreProject(projectId, body = {}) {
+  const project = store.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return {
+      statusCode: 404,
+      body: { error: "项目不存在" },
+    };
+  }
+  if (project.status !== "ARCHIVED") {
+    return {
+      statusCode: 409,
+      body: { error: "项目未归档，不能恢复", projectId: project.id },
+    };
+  }
+
+  const restoredStatus = project.previousStatus || "IN_PROGRESS";
+  project.status = restoredStatus;
+  project.restoredAt = new Date().toISOString();
+  project.restoredByUserId = body.userId || body.actorUserId || "user-project-manager";
+  delete project.previousStatus;
+  store.activeProjectId = project.id;
+
+  audit("PROJECT_RESTORED", "human", project.restoredByUserId, "project", project.id, {
+    restoredStatus,
+  });
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: getActiveProjectView(),
+  };
+}
+
 export function updateRolePair(rolePairId, body = {}) {
   const rolePair = store.rolePairs.find((item) => item.id === rolePairId);
   if (!rolePair) {
@@ -2385,6 +2456,16 @@ async function handleSelectProject(req, res, projectId) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleArchiveProject(req, res, projectId) {
+  const result = archiveProject(projectId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleRestoreProject(req, res, projectId) {
+  const result = restoreProject(projectId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleUpdateRolePair(req, res, rolePairId) {
   const result = updateRolePair(rolePairId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -2519,6 +2600,16 @@ export const server = http.createServer(async (req, res) => {
     const selectProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/select$/);
     if (req.method === "POST" && selectProjectMatch) {
       return await handleSelectProject(req, res, selectProjectMatch[1]);
+    }
+
+    const archiveProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/archive$/);
+    if (req.method === "POST" && archiveProjectMatch) {
+      return await handleArchiveProject(req, res, archiveProjectMatch[1]);
+    }
+
+    const restoreProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/restore$/);
+    if (req.method === "POST" && restoreProjectMatch) {
+      return await handleRestoreProject(req, res, restoreProjectMatch[1]);
     }
 
     const rolePairMatch = url.pathname.match(/^\/role-pairs\/([^/]+)$/);
