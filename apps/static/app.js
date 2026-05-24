@@ -1,6 +1,7 @@
 const state = {
   project: null,
   actionItems: null,
+  gateReviewPack: null,
   users: [],
   actorUserId: "user-project-manager",
   currentView: "overview",
@@ -80,14 +81,19 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users, actionItems] = await Promise.all([
+  const [project, users] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
-    api(`/users/${state.actorUserId}/action-items`),
   ]);
   state.project = project;
   state.users = users.users;
+  const gate = activeGate();
+  const [actionItems, gateReviewPack] = await Promise.all([
+    api(`/users/${state.actorUserId}/action-items`),
+    gate ? api(`/gates/${gate.id}/review-pack`) : Promise.resolve(null),
+  ]);
   state.actionItems = actionItems;
+  state.gateReviewPack = gateReviewPack;
   if (!state.selectedWorkPackageId) {
     state.selectedWorkPackageId = workPackagesForActivePhase()[0]?.id || null;
   }
@@ -429,6 +435,7 @@ function renderGate() {
       <button onclick="checkGate()" ${state.busy ? "disabled" : ""}>重新检查阶段门</button>
       <button class="secondary" onclick="approveGate()" ${state.busy || check.status !== "READY" ? "disabled" : ""}>批准阶段门并进入下一阶段</button>
     </article>
+    ${renderGateReviewPack()}
     <article class="panel">
       <h3>还差什么</h3>
       ${
@@ -464,6 +471,57 @@ function renderGate() {
               `,
             )
             .join("") : `<tr><td colspan="4">当前阶段暂无风险。</td></tr>`}
+        </tbody>
+      </table>
+    </article>
+  `;
+}
+
+function renderGateReviewPack() {
+  const pack = state.gateReviewPack;
+  if (!pack) {
+    return "";
+  }
+
+  return `
+    <article class="panel">
+      <div class="detail-head">
+        <div>
+          <h3>阶段门审核包</h3>
+          <p class="muted">${escapeHtml(pack.project?.name || "")} · ${escapeHtml(pack.phase?.name || "")}</p>
+        </div>
+        <div>${statusBadge(pack.readiness.status)}</div>
+      </div>
+      <div class="grid cols-3">
+        <div class="metric-block">
+          <span>证据</span>
+          <strong>${pack.summary.readyEvidenceCount}/${pack.summary.requiredEvidenceCount}</strong>
+        </div>
+        <div class="metric-block">
+          <span>阻塞项</span>
+          <strong>${pack.summary.blockerCount}</strong>
+        </div>
+        <div class="metric-block">
+          <span>阻塞风险</span>
+          <strong>${pack.summary.openBlockingRiskCount}</strong>
+        </div>
+      </div>
+      <table class="table">
+        <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>审核人</th><th>状态</th></tr></thead>
+        <tbody>
+          ${pack.evidence
+            .map(
+              (item) => `
+                <tr>
+                  <td>${escapeHtml(item.requiredArtifactType)}</td>
+                  <td>${escapeHtml(item.requiredWorkPackageTitle)}<br><span class="muted">${escapeHtml(item.workPackageStatus)}</span></td>
+                  <td>${escapeHtml(item.latestArtifactStatus)}</td>
+                  <td>${escapeHtml(item.reviewerUserId || "-")}</td>
+                  <td>${item.ready ? statusBadge("READY") : statusBadge("BLOCKED")}</td>
+                </tr>
+              `,
+            )
+            .join("")}
         </tbody>
       </table>
     </article>

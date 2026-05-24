@@ -88,6 +88,26 @@ test("EVT gate stays blocked until required artifacts and high risks are handled
   assert.equal(gateCheck.status, "READY");
 });
 
+test("gate review pack summarizes required evidence and readiness", () => {
+  let pack = workflow.getGateReviewPack("gate-evt_exit");
+  assert.equal(pack.gate.id, "gate-evt_exit");
+  assert.equal(pack.summary.requiredEvidenceCount, 3);
+  assert.equal(pack.summary.readyEvidenceCount, 0);
+  assert.equal(pack.summary.openBlockingRiskCount, 1);
+  assert.equal(pack.summary.readyForApproval, false);
+
+  completeEvtWorkPackages();
+  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
+    userId: "user-project-manager",
+  });
+
+  pack = workflow.getGateReviewPack("gate-evt_exit");
+  assert.equal(pack.summary.readyEvidenceCount, 3);
+  assert.equal(pack.summary.openBlockingRiskCount, 0);
+  assert.equal(pack.summary.readyForApproval, true);
+  assert.equal(pack.evidence.every((item) => item.ready), true);
+});
+
 test("only the assigned human owner can approve a gate artifact", () => {
   runAgent("wp-evt_exit-evt_test_report", "test_agent");
 

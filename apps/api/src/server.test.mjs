@@ -75,6 +75,18 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.body.total, 1);
 });
 
+test("gate review pack endpoint returns evidence and blockers", async () => {
+  const result = await dispatch("/gates/gate-evt_exit/review-pack");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.gate.id, "gate-evt_exit");
+  assert.equal(result.body.summary.requiredEvidenceCount, 3);
+  assert.equal(result.body.summary.readyEvidenceCount, 0);
+  assert.equal(result.body.summary.openBlockingRiskCount, 1);
+  assert.equal(result.body.readiness.status, "BLOCKED");
+  assert.equal(result.body.evidence.length, 3);
+});
+
 test("agent run endpoint rejects invalid draft output", async () => {
   const result = await dispatch("/agent-runs", {
     method: "POST",

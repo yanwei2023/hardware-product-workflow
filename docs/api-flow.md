@@ -31,6 +31,7 @@
 | `POST` | `/risks/:id/accept` | 人类接受风险 |
 | `POST` | `/risks/:id/close` | 人类关闭风险 |
 | `GET` | `/gates/:id/check` | 检查阶段门是否可通过 |
+| `GET` | `/gates/:id/review-pack` | 查看阶段门审核包、证据状态、风险和阻塞项 |
 | `GET` | `/users/:id/action-items` | 查看指定用户在当前项目中的待办 |
 
 ## 强制规则

@@ -503,6 +503,89 @@ export function getUserActionItems(userId) {
   };
 }
 
+export function getGateReviewPack(gateId) {
+  const gate = store.gates.find((item) => item.id === gateId);
+  if (!gate) {
+    return null;
+  }
+
+  const project = store.projects.find((item) => item.id === gate.projectId) || null;
+  const phase = store.phases.find((item) => item.id === gate.phaseId) || null;
+  const readiness = checkGate(gate.id);
+  const requirements = store.gateRequirements.filter((item) => item.gateId === gate.id);
+  const evidence = requirements.map((requirement) => {
+    const workPackage = store.workPackages.find(
+      (item) =>
+        item.phaseId === gate.phaseId &&
+        item.title === requirement.requiredWorkPackageTitle &&
+        item.requiredArtifactType === requirement.requiredArtifactType,
+    );
+    const artifacts = workPackage
+      ? store.artifactVersions.filter((item) => item.workPackageId === workPackage.id && item.artifactType === requirement.requiredArtifactType)
+      : [];
+    const latestArtifact = artifacts.at(-1) || null;
+    const approvedArtifact =
+      artifacts.find((item) => item.status === "APPROVED" || item.status === "LOCKED") || null;
+    const approvedReview = workPackage
+      ? store.reviews.find(
+          (item) =>
+            item.workPackageId === workPackage.id &&
+            (item.decision === "APPROVE" || item.decision === "APPROVE_WITH_CONDITIONS"),
+        ) || null
+      : null;
+
+    return {
+      requirementId: requirement.id,
+      requiredWorkPackageTitle: requirement.requiredWorkPackageTitle,
+      requiredArtifactType: requirement.requiredArtifactType,
+      requiredRoleKey: requirement.requiredRoleKey,
+      workPackageId: workPackage?.id || null,
+      workPackageStatus: workPackage?.status || "MISSING",
+      latestArtifactId: latestArtifact?.id || null,
+      latestArtifactStatus: latestArtifact?.status || "MISSING",
+      approvedArtifactId: approvedArtifact?.id || null,
+      approvedReviewId: approvedReview?.id || null,
+      reviewerUserId: approvedReview?.reviewerUserId || null,
+      ready: Boolean(approvedArtifact && approvedReview),
+    };
+  });
+  const risks = store.risks
+    .filter((risk) => risk.projectId === gate.projectId && risk.phaseId === gate.phaseId)
+    .map((risk) => ({
+      id: risk.id,
+      title: risk.title,
+      severity: risk.severity,
+      status: risk.status,
+      blocksGate:
+        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+        risk.status !== "CLOSED" &&
+        risk.status !== "ACCEPTED",
+    }));
+
+  return {
+    project: project ? { id: project.id, name: project.name, status: project.status } : null,
+    phase: phase ? { id: phase.id, name: phase.name, status: phase.status } : null,
+    gate: {
+      id: gate.id,
+      name: gate.name,
+      status: gate.status,
+      approvedByUserId: gate.approvedByUserId || null,
+      approvedAt: gate.approvedAt || null,
+    },
+    readiness,
+    evidence,
+    risks,
+    blockers: readiness.blockers,
+    summary: {
+      requiredEvidenceCount: evidence.length,
+      readyEvidenceCount: evidence.filter((item) => item.ready).length,
+      openBlockingRiskCount: risks.filter((item) => item.blocksGate).length,
+      blockerCount: readiness.blockers.length,
+      readyForApproval: readiness.status === "READY",
+    },
+  };
+}
+
 export function runAgentWorkPackage(body) {
   const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
   if (!workPackage) {
@@ -1084,6 +1167,12 @@ export const server = http.createServer(async (req, res) => {
     const gateCheckMatch = url.pathname.match(/^\/gates\/([^/]+)\/check$/);
     if (req.method === "GET" && gateCheckMatch) {
       const result = checkGate(gateCheckMatch[1]);
+      return result ? writeJson(res, 200, result) : writeJson(res, 404, { error: "阶段门不存在" });
+    }
+
+    const gateReviewPackMatch = url.pathname.match(/^\/gates\/([^/]+)\/review-pack$/);
+    if (req.method === "GET" && gateReviewPackMatch) {
+      const result = getGateReviewPack(gateReviewPackMatch[1]);
       return result ? writeJson(res, 200, result) : writeJson(res, 404, { error: "阶段门不存在" });
     }
 
