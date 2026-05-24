@@ -167,6 +167,10 @@ textarea {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.grid.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .split {
   display: grid;
   gap: 14px;
@@ -357,6 +361,10 @@ textarea {
   margin-bottom: 0;
 }
 
+.evidence-form {
+  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1fr) auto;
+}
+
 .field.compact select {
   min-width: 0;
   width: 100%;
@@ -410,6 +418,7 @@ textarea {
   }
 
   .phase-strip,
+  .grid.cols-4,
   .grid.cols-3,
   .inline-form,
   .split {

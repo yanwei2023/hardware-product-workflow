@@ -36,6 +36,7 @@
 | `POST` | `/projects/:id/clone` | 复制已有项目并自动切换到副本 |
 | `GET` | `/work-packages/:id/export.md` | 导出单个工作包 Markdown，包含交付物、模板校验、审核记录和活动记录 |
 | `PATCH` | `/work-packages/:id/schedule` | 设置或清空工作包截止日期，并刷新计划状态 |
+| `POST` | `/work-packages/:id/evidence-refs` | 为工作包添加人工证据引用，进入快照、工作包导出和阶段门审核包 |
 | `POST` | `/agent-runs` | 模拟 Agent 执行工作包 |
 | `POST` | `/reviews` | 提交人类审核结果 |
 | `POST` | `/risks/current-phase` | 在当前阶段创建指定标题和严重度的风险 |

@@ -117,6 +117,7 @@ export function createDemoStore() {
     ],
     agentRuns: [],
     agentFindings: [],
+    evidenceRefs: [],
     auditEvents: [],
     notifications: [],
   };
@@ -132,6 +133,7 @@ function persistStore() {
 
 function ensureStoreShape() {
   store.notifications ||= [];
+  store.evidenceRefs ||= [];
 }
 
 export function getStorageStatus() {
@@ -179,7 +181,7 @@ function renderGateReviewPackMarkdown(pack) {
   const evidenceRows = pack.evidence
     .map(
       (item) =>
-        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.reviewerUserId || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
+        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.manualEvidenceCount} | ${item.reviewerUserId || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
     )
     .join("\n");
   const riskRows = pack.risks.length
@@ -210,8 +212,8 @@ function renderGateReviewPackMarkdown(pack) {
 
 ## 必需证据
 
-| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 审核人 | 结论 |
-|---|---|---|---|---|---|
+| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 人工证据 | 审核人 | 结论 |
+|---|---|---|---|---|---|---|
 ${evidenceRows}
 
 ## 风险
@@ -253,6 +255,15 @@ function renderProjectSnapshotMarkdown(snapshot) {
         .map((item) => `| ${item.createdAt} | ${item.userId} | ${item.status} | ${item.title} |`)
         .join("\n")
     : "| 无 | - | - | - |";
+  const evidenceRefRows = snapshot.evidenceRefs.length
+    ? snapshot.evidenceRefs
+        .slice(-12)
+        .map((item) => {
+          const workPackage = snapshot.workPackages.find((workPackage) => workPackage.id === item.workPackageId);
+          return `| ${item.createdAt} | ${workPackage?.title || item.workPackageId} | ${item.label} | ${item.ref} |`;
+        })
+        .join("\n")
+    : "| 无 | - | - | - |";
 
   return `# ${snapshot.project.name} 项目快照
 
@@ -270,6 +281,7 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 临期工作包：${snapshot.summary.dueSoonWorkPackageCount}
 - 风险：${snapshot.summary.riskCount}
 - 打开高风险：${snapshot.summary.openHighRiskCount}
+- 证据引用：${snapshot.summary.evidenceRefCount}
 - 站内通知：${snapshot.summary.notificationCount}
 - 审计事件：${snapshot.summary.auditEventCount}
 
@@ -290,6 +302,12 @@ ${workPackageRows}
 | 阶段 | 风险 | 严重度 | 状态 | 处置说明 |
 |---|---|---|---|---|
 ${riskRows}
+
+## 最近证据引用
+
+| 时间 | 工作包 | 标题 | 引用 |
+|---|---|---|---|
+${evidenceRefRows}
 
 ## 最近通知
 
@@ -312,6 +330,11 @@ function renderWorkPackageMarkdown(detail) {
   const reviewRows = detail.reviews.length
     ? detail.reviews
         .map((review) => `| ${review.reviewedAt} | ${review.reviewerUserId} | ${review.decision} | ${review.comment || "-"} |`)
+        .join("\n")
+    : "| 无 | - | - | - |";
+  const evidenceRows = detail.evidenceRefs.length
+    ? detail.evidenceRefs
+        .map((item) => `| ${item.createdAt} | ${item.label} | ${item.ref} | ${item.createdByUserId} |`)
         .join("\n")
     : "| 无 | - | - | - |";
   const activityRows = detail.auditEvents.length
@@ -353,6 +376,12 @@ Agent：${detail.rolePair?.agentKey || "-"}
 | 时间 | 审核人 | 决定 | 备注 |
 |---|---|---|---|
 ${reviewRows}
+
+## 证据引用
+
+| 时间 | 标题 | 引用 | 添加人 |
+|---|---|---|---|
+${evidenceRows}
 
 ## 活动记录
 
@@ -605,6 +634,7 @@ export function getActiveProjectView() {
     })),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
     reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
+    evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
@@ -635,6 +665,7 @@ export function getProjectSnapshot(projectId) {
   const rolePairs = store.rolePairs.filter((item) => item.projectId === project.id);
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   const workPackageIds = new Set(workPackages.map((item) => item.id));
+  const evidenceRefs = (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId));
   const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
   const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
   const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
@@ -659,6 +690,7 @@ export function getProjectSnapshot(projectId) {
           risk.status !== "CLOSED" &&
           risk.status !== "ACCEPTED",
       ).length,
+      evidenceRefCount: evidenceRefs.length,
       notificationCount: notifications.length,
       auditEventCount: auditEvents.length,
     },
@@ -678,6 +710,7 @@ export function getProjectSnapshot(projectId) {
     }),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
     reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
+    evidenceRefs,
     risks: risks.map((risk) => ({
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
@@ -767,6 +800,7 @@ export function validateProjectSnapshotImport(input = {}) {
   const gateRequirements = asArray(snapshot.gateRequirements);
   const artifactVersions = asArray(snapshot.artifactVersions);
   const reviews = asArray(snapshot.reviews);
+  const evidenceRefs = asArray(snapshot.evidenceRefs);
   const risks = asArray(snapshot.risks);
   const agentRuns = asArray(snapshot.agentRuns);
   const agentFindings = asArray(snapshot.agentFindings);
@@ -864,6 +898,17 @@ export function validateProjectSnapshotImport(input = {}) {
     });
   }
 
+  for (const evidenceRef of evidenceRefs) {
+    pushIfMissing(errors, evidenceRef.projectId === project?.id, "证据引用 projectId 与项目不一致", {
+      evidenceRefId: evidenceRef.id,
+      projectId: evidenceRef.projectId,
+    });
+    pushIfMissing(errors, workPackageIds.has(evidenceRef.workPackageId), "证据引用 workPackageId 未指向快照内工作包", {
+      evidenceRefId: evidenceRef.id,
+      workPackageId: evidenceRef.workPackageId,
+    });
+  }
+
   for (const risk of risks) {
     pushIfMissing(errors, risk.projectId === project?.id, "风险 projectId 与项目不一致", {
       riskId: risk.id,
@@ -918,6 +963,7 @@ export function validateProjectSnapshotImport(input = {}) {
       gateRequirementCount: gateRequirements.length,
       artifactVersionCount: artifactVersions.length,
       reviewCount: reviews.length,
+      evidenceRefCount: evidenceRefs.length,
       riskCount: risks.length,
       agentRunCount: agentRuns.length,
       agentFindingCount: agentFindings.length,
@@ -945,6 +991,7 @@ export function importProjectSnapshot(input = {}) {
   const workPackages = asArray(snapshot.workPackages).map(({ phaseName, ownerUserId, agentKey, ...item }) => ({ ...item }));
   const artifactVersions = asArray(snapshot.artifactVersions).map((item) => ({ ...item }));
   const reviews = asArray(snapshot.reviews).map((item) => ({ ...item }));
+  const evidenceRefs = asArray(snapshot.evidenceRefs).map((item) => ({ ...item }));
   const risks = asArray(snapshot.risks).map(({ phaseName, ...item }) => ({ ...item }));
   const agentRuns = asArray(snapshot.agentRuns).map((item) => ({ ...item }));
   const agentFindings = asArray(snapshot.agentFindings).map((item) => ({ ...item }));
@@ -963,6 +1010,7 @@ export function importProjectSnapshot(input = {}) {
   store.workPackages.push(...workPackages);
   store.artifactVersions.push(...artifactVersions);
   store.reviews.push(...reviews);
+  store.evidenceRefs.push(...evidenceRefs);
   store.risks.push(...risks);
   store.agentRuns.push(...agentRuns);
   store.agentFindings.push(...agentFindings);
@@ -1061,6 +1109,13 @@ function remapSnapshotForProjectCopy(snapshot, projectId, name) {
     ...review,
     id: `${projectId}-${review.id}`,
     workPackageId: workPackageIdMap.get(review.workPackageId),
+  }));
+
+  copy.evidenceRefs = asArray(copy.evidenceRefs).map((evidenceRef) => ({
+    ...evidenceRef,
+    id: `${projectId}-${evidenceRef.id}`,
+    projectId,
+    workPackageId: workPackageIdMap.get(evidenceRef.workPackageId),
   }));
 
   copy.risks = asArray(copy.risks).map(({ phaseName, ...risk }) => ({
@@ -1279,6 +1334,48 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
   };
 }
 
+export function addWorkPackageEvidenceRef(workPackageId, body = {}) {
+  const workPackage = store.workPackages.find((item) => item.id === workPackageId);
+  if (!workPackage) {
+    return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+
+  const label = String(body.label || "").trim();
+  const ref = String(body.ref || body.url || "").trim();
+  if (!label) {
+    return validationError("证据标题不能为空");
+  }
+  if (!ref) {
+    return validationError("证据引用不能为空");
+  }
+
+  const evidenceRef = {
+    id: `evidence-${randomUUID()}`,
+    projectId: workPackage.projectId,
+    workPackageId: workPackage.id,
+    label,
+    ref,
+    createdByUserId: body.actorUserId || body.userId || "user-project-manager",
+    createdAt: new Date().toISOString(),
+  };
+  store.evidenceRefs.push(evidenceRef);
+  audit("WORK_PACKAGE_EVIDENCE_ADDED", "human", evidenceRef.createdByUserId, "workPackage", workPackage.id, {
+    evidenceRefId: evidenceRef.id,
+    label: evidenceRef.label,
+    ref: evidenceRef.ref,
+  });
+  persistStore();
+
+  return {
+    statusCode: 201,
+    body: {
+      evidenceRef,
+      workPackage: getWorkPackageDetail(workPackage.id),
+      project: getActiveProjectView(),
+    },
+  };
+}
+
 export function getWorkPackageDetail(workPackageId) {
   const workPackage = store.workPackages.find((item) => item.id === workPackageId);
   if (!workPackage) {
@@ -1290,6 +1387,7 @@ export function getWorkPackageDetail(workPackageId) {
     rolePair: store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null,
     artifacts: store.artifactVersions.filter((item) => item.workPackageId === workPackageId),
     reviews: store.reviews.filter((item) => item.workPackageId === workPackageId),
+    evidenceRefs: (store.evidenceRefs || []).filter((item) => item.workPackageId === workPackageId),
     agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
     auditEvents: store.auditEvents.filter((event) => event.objectType === "workPackage" && event.objectId === workPackageId),
     scheduleStatus: workPackageScheduleStatus(workPackage),
@@ -1481,6 +1579,9 @@ export function getGateReviewPack(gateId) {
       ? store.artifactVersions.filter((item) => item.workPackageId === workPackage.id && item.artifactType === requirement.requiredArtifactType)
       : [];
     const latestArtifact = artifacts.at(-1) || null;
+    const manualEvidenceRefs = workPackage
+      ? (store.evidenceRefs || []).filter((item) => item.workPackageId === workPackage.id)
+      : [];
     const approvedArtifact =
       artifacts.find((item) => item.status === "APPROVED" || item.status === "LOCKED") || null;
     const approvedReview = workPackage
@@ -1503,6 +1604,8 @@ export function getGateReviewPack(gateId) {
       approvedArtifactId: approvedArtifact?.id || null,
       approvedReviewId: approvedReview?.id || null,
       reviewerUserId: approvedReview?.reviewerUserId || null,
+      manualEvidenceCount: manualEvidenceRefs.length,
+      manualEvidenceRefs,
       ready: Boolean(approvedArtifact && approvedReview),
     };
   });
@@ -1537,6 +1640,7 @@ export function getGateReviewPack(gateId) {
     summary: {
       requiredEvidenceCount: evidence.length,
       readyEvidenceCount: evidence.filter((item) => item.ready).length,
+      manualEvidenceRefCount: evidence.reduce((total, item) => total + item.manualEvidenceCount, 0),
       openBlockingRiskCount: risks.filter((item) => item.blocksGate).length,
       blockerCount: readiness.blockers.length,
       readyForApproval: readiness.status === "READY",
@@ -2136,6 +2240,11 @@ async function handleUpdateWorkPackageSchedule(req, res, workPackageId) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleAddWorkPackageEvidenceRef(req, res, workPackageId) {
+  const result = addWorkPackageEvidenceRef(workPackageId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleGateApproval(req, res, gateId) {
   const result = approveGate(gateId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -2208,20 +2317,20 @@ export const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/projects") {
-      return handleCreateProject(req, res);
+      return await handleCreateProject(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/projects/import/validate") {
-      return handleValidateProjectImport(req, res);
+      return await handleValidateProjectImport(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/projects/import") {
-      return handleImportProject(req, res);
+      return await handleImportProject(req, res);
     }
 
     const cloneProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/clone$/);
     if (req.method === "POST" && cloneProjectMatch) {
-      return handleCloneProject(req, res, cloneProjectMatch[1]);
+      return await handleCloneProject(req, res, cloneProjectMatch[1]);
     }
 
     const projectSnapshotMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot\.md$/);
@@ -2254,12 +2363,12 @@ export const server = http.createServer(async (req, res) => {
 
     const selectProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/select$/);
     if (req.method === "POST" && selectProjectMatch) {
-      return handleSelectProject(req, res, selectProjectMatch[1]);
+      return await handleSelectProject(req, res, selectProjectMatch[1]);
     }
 
     const rolePairMatch = url.pathname.match(/^\/role-pairs\/([^/]+)$/);
     if (req.method === "PATCH" && rolePairMatch) {
-      return handleUpdateRolePair(req, res, rolePairMatch[1]);
+      return await handleUpdateRolePair(req, res, rolePairMatch[1]);
     }
 
     if (req.method === "GET" && url.pathname === "/users/demo") {
@@ -2278,12 +2387,12 @@ export const server = http.createServer(async (req, res) => {
 
     const userNotificationsReadMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications\/read$/);
     if (req.method === "POST" && userNotificationsReadMatch) {
-      return handleMarkUserNotificationsRead(req, res, userNotificationsReadMatch[1]);
+      return await handleMarkUserNotificationsRead(req, res, userNotificationsReadMatch[1]);
     }
 
     const notificationReadMatch = url.pathname.match(/^\/notifications\/([^/]+)\/read$/);
     if (req.method === "POST" && notificationReadMatch) {
-      return handleMarkNotificationRead(req, res, notificationReadMatch[1]);
+      return await handleMarkNotificationRead(req, res, notificationReadMatch[1]);
     }
 
     const workPackageMatch = url.pathname.match(/^\/work-packages\/([^/]+)$/);
@@ -2302,7 +2411,12 @@ export const server = http.createServer(async (req, res) => {
 
     const workPackageScheduleMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/schedule$/);
     if (req.method === "PATCH" && workPackageScheduleMatch) {
-      return handleUpdateWorkPackageSchedule(req, res, workPackageScheduleMatch[1]);
+      return await handleUpdateWorkPackageSchedule(req, res, workPackageScheduleMatch[1]);
+    }
+
+    const workPackageEvidenceRefMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/evidence-refs$/);
+    if (req.method === "POST" && workPackageEvidenceRefMatch) {
+      return await handleAddWorkPackageEvidenceRef(req, res, workPackageEvidenceRefMatch[1]);
     }
 
     if (req.method === "GET" && url.pathname === "/templates/hardware") {
@@ -2320,29 +2434,29 @@ export const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/agent-runs") {
-      return handleAgentRun(req, res);
+      return await handleAgentRun(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/reviews") {
-      return handleReview(req, res);
+      return await handleReview(req, res);
     }
 
     const riskAcceptMatch = url.pathname.match(/^\/risks\/([^/]+)\/accept$/);
     if (req.method === "POST" && riskAcceptMatch) {
-      return handleRiskUpdate(req, res, riskAcceptMatch[1], "ACCEPTED");
+      return await handleRiskUpdate(req, res, riskAcceptMatch[1], "ACCEPTED");
     }
 
     const riskCloseMatch = url.pathname.match(/^\/risks\/([^/]+)\/close$/);
     if (req.method === "POST" && riskCloseMatch) {
-      return handleRiskUpdate(req, res, riskCloseMatch[1], "CLOSED");
+      return await handleRiskUpdate(req, res, riskCloseMatch[1], "CLOSED");
     }
 
     if (req.method === "POST" && url.pathname === "/risks/demo-current-phase") {
-      return handleCreateDemoRisk(req, res);
+      return await handleCreateDemoRisk(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/risks/current-phase") {
-      return handleCreateRisk(req, res);
+      return await handleCreateRisk(req, res);
     }
 
     const gateCheckMatch = url.pathname.match(/^\/gates\/([^/]+)\/check$/);
@@ -2367,7 +2481,7 @@ export const server = http.createServer(async (req, res) => {
 
     const gateApproveMatch = url.pathname.match(/^\/gates\/([^/]+)\/approve$/);
     if (req.method === "POST" && gateApproveMatch) {
-      return handleGateApproval(req, res, gateApproveMatch[1]);
+      return await handleGateApproval(req, res, gateApproveMatch[1]);
     }
 
     if (req.method === "GET") {

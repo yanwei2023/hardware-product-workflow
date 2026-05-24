@@ -225,6 +225,45 @@ test("work package schedule endpoint validates dates", async () => {
   assert.equal(result.body.error, "dueAt 必须是 YYYY-MM-DD 格式");
 });
 
+test("work package evidence refs are exported and included in gate review packs", async () => {
+  const createResult = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/evidence-refs", {
+    method: "POST",
+    body: JSON.stringify({
+      label: "热测试报告",
+      ref: "https://example.test/reports/thermal",
+      actorUserId: "user-test-lead",
+    }),
+  });
+  assert.equal(createResult.status, 201);
+  assert.equal(createResult.body.evidenceRef.label, "热测试报告");
+
+  const project = await dispatch("/projects/demo");
+  assert.equal(project.body.evidenceRefs.length, 1);
+
+  const workPackageExport = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/export.md");
+  assert.match(workPackageExport.body, /## 证据引用/);
+  assert.match(workPackageExport.body, /热测试报告/);
+
+  const reviewPack = await dispatch("/gates/gate-evt_exit/review-pack");
+  const testPlanEvidence = reviewPack.body.evidence.find((item) => item.workPackageId === "wp-evt_exit-evt_test_plan");
+  assert.equal(testPlanEvidence.manualEvidenceCount, 1);
+  assert.equal(reviewPack.body.summary.manualEvidenceRefCount, 1);
+
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(snapshot.summary.evidenceRefCount, 1);
+  assert.equal(snapshot.evidenceRefs.length, 1);
+});
+
+test("work package evidence ref endpoint validates required fields", async () => {
+  const result = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/evidence-refs", {
+    method: "POST",
+    body: JSON.stringify({ label: "", ref: "" }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "证据标题不能为空");
+});
+
 test("notification endpoints show and mark user notifications", async () => {
   await dispatch("/agent-runs", {
     method: "POST",

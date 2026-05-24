@@ -161,6 +161,10 @@ function reviewsFor(workPackageId) {
   return state.project.reviews.filter((item) => item.workPackageId === workPackageId);
 }
 
+function evidenceRefsFor(workPackageId) {
+  return state.project.evidenceRefs?.filter((item) => item.workPackageId === workPackageId) || [];
+}
+
 function latestArtifact(workPackageId) {
   return artifactsFor(workPackageId).at(-1) || null;
 }
@@ -528,6 +532,7 @@ function renderWorkPackageDetail(workPackage) {
   const artifact = latestArtifact(workPackage.id);
   const agentRun = latestAgentRun(workPackage.id);
   const reviews = reviewsFor(workPackage.id);
+  const evidenceRefs = evidenceRefsFor(workPackage.id);
   const auditEvents = state.project.auditEvents.filter(
     (event) => event.objectType === "workPackage" && event.objectId === workPackage.id,
   );
@@ -576,6 +581,45 @@ function renderWorkPackageDetail(workPackage) {
     </section>
 
     <section class="subpanel">
+      <h4>证据引用</h4>
+      <div class="inline-form evidence-form">
+        <label class="field">
+          标题
+          <input id="evidenceLabel-${escapeHtml(workPackage.id)}" placeholder="例如：热测试报告 v1" />
+        </label>
+        <label class="field">
+          引用
+          <input id="evidenceRef-${escapeHtml(workPackage.id)}" placeholder="URL、文件路径或文档编号" />
+        </label>
+        <button class="ghost" onclick="addEvidenceRef('${workPackage.id}')" ${state.busy ? "disabled" : ""}>添加证据</button>
+      </div>
+      ${
+        evidenceRefs.length
+          ? `
+            <table class="table compact-table">
+              <thead><tr><th>标题</th><th>引用</th><th>添加人</th></tr></thead>
+              <tbody>
+                ${evidenceRefs
+                  .slice()
+                  .reverse()
+                  .map(
+                    (item) => `
+                      <tr>
+                        <td>${escapeHtml(item.label)}</td>
+                        <td>${renderEvidenceRef(item.ref)}</td>
+                        <td>${escapeHtml(item.createdByUserId)}</td>
+                      </tr>
+                    `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          `
+          : "<p class='muted'>暂无人工补充证据。</p>"
+      }
+    </section>
+
+    <section class="subpanel">
       <h4>审核记录</h4>
       ${
         reviews.length
@@ -612,6 +656,14 @@ function renderWorkPackageDetail(workPackage) {
       <pre class="markdown-preview">${escapeHtml(draft || "暂无草稿。")}</pre>
     </section>
   `;
+}
+
+function renderEvidenceRef(ref) {
+  const safeRef = escapeHtml(ref);
+  if (/^https?:\/\//i.test(ref)) {
+    return `<a href="${safeRef}" target="_blank" rel="noreferrer">${safeRef}</a>`;
+  }
+  return `<span>${safeRef}</span>`;
 }
 
 function renderRisks() {
@@ -777,10 +829,14 @@ function renderGateReviewPack() {
         </div>
         <div>${statusBadge(pack.readiness.status)}</div>
       </div>
-      <div class="grid cols-3">
+      <div class="grid cols-4">
         <div class="metric-block">
           <span>证据</span>
           <strong>${pack.summary.readyEvidenceCount}/${pack.summary.requiredEvidenceCount}</strong>
+        </div>
+        <div class="metric-block">
+          <span>人工证据</span>
+          <strong>${pack.summary.manualEvidenceRefCount}</strong>
         </div>
         <div class="metric-block">
           <span>阻塞项</span>
@@ -792,7 +848,7 @@ function renderGateReviewPack() {
         </div>
       </div>
       <table class="table">
-        <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>审核人</th><th>状态</th></tr></thead>
+        <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>人工证据</th><th>审核人</th><th>状态</th></tr></thead>
         <tbody>
           ${pack.evidence
             .map(
@@ -801,6 +857,7 @@ function renderGateReviewPack() {
                   <td>${escapeHtml(item.requiredArtifactType)}</td>
                   <td>${escapeHtml(item.requiredWorkPackageTitle)}<br><span class="muted">${escapeHtml(item.workPackageStatus)}</span></td>
                   <td>${escapeHtml(item.latestArtifactStatus)}</td>
+                  <td>${escapeHtml(item.manualEvidenceCount)}</td>
                   <td>${escapeHtml(item.reviewerUserId || "-")}</td>
                   <td>${item.ready ? statusBadge("READY") : statusBadge("BLOCKED")}</td>
                 </tr>
@@ -963,6 +1020,22 @@ async function updateWorkPackageSchedule(workPackageId) {
       method: "PATCH",
       body: JSON.stringify({
         dueAt,
+        actorUserId: state.actorUserId,
+      }),
+    });
+    await loadProject();
+  });
+}
+
+async function addEvidenceRef(workPackageId) {
+  const label = q(`#evidenceLabel-${CSS.escape(workPackageId)}`).value.trim();
+  const ref = q(`#evidenceRef-${CSS.escape(workPackageId)}`).value.trim();
+  await withBusy(async () => {
+    await api(`/work-packages/${workPackageId}/evidence-refs`, {
+      method: "POST",
+      body: JSON.stringify({
+        label,
+        ref,
         actorUserId: state.actorUserId,
       }),
     });
