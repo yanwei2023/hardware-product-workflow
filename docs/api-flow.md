@@ -34,7 +34,7 @@
 | `POST` | `/projects/import/validate` | 导入项目前校验快照结构与引用完整性 |
 | `POST` | `/projects/import` | 安全导入通过校验且不冲突的项目快照 |
 | `POST` | `/projects/:id/clone` | 复制已有项目并自动切换到副本 |
-| `GET` | `/work-packages/:id/export.md` | 导出单个工作包 Markdown，包含交付物、模板校验和审核记录 |
+| `GET` | `/work-packages/:id/export.md` | 导出单个工作包 Markdown，包含交付物、模板校验、审核记录和活动记录 |
 | `PATCH` | `/work-packages/:id/schedule` | 设置或清空工作包截止日期，并刷新计划状态 |
 | `POST` | `/agent-runs` | 模拟 Agent 执行工作包 |
 | `POST` | `/reviews` | 提交人类审核结果 |
@@ -59,7 +59,7 @@
 - JSON 请求体格式错误必须返回 `400`，不能作为服务器错误处理。
 - 项目快照导入必须先通过结构与引用完整性校验，且不能覆盖已有项目 ID。
 - 项目复制必须生成新的项目 ID，并写入 `PROJECT_CLONED` 审计事件。
-- 工作包 Markdown 导出必须带上最新交付物、模板校验结果、审核记录和 Agent 草稿，便于离线归档。
+- 工作包 Markdown 导出必须带上最新交付物、模板校验结果、审核记录、活动记录和 Agent 草稿，便于离线归档。
 - 工作包截止日期必须生成逾期/临期状态，并进入负责人待办。
 - 风险台账必须按项目隔离，并标记哪些打开的高/严重风险会阻塞阶段门。
 - Agent 输出、审核、风险和阶段门事件必须生成可追踪的站内通知，允许单条或批量标记已读，并随项目快照导入/复制。

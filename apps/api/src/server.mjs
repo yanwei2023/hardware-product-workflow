@@ -311,6 +311,11 @@ function renderWorkPackageMarkdown(detail) {
         .map((review) => `| ${review.reviewedAt} | ${review.reviewerUserId} | ${review.decision} | ${review.comment || "-"} |`)
         .join("\n")
     : "| 无 | - | - | - |";
+  const activityRows = detail.auditEvents.length
+    ? detail.auditEvents
+        .map((event) => `| ${event.createdAt} | ${event.eventType} | ${event.actorType}:${event.actorId} | ${JSON.stringify(event.payload || {})} |`)
+        .join("\n")
+    : "| 无 | - | - | - |";
   const missingSections = validation?.missingSections?.length ? validation.missingSections.join("、") : "无";
   const emptySections = validation?.emptySections?.length ? validation.emptySections.join("、") : "无";
   const draft = latestArtifact?.content?.draftMarkdown || latestArtifact?.content?.summary || "暂无草稿。";
@@ -345,6 +350,12 @@ Agent：${detail.rolePair?.agentKey || "-"}
 | 时间 | 审核人 | 决定 | 备注 |
 |---|---|---|---|
 ${reviewRows}
+
+## 活动记录
+
+| 时间 | 事件 | 操作者 | 详情 |
+|---|---|---|---|
+${activityRows}
 
 ## Agent 输出草稿
 
@@ -1277,6 +1288,7 @@ export function getWorkPackageDetail(workPackageId) {
     artifacts: store.artifactVersions.filter((item) => item.workPackageId === workPackageId),
     reviews: store.reviews.filter((item) => item.workPackageId === workPackageId),
     agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
+    auditEvents: store.auditEvents.filter((event) => event.objectType === "workPackage" && event.objectId === workPackageId),
     scheduleStatus: workPackageScheduleStatus(workPackage),
   };
 }

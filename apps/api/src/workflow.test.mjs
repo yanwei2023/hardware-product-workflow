@@ -222,6 +222,7 @@ test("requesting revision removes the stale artifact from pending review", () =>
 
   const detail = workflow.getWorkPackageDetail("wp-evt_exit-evt_test_report");
   assert.equal(detail.artifacts.at(-1).status, "NEEDS_REVISION");
+  assert.equal(detail.auditEvents.some((event) => event.eventType === "HUMAN_REVIEW_SUBMITTED"), true);
 
   const actionItems = workflow.getUserActionItems("user-test-lead");
   assert.equal(
@@ -237,6 +238,8 @@ test("work package markdown export includes artifact and review context", () => 
   assert.match(markdown, /# EVT 测试计划 工作包/);
   assert.match(markdown, /## 最新交付物/);
   assert.match(markdown, /user-test-lead/);
+  assert.match(markdown, /## 活动记录/);
+  assert.match(markdown, /HUMAN_REVIEW_SUBMITTED/);
   assert.match(markdown, /## Agent 输出草稿/);
   assert.equal(workflow.getWorkPackageMarkdown("missing-work-package"), null);
 });

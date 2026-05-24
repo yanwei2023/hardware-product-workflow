@@ -528,6 +528,9 @@ function renderWorkPackageDetail(workPackage) {
   const artifact = latestArtifact(workPackage.id);
   const agentRun = latestAgentRun(workPackage.id);
   const reviews = reviewsFor(workPackage.id);
+  const auditEvents = state.project.auditEvents.filter(
+    (event) => event.objectType === "workPackage" && event.objectId === workPackage.id,
+  );
   const validation = artifact?.content?.validation || agentRun?.validation || null;
   const draft = artifact?.content?.draftMarkdown || "";
 
@@ -584,6 +587,23 @@ function renderWorkPackageDetail(workPackage) {
               )
               .join("")
           : "<p class='muted'>尚无人类审核。</p>"
+      }
+    </section>
+
+    <section class="subpanel">
+      <h4>活动记录</h4>
+      ${
+        auditEvents.length
+          ? auditEvents
+              .slice()
+              .reverse()
+              .map(
+                (event) => `
+                  <p>${escapeHtml(event.createdAt)} · ${escapeHtml(event.eventType)} · ${escapeHtml(event.actorType)}:${escapeHtml(event.actorId)}</p>
+                `,
+              )
+              .join("")
+          : "<p class='muted'>暂无活动记录。</p>"
       }
     </section>
 

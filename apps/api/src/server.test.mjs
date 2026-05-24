@@ -368,6 +368,7 @@ test("work package markdown endpoint exports review context", async () => {
   assert.match(result.headers["content-type"], /text\/markdown/);
   assert.match(result.body, /# EVT 测试计划 工作包/);
   assert.match(result.body, /## 模板校验/);
+  assert.match(result.body, /## 活动记录/);
 });
 
 test("work package markdown endpoint rejects unknown work packages", async () => {
