@@ -42,6 +42,8 @@ const statusText = {
   IN_PROGRESS: "进行中",
 };
 
+const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
 function q(selector) {
   return document.querySelector(selector);
 }
@@ -627,6 +629,7 @@ function renderRisks() {
           <strong>${openBlockingRisks.length}</strong>
         </div>
       </div>
+      ${renderRiskCreateForm("register")}
       <table class="table">
         <thead><tr><th>阶段</th><th>风险</th><th>严重度</th><th>状态</th><th>决策</th></tr></thead>
         <tbody>
@@ -687,7 +690,7 @@ function renderGate() {
     </article>
     <article class="panel">
       <h3>风险</h3>
-      <button class="ghost" onclick="createCurrentPhaseRisk()" ${state.busy ? "disabled" : ""}>创建当前阶段演示风险</button>
+      ${renderRiskCreateForm("gate")}
       <table class="table">
         <tbody>
           ${phaseRisks.length ? phaseRisks
@@ -710,6 +713,27 @@ function renderGate() {
         </tbody>
       </table>
     </article>
+  `;
+}
+
+function renderRiskCreateForm(scope) {
+  return `
+    <section class="subpanel">
+      <h4>创建当前阶段风险</h4>
+      <div class="inline-form">
+        <label class="field">
+          风险标题
+          <input id="riskTitle-${scope}" placeholder="例如：关键物料交期不确定" />
+        </label>
+        <label class="field compact">
+          严重度
+          <select id="riskSeverity-${scope}">
+            ${riskSeverityOptions.map((item) => `<option value="${item}" ${item === "HIGH" ? "selected" : ""}>${item}</option>`).join("")}
+          </select>
+        </label>
+        <button onclick="createCurrentPhaseRisk('${scope}')" ${state.busy ? "disabled" : ""}>创建风险</button>
+      </div>
+    </section>
   `;
 }
 
@@ -908,8 +932,8 @@ async function markAllNotificationsRead() {
 }
 
 async function updateWorkPackageSchedule(workPackageId) {
+  const dueAt = q(`#dueAt-${CSS.escape(workPackageId)}`).value;
   await withBusy(async () => {
-    const dueAt = q(`#dueAt-${CSS.escape(workPackageId)}`).value;
     await api(`/work-packages/${workPackageId}/schedule`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -966,14 +990,16 @@ async function closeRisk(riskId) {
   });
 }
 
-async function createCurrentPhaseRisk() {
+async function createCurrentPhaseRisk(scope) {
+  const title = q(`#riskTitle-${CSS.escape(scope)}`).value.trim();
+  const severity = q(`#riskSeverity-${CSS.escape(scope)}`).value;
   await withBusy(async () => {
-    const phase = activePhase();
-    await api("/risks/demo-current-phase", {
+    await api("/risks/current-phase", {
       method: "POST",
       body: JSON.stringify({
-        title: `${phase.name} 演示高风险`,
-        severity: "HIGH",
+        title,
+        severity,
+        userId: state.actorUserId,
       }),
     });
     await loadProject();

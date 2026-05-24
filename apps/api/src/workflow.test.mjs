@@ -305,6 +305,14 @@ test("review decisions are constrained to known workflow values", () => {
 });
 
 test("risk creation and role assignment reject unknown values", () => {
+  const missingTitle = workflow.createCurrentPhaseRisk({
+    title: " ",
+    severity: "HIGH",
+    userId: "user-project-manager",
+  });
+  assert.equal(missingTitle.statusCode, 400);
+  assert.equal(missingTitle.body.error, "风险标题不能为空");
+
   const invalidRisk = workflow.createDemoRiskForCurrentPhase({
     title: "未知风险等级",
     severity: "SEVERE",
@@ -320,6 +328,24 @@ test("risk creation and role assignment reject unknown values", () => {
   });
   assert.equal(invalidRolePair.statusCode, 400);
   assert.equal(invalidRolePair.body.error, "负责人用户不存在");
+});
+
+test("current phase risk creation records custom risk details", () => {
+  const result = workflow.createCurrentPhaseRisk({
+    title: "关键物料交期不确定",
+    severity: "CRITICAL",
+    userId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.risk.title, "关键物料交期不确定");
+  assert.equal(result.body.risk.severity, "CRITICAL");
+  assert.equal(result.body.risk.createdByUserId, "user-project-manager");
+
+  const register = workflow.getProjectRiskRegister("project-smart-controller");
+  assert.equal(register.summary.openBlockingRiskCount, 2);
+  assert.equal(register.risks.some((risk) => risk.title === "关键物料交期不确定"), true);
+  assert.equal(workflow.getUserNotifications("user-project-manager").notifications[0].objectType, "risk");
 });
 
 test("work package schedule tracks overdue and due soon owner work", () => {

@@ -1859,7 +1859,7 @@ export function updateRiskStatus(riskId, status, body = {}) {
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
 
-export function createDemoRiskForCurrentPhase(body = {}) {
+function createRiskForCurrentPhase(body = {}, options = {}) {
   const project = currentProject();
   if (project.status === "COMPLETED") {
     return {
@@ -1876,6 +1876,11 @@ export function createDemoRiskForCurrentPhase(body = {}) {
     return { statusCode: 404, body: { error: "当前阶段不存在" } };
   }
 
+  const title = String(body.title || "").trim();
+  if (options.requireTitle && !title) {
+    return validationError("风险标题不能为空");
+  }
+
   const severity = body.severity || "HIGH";
   if (!allowedRiskSeverities.has(severity)) {
     return validationError("风险严重度不合法", {
@@ -1888,14 +1893,17 @@ export function createDemoRiskForCurrentPhase(body = {}) {
     id: `risk-${phase.phaseKey}-${Date.now()}`,
     projectId: project.id,
     phaseId: phase.id,
-    title: body.title || `${phase.name} 演示高风险`,
+    title: title || `${phase.name} 演示高风险`,
     severity,
     status: "OPEN",
+    createdByUserId: body.userId || options.defaultActorId || "demo",
+    createdAt: new Date().toISOString(),
   };
 
   store.risks.push(risk);
-  audit("RISK_CREATED", "system", "demo", "risk", risk.id, {
+  audit("RISK_CREATED", options.actorType || "system", risk.createdByUserId, "risk", risk.id, {
     phaseId: phase.id,
+    severity: risk.severity,
   });
   notifyRole("项目经理", {
     title: "新风险待处理",
@@ -1920,6 +1928,22 @@ export function createDemoRiskForCurrentPhase(body = {}) {
       latestGateCheck: currentGateCheck(),
     },
   };
+}
+
+export function createCurrentPhaseRisk(body = {}) {
+  return createRiskForCurrentPhase(body, {
+    actorType: "human",
+    defaultActorId: "user-project-manager",
+    requireTitle: true,
+  });
+}
+
+export function createDemoRiskForCurrentPhase(body = {}) {
+  return createRiskForCurrentPhase(body, {
+    actorType: "system",
+    defaultActorId: "demo",
+    requireTitle: false,
+  });
 }
 
 export function approveGate(gateId, body = {}) {
@@ -2028,6 +2052,11 @@ async function handleRiskUpdate(req, res, riskId, status) {
 }
 
 async function handleCreateRisk(req, res) {
+  const result = createCurrentPhaseRisk(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleCreateDemoRisk(req, res) {
   const result = createDemoRiskForCurrentPhase(await readJson(req));
   return writeJson(res, result.statusCode, result.body);
 }
@@ -2269,6 +2298,10 @@ export const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/risks/demo-current-phase") {
+      return handleCreateDemoRisk(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/risks/current-phase") {
       return handleCreateRisk(req, res);
     }
 

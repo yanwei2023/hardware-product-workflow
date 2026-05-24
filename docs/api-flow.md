@@ -38,6 +38,7 @@
 | `PATCH` | `/work-packages/:id/schedule` | 设置或清空工作包截止日期，并刷新计划状态 |
 | `POST` | `/agent-runs` | 模拟 Agent 执行工作包 |
 | `POST` | `/reviews` | 提交人类审核结果 |
+| `POST` | `/risks/current-phase` | 在当前阶段创建指定标题和严重度的风险 |
 | `POST` | `/risks/:id/accept` | 人类接受风险 |
 | `POST` | `/risks/:id/close` | 人类关闭风险 |
 | `GET` | `/gates/:id/check` | 检查阶段门是否可通过 |

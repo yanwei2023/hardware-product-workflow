@@ -346,6 +346,22 @@ textarea {
   gap: 8px;
 }
 
+.inline-form {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(240px, 1fr) 180px auto;
+}
+
+.inline-form .field {
+  margin-bottom: 0;
+}
+
+.field.compact select {
+  min-width: 0;
+  width: 100%;
+}
+
 .log {
   background: #0f172a;
   border-radius: 8px;
@@ -395,6 +411,7 @@ textarea {
 
   .phase-strip,
   .grid.cols-3,
+  .inline-form,
   .split {
     grid-template-columns: 1fr;
   }

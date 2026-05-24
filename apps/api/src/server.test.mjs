@@ -443,6 +443,35 @@ test("risk close endpoint enforces risk decision permission", async () => {
   assert.equal(approved.body.risk.status, "CLOSED");
 });
 
+test("current phase risk endpoint creates custom risks", async () => {
+  const result = await dispatch("/risks/current-phase", {
+    method: "POST",
+    body: JSON.stringify({
+      title: "关键物料交期不确定",
+      severity: "CRITICAL",
+      userId: "user-project-manager",
+    }),
+  });
+
+  assert.equal(result.status, 201);
+  assert.equal(result.body.risk.title, "关键物料交期不确定");
+  assert.equal(result.body.risk.severity, "CRITICAL");
+  assert.equal(result.body.latestGateCheck.status, "BLOCKED");
+
+  const register = await dispatch("/projects/project-smart-controller/risk-register");
+  assert.equal(register.body.summary.openBlockingRiskCount, 2);
+});
+
+test("current phase risk endpoint requires a title", async () => {
+  const result = await dispatch("/risks/current-phase", {
+    method: "POST",
+    body: JSON.stringify({ title: "", severity: "HIGH" }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "风险标题不能为空");
+});
+
 test("unknown API path returns JSON 404", async () => {
   const result = await dispatch("/not-a-real-api", { method: "POST" });
 
