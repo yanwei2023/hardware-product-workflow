@@ -534,7 +534,12 @@ function renderBlockerRow(blocker) {
   const action = relatedWorkPackage
     ? `<button onclick="goWorkPackage('${relatedWorkPackage.id}')">处理工作包</button>`
     : blocker.code === "OPEN_HIGH_RISK"
-      ? `<button onclick="acceptRisk('${blocker.relatedObjectId}')">接受风险</button>`
+      ? `
+        <div class="actions">
+          <button onclick="acceptRisk('${blocker.relatedObjectId}')">接受风险</button>
+          <button class="secondary" onclick="closeRisk('${blocker.relatedObjectId}')">关闭风险</button>
+        </div>
+      `
       : "";
 
   return `
