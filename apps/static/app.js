@@ -17,6 +17,8 @@ const statusText = {
   HUMAN_APPROVED: "人类已批准",
   PENDING_REVIEW: "待审核",
   APPROVED: "已批准",
+  NEEDS_REVISION: "需要修改",
+  REJECTED: "已驳回",
   OPEN: "打开",
   ACCEPTED: "已接受",
   CLOSED: "已关闭",
@@ -375,7 +377,9 @@ function renderWorkPackageDetail(workPackage) {
 
     <div class="actions">
       <button onclick="runAgent('${workPackage.id}')" ${state.busy ? "disabled" : ""}>Agent 生成</button>
-      <button class="secondary" onclick="approveWorkPackage('${workPackage.id}')" ${state.busy ? "disabled" : ""}>人类批准</button>
+      <button class="secondary" onclick="submitReview('${workPackage.id}', 'APPROVE')" ${state.busy ? "disabled" : ""}>人类批准</button>
+      <button class="ghost" onclick="submitReview('${workPackage.id}', 'REQUEST_REVISION')" ${state.busy ? "disabled" : ""}>要求修改</button>
+      <button class="ghost" onclick="submitReview('${workPackage.id}', 'REJECT')" ${state.busy ? "disabled" : ""}>驳回</button>
       <button class="ghost" onclick="runInvalidAgent('${workPackage.id}')" ${state.busy ? "disabled" : ""}>模拟无效输出</button>
     </div>
 
@@ -557,14 +561,24 @@ async function runInvalidAgent(workPackageId) {
 }
 
 async function approveWorkPackage(workPackageId) {
+  await submitReview(workPackageId, "APPROVE");
+}
+
+async function submitReview(workPackageId, decision) {
+  const commentByDecision = {
+    APPROVE: "演示批准。",
+    REQUEST_REVISION: "请 Agent 根据审核意见修改后重新提交。",
+    REJECT: "审核驳回。",
+  };
+
   await withBusy(async () => {
     await api("/reviews", {
       method: "POST",
       body: JSON.stringify({
         workPackageId,
         reviewerUserId: state.actorUserId,
-        decision: "APPROVE",
-        comment: "演示批准。",
+        decision,
+        comment: commentByDecision[decision] || "审核完成。",
       }),
     });
     await loadProject();

@@ -95,6 +95,29 @@ test("only the assigned human owner can approve a gate artifact", () => {
   assert.match(denied.body.reason, /只有工作包绑定的人类负责人/);
 });
 
+test("requesting revision removes the stale artifact from pending review", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+
+  const reviewResult = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_report",
+    reviewerUserId: "user-test-lead",
+    decision: "REQUEST_REVISION",
+    comment: "请补充失败项分析。",
+  });
+
+  assert.equal(reviewResult.statusCode, 201);
+  assert.equal(reviewResult.body.workPackage.status, "NEEDS_AGENT_REVISION");
+
+  const detail = workflow.getWorkPackageDetail("wp-evt_exit-evt_test_report");
+  assert.equal(detail.artifacts.at(-1).status, "NEEDS_REVISION");
+
+  const actionItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(
+    actionItems.pendingReviews.some((item) => item.workPackageId === "wp-evt_exit-evt_test_report"),
+    false,
+  );
+});
+
 test("invalid agent output is rejected before human review", () => {
   const result = workflow.runAgentWorkPackage({
     workPackageId: "wp-evt_exit-evt_test_report",

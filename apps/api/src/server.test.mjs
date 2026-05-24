@@ -114,6 +114,30 @@ test("unauthorized approval attempt returns a clear permission error", async () 
   assert.equal(result.body.error, "当前用户无权批准该工作包");
 });
 
+test("review endpoint can request agent revision", async () => {
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+
+  const result = await dispatch("/reviews", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      reviewerUserId: "user-test-lead",
+      decision: "REQUEST_REVISION",
+      comment: "请补充失败项分析。",
+    }),
+  });
+
+  assert.equal(result.status, 201);
+  assert.equal(result.body.workPackage.status, "NEEDS_AGENT_REVISION");
+});
+
 test("risk close endpoint enforces risk decision permission", async () => {
   const denied = await dispatch("/risks/risk-thermal-margin/close", {
     method: "POST",

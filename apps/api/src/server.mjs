@@ -660,8 +660,10 @@ export function submitHumanReview(body) {
     pendingArtifact.version = "1.0";
   } else if (body.decision === "REQUEST_REVISION") {
     workPackage.status = "NEEDS_AGENT_REVISION";
+    pendingArtifact.status = "NEEDS_REVISION";
   } else {
     workPackage.status = "REJECTED";
+    pendingArtifact.status = "REJECTED";
   }
 
   audit("HUMAN_REVIEW_SUBMITTED", "human", review.reviewerUserId, "workPackage", workPackage.id, {
