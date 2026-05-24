@@ -209,6 +209,7 @@ function renderProjects() {
                       <div class="actions">
                         <button onclick="selectProject('${project.id}')" ${state.busy || isActive ? "disabled" : ""}>切换</button>
                         <button class="ghost" onclick="openProjectSnapshotMarkdown('${project.id}')">导出快照</button>
+                        <button class="ghost" onclick="cloneProject('${project.id}')" ${state.busy ? "disabled" : ""}>复制</button>
                       </div>
                     </td>
                   </tr>
@@ -821,6 +822,27 @@ async function selectProject(projectId) {
 
 function openProjectSnapshotMarkdown(projectId) {
   window.open(`/projects/${projectId}/snapshot.md`, "_blank");
+}
+
+async function cloneProject(projectId) {
+  const current = state.project.projectSummaries.find((item) => item.id === projectId);
+  const name = window.prompt("输入项目副本名称", `${current?.name || "项目"} 副本`);
+  if (!name) {
+    return;
+  }
+
+  await withBusy(async () => {
+    await api(`/projects/${projectId}/clone`, {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        userId: state.actorUserId,
+      }),
+    });
+    state.selectedWorkPackageId = null;
+    state.currentView = "projects";
+    await loadProject();
+  });
 }
 
 async function validateProjectSnapshotImport() {

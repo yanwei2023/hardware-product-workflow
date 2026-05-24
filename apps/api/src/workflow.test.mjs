@@ -406,6 +406,27 @@ test("project snapshot import creates a new active project and audit event", () 
   assert.equal(duplicate.body.valid, false);
 });
 
+test("project clone creates an independent active project copy", () => {
+  const result = workflow.cloneProject("project-smart-controller", {
+    name: "智能控制器项目 Copy",
+    userId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.validation.valid, true);
+  assert.equal(result.body.project.project.name, "智能控制器项目 Copy");
+  assert.notEqual(result.body.project.project.id, "project-smart-controller");
+  assert.equal(result.body.project.activeProjectId, result.body.project.project.id);
+  assert.equal(result.body.project.phases.length, 7);
+  assert.equal(result.body.project.workPackages.length, workflow.getProjectSnapshot("project-smart-controller").workPackages.length);
+  assert.equal(result.body.project.auditEvents.some((event) => event.eventType === "PROJECT_CLONED"), true);
+
+  const original = workflow.getProjectSnapshot("project-smart-controller");
+  const copy = workflow.getProjectSnapshot(result.body.project.project.id);
+  assert.equal(original.project.name, "智能控制器项目");
+  assert.equal(copy.project.clonedFromProjectId, "project-smart-controller");
+});
+
 test("project creation expands the standard phase template", () => {
   const result = workflow.createProject({
     name: "智能门锁 V2",

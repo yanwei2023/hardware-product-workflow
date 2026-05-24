@@ -130,6 +130,31 @@ test("project import endpoint refuses invalid snapshots", async () => {
   assert.equal(result.body.errors.some((error) => error.message === "项目 ID 已存在，不能直接导入"), true);
 });
 
+test("project clone endpoint creates a named project copy", async () => {
+  const result = await dispatch("/projects/project-smart-controller/clone", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "HTTP Clone Project",
+      userId: "user-project-manager",
+    }),
+  });
+
+  assert.equal(result.status, 201);
+  assert.equal(result.body.project.project.name, "HTTP Clone Project");
+  assert.equal(result.body.project.activeProjectId, result.body.project.project.id);
+  assert.equal(result.body.project.auditEvents.some((event) => event.eventType === "PROJECT_CLONED"), true);
+});
+
+test("project clone endpoint rejects unknown projects", async () => {
+  const result = await dispatch("/projects/missing-project/clone", {
+    method: "POST",
+    body: JSON.stringify({ name: "Missing clone" }),
+  });
+
+  assert.equal(result.status, 404);
+  assert.equal(result.body.error, "项目不存在");
+});
+
 test("post endpoints return 400 for malformed JSON bodies", async () => {
   const result = await dispatch("/projects/import/validate", {
     method: "POST",

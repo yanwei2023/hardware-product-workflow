@@ -719,8 +719,9 @@ export function importProjectSnapshot(input = {}) {
   store.auditEvents.push(...auditEvents);
   store.activeProjectId = project.id;
 
-  audit("PROJECT_IMPORTED", "human", input.actorUserId || "user-project-manager", "project", project.id, {
+  audit(input.importEventType || "PROJECT_IMPORTED", "human", input.actorUserId || "user-project-manager", "project", project.id, {
     sourceExportedAt: snapshot.exportedAt || null,
+    ...(input.importPayload || {}),
     importedCounts: validation.summary,
   });
   persistStore();
@@ -732,6 +733,134 @@ export function importProjectSnapshot(input = {}) {
       project: getActiveProjectView(),
     },
   };
+}
+
+function uniqueProjectIdFromName(name) {
+  let baseId = `project-${slugifyProjectName(name)}`;
+  if (store.projects.some((project) => project.id === baseId)) {
+    baseId = `${baseId}-${Date.now()}`;
+  }
+  return baseId;
+}
+
+function remapSnapshotForProjectCopy(snapshot, projectId, name) {
+  const copy = structuredClone(snapshot);
+  const phaseIdMap = new Map();
+  const gateIdMap = new Map();
+  const rolePairIdMap = new Map();
+  const workPackageIdMap = new Map();
+
+  copy.project = {
+    ...copy.project,
+    id: projectId,
+    name,
+    createdAt: new Date().toISOString(),
+    clonedFromProjectId: snapshot.project.id,
+  };
+
+  copy.phases = asArray(copy.phases).map((phase) => {
+    const id = `${projectId}-${phase.id}`;
+    phaseIdMap.set(phase.id, id);
+    return { ...phase, id, projectId };
+  });
+  copy.project.currentPhaseId = phaseIdMap.get(snapshot.project.currentPhaseId) || copy.project.currentPhaseId;
+
+  copy.gates = asArray(copy.gates).map((gate) => {
+    const id = `${projectId}-${gate.id}`;
+    gateIdMap.set(gate.id, id);
+    return {
+      ...gate,
+      id,
+      projectId,
+      phaseId: phaseIdMap.get(gate.phaseId),
+    };
+  });
+
+  copy.rolePairs = asArray(copy.rolePairs).map((rolePair) => {
+    const id = `${projectId}-${rolePair.id}`;
+    rolePairIdMap.set(rolePair.id, id);
+    return { ...rolePair, id, projectId };
+  });
+
+  copy.workPackages = asArray(copy.workPackages).map(({ phaseName, ownerUserId, agentKey, ...workPackage }) => {
+    const id = `${projectId}-${workPackage.id}`;
+    workPackageIdMap.set(workPackage.id, id);
+    return {
+      ...workPackage,
+      id,
+      projectId,
+      phaseId: phaseIdMap.get(workPackage.phaseId),
+      rolePairId: rolePairIdMap.get(workPackage.rolePairId),
+    };
+  });
+
+  copy.gateRequirements = asArray(copy.gateRequirements).map((requirement) => ({
+    ...requirement,
+    id: `${projectId}-${requirement.id}`,
+    gateId: gateIdMap.get(requirement.gateId),
+  }));
+
+  copy.artifactVersions = asArray(copy.artifactVersions).map((artifact) => ({
+    ...artifact,
+    id: `${projectId}-${artifact.id}`,
+    workPackageId: workPackageIdMap.get(artifact.workPackageId),
+  }));
+
+  copy.reviews = asArray(copy.reviews).map((review) => ({
+    ...review,
+    id: `${projectId}-${review.id}`,
+    workPackageId: workPackageIdMap.get(review.workPackageId),
+  }));
+
+  copy.risks = asArray(copy.risks).map(({ phaseName, ...risk }) => ({
+    ...risk,
+    id: `${projectId}-${risk.id}`,
+    projectId,
+    phaseId: phaseIdMap.get(risk.phaseId),
+  }));
+
+  copy.agentRuns = asArray(copy.agentRuns).map((run) => ({
+    ...run,
+    id: `${projectId}-${run.id}`,
+    workPackageId: workPackageIdMap.get(run.workPackageId),
+  }));
+
+  copy.agentFindings = asArray(copy.agentFindings).map((finding) => ({
+    ...finding,
+    id: `${projectId}-${finding.id}`,
+    workPackageId: workPackageIdMap.get(finding.workPackageId),
+  }));
+
+  copy.auditEvents = asArray(copy.auditEvents).map((event) => ({
+    ...event,
+    id: `${projectId}-${event.id}`,
+    projectId,
+  }));
+
+  return copy;
+}
+
+export function cloneProject(projectId, body = {}) {
+  const snapshot = getProjectSnapshot(projectId);
+  if (!snapshot) {
+    return {
+      statusCode: 404,
+      body: { error: "项目不存在" },
+    };
+  }
+
+  const name = body.name?.trim() || `${snapshot.project.name} 副本`;
+  const newProjectId = uniqueProjectIdFromName(name);
+  const copy = remapSnapshotForProjectCopy(snapshot, newProjectId, name);
+
+  return importProjectSnapshot({
+    ...copy,
+    actorUserId: body.userId || "user-project-manager",
+    importEventType: "PROJECT_CLONED",
+    importPayload: {
+      sourceProjectId: projectId,
+    },
+  });
 }
 
 function slugifyProjectName(name) {
@@ -752,10 +881,7 @@ export function createProject(body = {}) {
     };
   }
 
-  let baseId = `project-${slugifyProjectName(name)}`;
-  if (store.projects.some((project) => project.id === baseId)) {
-    baseId = `${baseId}-${Date.now()}`;
-  }
+  const baseId = uniqueProjectIdFromName(name);
 
   const activePhaseKey = body.activePhaseKey || "initiation";
   const phaseDefinition = getHardwarePhaseTemplate().phases.find((phase) => phase.phaseKey === activePhaseKey);
@@ -1479,6 +1605,11 @@ async function handleImportProject(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleCloneProject(req, res, projectId) {
+  const result = cloneProject(projectId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleSelectProject(req, res, projectId) {
   const result = selectProject(projectId);
   return writeJson(res, result.statusCode, result.body);
@@ -1559,6 +1690,11 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/projects/import") {
       return handleImportProject(req, res);
+    }
+
+    const cloneProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/clone$/);
+    if (req.method === "POST" && cloneProjectMatch) {
+      return handleCloneProject(req, res, cloneProjectMatch[1]);
     }
 
     const projectSnapshotMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot\.md$/);
