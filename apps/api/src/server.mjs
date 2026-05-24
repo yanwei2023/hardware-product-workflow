@@ -173,6 +173,65 @@ ${blockerRows}
 `;
 }
 
+function renderProjectSnapshotMarkdown(snapshot) {
+  const phaseRows = snapshot.phases
+    .map((phase) => `| ${phase.sequence} | ${phase.name} | ${phase.status} |`)
+    .join("\n");
+  const workPackageRows = snapshot.workPackages
+    .map((item) => `| ${item.phaseName} | ${item.title} | ${item.requiredArtifactType} | ${item.status} | ${item.ownerUserId || "-"} |`)
+    .join("\n");
+  const riskRows = snapshot.risks.length
+    ? snapshot.risks.map((risk) => `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} |`).join("\n")
+    : "| 无 | - | - | - |";
+  const auditRows = snapshot.auditEvents.length
+    ? snapshot.auditEvents
+        .slice(-12)
+        .map((event) => `| ${event.createdAt} | ${event.eventType} | ${event.actorType}:${event.actorId} | ${event.objectType}:${event.objectId} |`)
+        .join("\n")
+    : "| 无 | - | - | - |";
+
+  return `# ${snapshot.project.name} 项目快照
+
+项目状态：${snapshot.project.status}
+当前阶段：${snapshot.currentPhase?.name || "-"}
+当前阶段门：${snapshot.currentGate?.name || "-"} / ${snapshot.currentGate?.status || "-"}
+导出时间：${snapshot.exportedAt}
+
+## 汇总
+
+- 阶段：${snapshot.summary.phaseCount}
+- 工作包：${snapshot.summary.workPackageCount}
+- 已批准工作包：${snapshot.summary.approvedWorkPackageCount}
+- 风险：${snapshot.summary.riskCount}
+- 打开高风险：${snapshot.summary.openHighRiskCount}
+- 审计事件：${snapshot.summary.auditEventCount}
+
+## 阶段
+
+| 序号 | 阶段 | 状态 |
+|---|---|---|
+${phaseRows}
+
+## 工作包
+
+| 阶段 | 工作包 | 交付物类型 | 状态 | 负责人 |
+|---|---|---|---|---|
+${workPackageRows}
+
+## 风险
+
+| 阶段 | 风险 | 严重度 | 状态 |
+|---|---|---|---|
+${riskRows}
+
+## 最近审计
+
+| 时间 | 事件 | 操作者 | 对象 |
+|---|---|---|---|
+${auditRows}
+`;
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -343,6 +402,65 @@ export function getDemoProject() {
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
     latestGateCheck: gate ? checkGate(gate.id) : null,
+  };
+}
+
+export function getProjectSnapshot(projectId) {
+  const project = store.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return null;
+  }
+
+  const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
+  const phases = store.phases.filter((item) => item.projectId === project.id).sort((a, b) => a.sequence - b.sequence);
+  const gates = store.gates.filter((item) => item.projectId === project.id);
+  const rolePairs = store.rolePairs.filter((item) => item.projectId === project.id);
+  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
+  const workPackageIds = new Set(workPackages.map((item) => item.id));
+  const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
+  const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
+  const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
+  const auditEvents = store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    project,
+    currentPhase,
+    currentGate,
+    summary: {
+      phaseCount: phases.length,
+      workPackageCount: workPackages.length,
+      approvedWorkPackageCount: workPackages.filter((item) => item.status === "HUMAN_APPROVED" || item.status === "LOCKED").length,
+      riskCount: risks.length,
+      openHighRiskCount: risks.filter(
+        (risk) =>
+          (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+          risk.status !== "CLOSED" &&
+          risk.status !== "ACCEPTED",
+      ).length,
+      auditEventCount: auditEvents.length,
+    },
+    phases,
+    gates,
+    rolePairs,
+    workPackages: workPackages.map((workPackage) => {
+      const rolePair = rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+      return {
+        ...workPackage,
+        phaseName: phases.find((phase) => phase.id === workPackage.phaseId)?.name || workPackage.phaseId,
+        ownerUserId: rolePair?.humanUserId || null,
+        agentKey: rolePair?.agentKey || null,
+      };
+    }),
+    artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
+    reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
+    risks: risks.map((risk) => ({
+      ...risk,
+      phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
+    })),
+    agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
+    agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
+    auditEvents,
   };
 }
 
@@ -1149,6 +1267,20 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/projects") {
       return handleCreateProject(req, res);
+    }
+
+    const projectSnapshotMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot\.md$/);
+    if (req.method === "GET" && projectSnapshotMarkdownMatch) {
+      const snapshot = getProjectSnapshot(projectSnapshotMarkdownMatch[1]);
+      return snapshot
+        ? writeText(res, 200, renderProjectSnapshotMarkdown(snapshot), "text/markdown; charset=utf-8")
+        : writeJson(res, 404, { error: "项目不存在" });
+    }
+
+    const projectSnapshotMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot$/);
+    if (req.method === "GET" && projectSnapshotMatch) {
+      const snapshot = getProjectSnapshot(projectSnapshotMatch[1]);
+      return snapshot ? writeJson(res, 200, snapshot) : writeJson(res, 404, { error: "项目不存在" });
     }
 
     const selectProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/select$/);

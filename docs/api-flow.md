@@ -26,6 +26,8 @@
 | `GET` | `/health` | 检查后台是否运行 |
 | `POST` | `/demo/reset` | 重置演示数据 |
 | `GET` | `/projects/demo` | 查看演示项目状态 |
+| `GET` | `/projects/:id/snapshot` | 导出项目快照 JSON |
+| `GET` | `/projects/:id/snapshot.md` | 导出项目快照 Markdown |
 | `POST` | `/agent-runs` | 模拟 Agent 执行工作包 |
 | `POST` | `/reviews` | 提交人类审核结果 |
 | `POST` | `/risks/:id/accept` | 人类接受风险 |

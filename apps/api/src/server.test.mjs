@@ -67,6 +67,27 @@ test("project endpoint returns the current workflow snapshot", async () => {
   assert.equal(result.body.latestGateCheck.status, "BLOCKED");
 });
 
+test("project snapshot endpoints export current project state", async () => {
+  const jsonResult = await dispatch("/projects/project-smart-controller/snapshot");
+  assert.equal(jsonResult.status, 200);
+  assert.equal(jsonResult.body.project.id, "project-smart-controller");
+  assert.equal(jsonResult.body.summary.phaseCount, 7);
+  assert.equal(jsonResult.body.currentPhase.name, "EVT Exit");
+
+  const markdownResult = await dispatch("/projects/project-smart-controller/snapshot.md");
+  assert.equal(markdownResult.status, 200);
+  assert.match(markdownResult.headers["content-type"], /text\/markdown/);
+  assert.match(markdownResult.body, /# 智能控制器项目 项目快照/);
+  assert.match(markdownResult.body, /## 工作包/);
+});
+
+test("project snapshot endpoint rejects unknown projects", async () => {
+  const result = await dispatch("/projects/missing-project/snapshot");
+
+  assert.equal(result.status, 404);
+  assert.equal(result.body.error, "项目不存在");
+});
+
 test("action items endpoint returns user-specific work", async () => {
   const result = await dispatch("/users/user-project-manager/action-items");
 

@@ -271,6 +271,27 @@ test("user action items reflect review and risk responsibilities", () => {
   assert.equal(testLeadItems.pendingReviews.length, 0);
 });
 
+test("project snapshot summarizes project state without changing active project", () => {
+  const created = workflow.createProject({
+    name: "Snapshot Device",
+    productLine: "IoT 产品线",
+    activePhaseKey: "evt_exit",
+    userId: "user-project-manager",
+  });
+  assert.equal(created.statusCode, 201);
+
+  const createdSnapshot = workflow.getProjectSnapshot(created.body.project.id);
+  assert.equal(createdSnapshot.project.name, "Snapshot Device");
+  assert.equal(createdSnapshot.summary.phaseCount, 7);
+  assert.equal(createdSnapshot.summary.workPackageCount, createdSnapshot.workPackages.length);
+  assert.equal(createdSnapshot.currentPhase.name, "EVT Exit");
+
+  const demoSnapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(demoSnapshot.project.name, "智能控制器项目");
+  assert.equal(workflow.getDemoProject().project.id, created.body.project.id);
+  assert.equal(workflow.getProjectSnapshot("missing-project"), null);
+});
+
 test("project creation expands the standard phase template", () => {
   const result = workflow.createProject({
     name: "智能门锁 V2",

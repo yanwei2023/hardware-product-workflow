@@ -200,7 +200,12 @@ function renderProjects() {
                     <td>${escapeHtml(project.name)} ${isActive ? statusBadge("IN_PROGRESS") : ""}</td>
                     <td>${escapeHtml(project.currentPhaseName || project.currentPhaseId)}</td>
                     <td>${escapeHtml(project.status)}</td>
-                    <td><button onclick="selectProject('${project.id}')" ${state.busy || isActive ? "disabled" : ""}>切换</button></td>
+                    <td>
+                      <div class="actions">
+                        <button onclick="selectProject('${project.id}')" ${state.busy || isActive ? "disabled" : ""}>切换</button>
+                        <button class="ghost" onclick="openProjectSnapshotMarkdown('${project.id}')">导出快照</button>
+                      </div>
+                    </td>
                   </tr>
                 `;
               })
@@ -736,6 +741,10 @@ async function selectProject(projectId) {
     state.selectedWorkPackageId = null;
     await loadProject();
   });
+}
+
+function openProjectSnapshotMarkdown(projectId) {
+  window.open(`/projects/${projectId}/snapshot.md`, "_blank");
 }
 
 async function updateRolePair(rolePairId) {
