@@ -1178,11 +1178,13 @@ async function updateRolePair(rolePairId) {
 }
 
 async function approveGate() {
+  const comment = window.prompt("请输入阶段门批准说明", "证据和风险状态已确认，批准进入下一阶段。");
+  if (comment === null) return;
   await withBusy(async () => {
     const gate = activeGate();
     await api(`/gates/${gate.id}/approve`, {
       method: "POST",
-      body: JSON.stringify({ userId: state.actorUserId }),
+      body: JSON.stringify({ userId: state.actorUserId, comment }),
     });
     state.selectedWorkPackageId = null;
     await loadProject();

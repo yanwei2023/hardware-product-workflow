@@ -647,11 +647,13 @@ test("gate approval locks the current phase and advances to the next phase", () 
 
   const result = workflow.approveGate("gate-evt_exit", {
     userId: "user-project-manager",
+    comment: "EVT 证据齐备，批准进入 DVT。",
   });
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.project.currentPhaseId, "phase-dvt_exit");
   assert.equal(result.body.gate.status, "APPROVED");
+  assert.equal(result.body.gate.approvalComment, "EVT 证据齐备，批准进入 DVT。");
 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");

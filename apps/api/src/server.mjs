@@ -197,6 +197,9 @@ function renderGateReviewPackMarkdown(pack) {
 阶段：${pack.phase?.name || "-"}
 阶段门状态：${pack.gate.status}
 就绪状态：${pack.readiness.status}
+批准人：${pack.gate.approvedByUserId || "-"}
+批准时间：${pack.gate.approvedAt || "-"}
+批准说明：${pack.gate.approvalComment || "-"}
 
 ## 摘要
 
@@ -1525,6 +1528,7 @@ export function getGateReviewPack(gateId) {
       status: gate.status,
       approvedByUserId: gate.approvedByUserId || null,
       approvedAt: gate.approvedAt || null,
+      approvalComment: gate.approvalComment || "",
     },
     readiness,
     evidence,
@@ -2030,6 +2034,7 @@ export function approveGate(gateId, body = {}) {
   gate.status = "APPROVED";
   gate.approvedByUserId = actorUserId;
   gate.approvedAt = new Date().toISOString();
+  gate.approvalComment = body.comment || "";
 
   if (phase) {
     phase.status = "LOCKED";
@@ -2050,6 +2055,7 @@ export function approveGate(gateId, body = {}) {
 
   audit("GATE_APPROVED", "human", actorUserId, "gate", gate.id, {
     nextPhaseId: project.currentPhaseId,
+    comment: gate.approvalComment,
   });
   notifyRole("项目经理", {
     title: "阶段门已批准",

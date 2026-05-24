@@ -34,6 +34,8 @@
 下一 Phase -> IN_PROGRESS / GATE_BLOCKED
 项目 currentPhaseId -> 下一阶段
 审计日志写入 GATE_APPROVED
+
+批准时应记录批准说明，用于说明阶段门结论、残余风险或进入下一阶段的条件。
 ```
 
 如果没有下一阶段，项目状态进入 `COMPLETED`。

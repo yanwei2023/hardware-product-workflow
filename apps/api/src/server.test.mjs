@@ -315,6 +315,7 @@ test("gate review pack markdown endpoint exports a readable package", async () =
   assert.equal(result.status, 200);
   assert.match(result.headers["content-type"], /text\/markdown/);
   assert.match(result.body, /# EVT Exit 阶段门 审核包/);
+  assert.match(result.body, /批准说明/);
   assert.match(result.body, /## 必需证据/);
   assert.match(result.body, /EVT 测试计划/);
 });
