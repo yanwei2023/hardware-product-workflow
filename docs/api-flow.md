@@ -30,6 +30,7 @@
 | `GET` | `/projects/:id/snapshot` | 导出项目快照 JSON |
 | `GET` | `/projects/:id/snapshot.md` | 导出项目快照 Markdown |
 | `POST` | `/projects/import/validate` | 导入项目前校验快照结构与引用完整性 |
+| `POST` | `/projects/import` | 安全导入通过校验且不冲突的项目快照 |
 | `POST` | `/agent-runs` | 模拟 Agent 执行工作包 |
 | `POST` | `/reviews` | 提交人类审核结果 |
 | `POST` | `/risks/:id/accept` | 人类接受风险 |
@@ -47,3 +48,4 @@
 - 高风险未关闭或未接受时，阶段门必须阻塞。
 - 阶段门检查结果必须明确列出阻塞原因。
 - JSON 请求体格式错误必须返回 `400`，不能作为服务器错误处理。
+- 项目快照导入必须先通过结构与引用完整性校验，且不能覆盖已有项目 ID。

@@ -4,6 +4,7 @@ const state = {
   gateReviewPack: null,
   storageStatus: null,
   importValidation: null,
+  importSnapshotRaw: "",
   users: [],
   actorUserId: "user-project-manager",
   currentView: "overview",
@@ -257,9 +258,12 @@ function renderProjects() {
         <h3>导入前校验</h3>
         <label class="field">
           项目快照 JSON
-          <textarea id="snapshotImportJson" rows="10" placeholder="粘贴 /projects/:id/snapshot 导出的 JSON"></textarea>
+          <textarea id="snapshotImportJson" rows="10" placeholder="粘贴 /projects/:id/snapshot 导出的 JSON">${escapeHtml(state.importSnapshotRaw)}</textarea>
         </label>
-        <button onclick="validateProjectSnapshotImport()" ${state.busy ? "disabled" : ""}>校验快照</button>
+        <div class="actions">
+          <button onclick="validateProjectSnapshotImport()" ${state.busy ? "disabled" : ""}>校验快照</button>
+          <button class="secondary" onclick="importProjectSnapshot()" ${state.busy || !state.importValidation?.canImport ? "disabled" : ""}>导入项目</button>
+        </div>
         ${renderImportValidation()}
       </article>
     </div>
@@ -821,6 +825,7 @@ function openProjectSnapshotMarkdown(projectId) {
 
 async function validateProjectSnapshotImport() {
   const raw = q("#snapshotImportJson").value.trim();
+  state.importSnapshotRaw = raw;
   if (!raw) {
     setMessage("请先粘贴项目快照 JSON。", "error");
     return;
@@ -844,6 +849,37 @@ async function validateProjectSnapshotImport() {
     if (!response.ok && !state.importValidation) {
       throw new Error("快照校验失败。");
     }
+  });
+}
+
+async function importProjectSnapshot() {
+  const raw = q("#snapshotImportJson").value.trim() || state.importSnapshotRaw;
+  if (!raw) {
+    setMessage("请先粘贴项目快照 JSON。", "error");
+    return;
+  }
+
+  let snapshot;
+  try {
+    snapshot = JSON.parse(raw);
+  } catch (error) {
+    setMessage(`JSON 格式错误：${error.message}`, "error");
+    return;
+  }
+
+  await withBusy(async () => {
+    await api("/projects/import", {
+      method: "POST",
+      body: JSON.stringify({
+        ...snapshot,
+        actorUserId: state.actorUserId,
+      }),
+    });
+    state.importValidation = null;
+    state.importSnapshotRaw = "";
+    state.selectedWorkPackageId = null;
+    state.currentView = "projects";
+    await loadProject();
   });
 }
 

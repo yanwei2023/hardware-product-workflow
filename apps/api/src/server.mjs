@@ -678,6 +678,62 @@ export function validateProjectSnapshotImport(input = {}) {
   };
 }
 
+export function importProjectSnapshot(input = {}) {
+  const snapshot = input.snapshot || input;
+  const validation = validateProjectSnapshotImport(snapshot);
+  if (!validation.valid) {
+    return {
+      statusCode: 422,
+      body: validation,
+    };
+  }
+
+  const project = { ...snapshot.project };
+  const phases = asArray(snapshot.phases).map((item) => ({ ...item }));
+  const gates = asArray(snapshot.gates).map((item) => ({ ...item }));
+  const rolePairs = asArray(snapshot.rolePairs).map((item) => ({ ...item }));
+  const gateRequirements = asArray(snapshot.gateRequirements).map((item) => ({ ...item }));
+  const workPackages = asArray(snapshot.workPackages).map(({ phaseName, ownerUserId, agentKey, ...item }) => ({ ...item }));
+  const artifactVersions = asArray(snapshot.artifactVersions).map((item) => ({ ...item }));
+  const reviews = asArray(snapshot.reviews).map((item) => ({ ...item }));
+  const risks = asArray(snapshot.risks).map(({ phaseName, ...item }) => ({ ...item }));
+  const agentRuns = asArray(snapshot.agentRuns).map((item) => ({ ...item }));
+  const agentFindings = asArray(snapshot.agentFindings).map((item) => ({ ...item }));
+  const auditEvents = asArray(snapshot.auditEvents).map((item) => ({
+    ...item,
+    id: `imported-${item.id}`,
+    projectId: project.id,
+  }));
+
+  store.projects.push(project);
+  store.phases.push(...phases);
+  store.gates.push(...gates);
+  store.rolePairs.push(...rolePairs);
+  store.gateRequirements.push(...gateRequirements);
+  store.workPackages.push(...workPackages);
+  store.artifactVersions.push(...artifactVersions);
+  store.reviews.push(...reviews);
+  store.risks.push(...risks);
+  store.agentRuns.push(...agentRuns);
+  store.agentFindings.push(...agentFindings);
+  store.auditEvents.push(...auditEvents);
+  store.activeProjectId = project.id;
+
+  audit("PROJECT_IMPORTED", "human", input.actorUserId || "user-project-manager", "project", project.id, {
+    sourceExportedAt: snapshot.exportedAt || null,
+    importedCounts: validation.summary,
+  });
+  persistStore();
+
+  return {
+    statusCode: 201,
+    body: {
+      validation,
+      project: getActiveProjectView(),
+    },
+  };
+}
+
 function slugifyProjectName(name) {
   const ascii = String(name || "")
     .trim()
@@ -1418,6 +1474,11 @@ async function handleValidateProjectImport(req, res) {
   return writeJson(res, result.valid ? 200 : 422, result);
 }
 
+async function handleImportProject(req, res) {
+  const result = importProjectSnapshot(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleSelectProject(req, res, projectId) {
   const result = selectProject(projectId);
   return writeJson(res, result.statusCode, result.body);
@@ -1494,6 +1555,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/projects/import/validate") {
       return handleValidateProjectImport(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/projects/import") {
+      return handleImportProject(req, res);
     }
 
     const projectSnapshotMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot\.md$/);

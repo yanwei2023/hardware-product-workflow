@@ -118,6 +118,18 @@ test("project import validation endpoint reports duplicate project ids", async (
   assert.equal(result.body.errors.some((error) => error.message === "项目 ID 已存在，不能直接导入"), true);
 });
 
+test("project import endpoint refuses invalid snapshots", async () => {
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  const result = await dispatch("/projects/import", {
+    method: "POST",
+    body: JSON.stringify(snapshot),
+  });
+
+  assert.equal(result.status, 422);
+  assert.equal(result.body.valid, false);
+  assert.equal(result.body.errors.some((error) => error.message === "项目 ID 已存在，不能直接导入"), true);
+});
+
 test("post endpoints return 400 for malformed JSON bodies", async () => {
   const result = await dispatch("/projects/import/validate", {
     method: "POST",

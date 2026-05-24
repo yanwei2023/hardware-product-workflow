@@ -54,6 +54,69 @@ function completeWorkPackages(workPackages, idPrefix = "") {
   }
 }
 
+function makeImportableSnapshot(snapshot, projectId = "project-importable") {
+  const renamed = structuredClone(snapshot);
+  renamed.project.id = projectId;
+  renamed.project.name = `${snapshot.project.name} 导入副本`;
+  renamed.project.currentPhaseId = `${projectId}-phase-evt_exit`;
+  renamed.phases = renamed.phases.map((phase) => ({
+    ...phase,
+    id: `${projectId}-${phase.id}`,
+    projectId,
+  }));
+  const phaseIdMap = new Map(snapshot.phases.map((phase, index) => [phase.id, renamed.phases[index].id]));
+  renamed.gates = renamed.gates.map((gate) => ({
+    ...gate,
+    id: `${projectId}-${gate.id}`,
+    projectId,
+    phaseId: phaseIdMap.get(gate.phaseId),
+  }));
+  const gateIdMap = new Map(snapshot.gates.map((gate, index) => [gate.id, renamed.gates[index].id]));
+  renamed.rolePairs = renamed.rolePairs.map((pair) => ({ ...pair, id: `${projectId}-${pair.id}`, projectId }));
+  const rolePairIdMap = new Map(snapshot.rolePairs.map((pair, index) => [pair.id, renamed.rolePairs[index].id]));
+  renamed.workPackages = renamed.workPackages.map((workPackage) => ({
+    ...workPackage,
+    id: `${projectId}-${workPackage.id}`,
+    projectId,
+    phaseId: phaseIdMap.get(workPackage.phaseId),
+    rolePairId: rolePairIdMap.get(workPackage.rolePairId),
+  }));
+  const workPackageIdMap = new Map(snapshot.workPackages.map((workPackage, index) => [workPackage.id, renamed.workPackages[index].id]));
+  renamed.gateRequirements = renamed.gateRequirements.map((requirement) => ({
+    ...requirement,
+    id: `${projectId}-${requirement.id}`,
+    gateId: gateIdMap.get(requirement.gateId),
+  }));
+  renamed.artifactVersions = renamed.artifactVersions.map((artifact) => ({
+    ...artifact,
+    id: `${projectId}-${artifact.id}`,
+    workPackageId: workPackageIdMap.get(artifact.workPackageId),
+  }));
+  renamed.reviews = renamed.reviews.map((review) => ({
+    ...review,
+    id: `${projectId}-${review.id}`,
+    workPackageId: workPackageIdMap.get(review.workPackageId),
+  }));
+  renamed.risks = renamed.risks.map((risk) => ({
+    ...risk,
+    id: `${projectId}-${risk.id}`,
+    projectId,
+    phaseId: phaseIdMap.get(risk.phaseId),
+  }));
+  renamed.agentRuns = renamed.agentRuns.map((run) => ({
+    ...run,
+    id: `${projectId}-${run.id}`,
+    workPackageId: workPackageIdMap.get(run.workPackageId),
+  }));
+  renamed.agentFindings = renamed.agentFindings.map((finding) => ({
+    ...finding,
+    id: `${projectId}-${finding.id}`,
+    workPackageId: workPackageIdMap.get(finding.workPackageId),
+  }));
+  renamed.auditEvents = renamed.auditEvents.map((event) => ({ ...event, id: `${projectId}-${event.id}`, projectId }));
+  return renamed;
+}
+
 test("EVT gate stays blocked until required artifacts and high risks are handled", () => {
   let gateCheck = workflow.checkGate("gate-evt_exit");
   assert.equal(gateCheck.status, "BLOCKED");
@@ -309,64 +372,7 @@ test("project snapshot import validation catches conflicts and broken references
   assert.equal(duplicate.canImport, false);
   assert.equal(duplicate.errors.some((error) => error.message === "项目 ID 已存在，不能直接导入"), true);
 
-  const renamed = structuredClone(snapshot);
-  renamed.project.id = "project-importable";
-  renamed.project.currentPhaseId = "import-phase-evt";
-  renamed.phases = renamed.phases.map((phase) => ({
-    ...phase,
-    id: phase.id === "phase-evt_exit" ? "import-phase-evt" : `import-${phase.id}`,
-    projectId: "project-importable",
-  }));
-  const phaseIdMap = new Map(snapshot.phases.map((phase, index) => [phase.id, renamed.phases[index].id]));
-  renamed.gates = renamed.gates.map((gate) => ({
-    ...gate,
-    id: `import-${gate.id}`,
-    projectId: "project-importable",
-    phaseId: phaseIdMap.get(gate.phaseId),
-  }));
-  const gateIdMap = new Map(snapshot.gates.map((gate, index) => [gate.id, renamed.gates[index].id]));
-  renamed.rolePairs = renamed.rolePairs.map((pair) => ({ ...pair, id: `import-${pair.id}`, projectId: "project-importable" }));
-  const rolePairIdMap = new Map(snapshot.rolePairs.map((pair, index) => [pair.id, renamed.rolePairs[index].id]));
-  renamed.workPackages = renamed.workPackages.map((workPackage) => ({
-    ...workPackage,
-    id: `import-${workPackage.id}`,
-    projectId: "project-importable",
-    phaseId: phaseIdMap.get(workPackage.phaseId),
-    rolePairId: rolePairIdMap.get(workPackage.rolePairId),
-  }));
-  const workPackageIdMap = new Map(snapshot.workPackages.map((workPackage, index) => [workPackage.id, renamed.workPackages[index].id]));
-  renamed.gateRequirements = renamed.gateRequirements.map((requirement) => ({
-    ...requirement,
-    id: `import-${requirement.id}`,
-    gateId: gateIdMap.get(requirement.gateId),
-  }));
-  renamed.artifactVersions = renamed.artifactVersions.map((artifact) => ({
-    ...artifact,
-    id: `import-${artifact.id}`,
-    workPackageId: workPackageIdMap.get(artifact.workPackageId),
-  }));
-  renamed.reviews = renamed.reviews.map((review) => ({
-    ...review,
-    id: `import-${review.id}`,
-    workPackageId: workPackageIdMap.get(review.workPackageId),
-  }));
-  renamed.risks = renamed.risks.map((risk) => ({
-    ...risk,
-    id: `import-${risk.id}`,
-    projectId: "project-importable",
-    phaseId: phaseIdMap.get(risk.phaseId),
-  }));
-  renamed.agentRuns = renamed.agentRuns.map((run) => ({
-    ...run,
-    id: `import-${run.id}`,
-    workPackageId: workPackageIdMap.get(run.workPackageId),
-  }));
-  renamed.agentFindings = renamed.agentFindings.map((finding) => ({
-    ...finding,
-    id: `import-${finding.id}`,
-    workPackageId: workPackageIdMap.get(finding.workPackageId),
-  }));
-  renamed.auditEvents = renamed.auditEvents.map((event) => ({ ...event, id: `import-${event.id}`, projectId: "project-importable" }));
+  const renamed = makeImportableSnapshot(snapshot);
 
   const valid = workflow.validateProjectSnapshotImport(renamed);
   assert.equal(valid.valid, true);
@@ -376,6 +382,28 @@ test("project snapshot import validation catches conflicts and broken references
   const broken = workflow.validateProjectSnapshotImport(renamed);
   assert.equal(broken.valid, false);
   assert.equal(broken.errors.some((error) => error.message === "工作包 phaseId 未指向快照内阶段"), true);
+});
+
+test("project snapshot import creates a new active project and audit event", () => {
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  const importable = makeImportableSnapshot(snapshot, "project-imported");
+
+  const result = workflow.importProjectSnapshot({
+    ...importable,
+    actorUserId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.validation.valid, true);
+  assert.equal(result.body.project.project.id, "project-imported");
+  assert.equal(result.body.project.activeProjectId, "project-imported");
+  assert.equal(result.body.project.phases.length, 7);
+  assert.equal(result.body.project.workPackages.length, snapshot.workPackages.length);
+  assert.equal(result.body.project.auditEvents.some((event) => event.eventType === "PROJECT_IMPORTED"), true);
+
+  const duplicate = workflow.importProjectSnapshot(importable);
+  assert.equal(duplicate.statusCode, 422);
+  assert.equal(duplicate.body.valid, false);
 });
 
 test("project creation expands the standard phase template", () => {
