@@ -1714,12 +1714,19 @@ export function submitHumanReview(body) {
     }
   }
 
+  const reviewComment = String(body.comment || "").trim();
+  if ((body.decision === "REQUEST_REVISION" || body.decision === "REJECT") && !reviewComment) {
+    return validationError("要求修改或驳回必须填写审核意见", {
+      decision: body.decision,
+    });
+  }
+
   const review = {
     id: randomUUID(),
     workPackageId: workPackage.id,
     reviewerUserId,
     decision: body.decision,
-    comment: body.comment || "",
+    comment: reviewComment,
     conditions: body.conditions || [],
     reviewedAt: new Date().toISOString(),
   };
@@ -1766,6 +1773,7 @@ export function submitHumanReview(body) {
 
   audit("HUMAN_REVIEW_SUBMITTED", "human", review.reviewerUserId, "workPackage", workPackage.id, {
     decision: review.decision,
+    comment: review.comment,
   });
   if (body.decision === "APPROVE" || body.decision === "APPROVE_WITH_CONDITIONS") {
     notifyRole("项目经理", {

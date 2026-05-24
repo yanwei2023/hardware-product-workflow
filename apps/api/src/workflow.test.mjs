@@ -307,6 +307,20 @@ test("review decisions are constrained to known workflow values", () => {
   assert.equal(result.body.error, "审核决定不合法");
 });
 
+test("revision and rejection reviews require comments", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+
+  const result = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_report",
+    reviewerUserId: "user-test-lead",
+    decision: "REJECT",
+    comment: " ",
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.equal(result.body.error, "要求修改或驳回必须填写审核意见");
+});
+
 test("risk creation and role assignment reject unknown values", () => {
   const missingTitle = workflow.createCurrentPhaseRisk({
     title: " ",

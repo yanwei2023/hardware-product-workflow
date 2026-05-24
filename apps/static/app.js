@@ -960,6 +960,8 @@ async function submitReview(workPackageId, decision) {
     REQUEST_REVISION: "请 Agent 根据审核意见修改后重新提交。",
     REJECT: "审核驳回。",
   };
+  const comment = window.prompt("请输入审核意见", commentByDecision[decision] || "审核完成。");
+  if (comment === null) return;
 
   await withBusy(async () => {
     await api("/reviews", {
@@ -968,7 +970,7 @@ async function submitReview(workPackageId, decision) {
         workPackageId,
         reviewerUserId: state.actorUserId,
         decision,
-        comment: commentByDecision[decision] || "审核完成。",
+        comment,
       }),
     });
     await loadProject();

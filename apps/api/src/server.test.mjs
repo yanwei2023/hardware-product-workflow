@@ -425,6 +425,30 @@ test("review endpoint can request agent revision", async () => {
   assert.equal(result.body.workPackage.status, "NEEDS_AGENT_REVISION");
 });
 
+test("review endpoint requires comments for revision or rejection", async () => {
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+
+  const result = await dispatch("/reviews", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      reviewerUserId: "user-test-lead",
+      decision: "REQUEST_REVISION",
+      comment: "",
+    }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "要求修改或驳回必须填写审核意见");
+});
+
 test("risk close endpoint enforces risk decision permission", async () => {
   const denied = await dispatch("/risks/risk-thermal-margin/close", {
     method: "POST",
