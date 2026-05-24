@@ -19,6 +19,33 @@ beforeEach(() => {
   workflow.resetDemoStore();
 });
 
+function completeEvtGateForHttpTests() {
+  for (const item of [
+    ["wp-evt_exit-evt_test_plan", "test_agent", "user-test-lead"],
+    ["wp-evt_exit-evt_test_report", "test_agent", "user-test-lead"],
+    ["wp-evt_exit-evt_issue_closure", "quality_agent", "user-quality-lead"],
+  ]) {
+    const agentRun = workflow.runAgentWorkPackage({
+      workPackageId: item[0],
+      agentKey: item[1],
+      inputRefs: ["artifact:http-test-input"],
+    });
+    assert.equal(agentRun.statusCode, 201);
+    const review = workflow.submitHumanReview({
+      workPackageId: item[0],
+      reviewerUserId: item[2],
+      decision: "APPROVE",
+      comment: "HTTP 测试批准。",
+    });
+    assert.equal(review.statusCode, 201);
+  }
+  const risk = workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
+    userId: "user-project-manager",
+    comment: "HTTP 测试接受风险。",
+  });
+  assert.equal(risk.statusCode, 200);
+}
+
 async function dispatch(pathname, options = {}) {
   const body = options.body || "";
   const req = Readable.from(body ? [Buffer.from(body)] : []);
@@ -72,6 +99,7 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.equal(result.body.exists, true);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.projectCount, 1);
+  assert.equal(result.body.gateApprovalPackCount, 0);
   assert.equal(result.body.notificationCount, 0);
   assert.ok(result.body.storePath.endsWith("store.json"));
 });
@@ -91,6 +119,7 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(jsonResult.status, 200);
   assert.equal(jsonResult.body.project.id, "project-smart-controller");
   assert.equal(jsonResult.body.summary.phaseCount, 7);
+  assert.equal(jsonResult.body.summary.gateApprovalPackCount, 0);
   assert.equal(jsonResult.body.summary.notificationCount, 0);
   assert.equal(jsonResult.body.currentPhase.name, "EVT Exit");
 
@@ -357,6 +386,29 @@ test("gate review pack markdown endpoint exports a readable package", async () =
   assert.match(result.body, /批准说明/);
   assert.match(result.body, /## 必需证据/);
   assert.match(result.body, /EVT 测试计划/);
+});
+
+test("gate approval pack endpoints return the frozen approval package", async () => {
+  completeEvtGateForHttpTests();
+  const approval = await dispatch("/gates/gate-evt_exit/approve", {
+    method: "POST",
+    body: JSON.stringify({
+      userId: "user-project-manager",
+      comment: "HTTP 批准归档。",
+    }),
+  });
+  assert.equal(approval.status, 200);
+  assert.equal(approval.body.approvalPack.reviewPack.gate.approvalComment, "HTTP 批准归档。");
+
+  const jsonResult = await dispatch("/gates/gate-evt_exit/approval-pack");
+  assert.equal(jsonResult.status, 200);
+  assert.equal(jsonResult.body.gateId, "gate-evt_exit");
+  assert.equal(jsonResult.body.reviewPack.gate.status, "APPROVED");
+
+  const markdownResult = await dispatch("/gates/gate-evt_exit/approval-pack.md");
+  assert.equal(markdownResult.status, 200);
+  assert.match(markdownResult.headers["content-type"], /text\/markdown/);
+  assert.match(markdownResult.body, /HTTP 批准归档/);
 });
 
 test("agent run endpoint rejects invalid draft output", async () => {

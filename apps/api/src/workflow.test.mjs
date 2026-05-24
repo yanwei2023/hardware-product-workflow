@@ -97,6 +97,19 @@ function makeImportableSnapshot(snapshot, projectId = "project-importable") {
     id: `${projectId}-${review.id}`,
     workPackageId: workPackageIdMap.get(review.workPackageId),
   }));
+  renamed.evidenceRefs = (renamed.evidenceRefs || []).map((evidenceRef) => ({
+    ...evidenceRef,
+    id: `${projectId}-${evidenceRef.id}`,
+    projectId,
+    workPackageId: workPackageIdMap.get(evidenceRef.workPackageId),
+  }));
+  renamed.gateApprovalPacks = (renamed.gateApprovalPacks || []).map((approvalPack) => ({
+    ...approvalPack,
+    id: `${projectId}-${approvalPack.id}`,
+    projectId,
+    gateId: gateIdMap.get(approvalPack.gateId),
+    phaseId: phaseIdMap.get(approvalPack.phaseId),
+  }));
   renamed.risks = renamed.risks.map((risk) => ({
     ...risk,
     id: `${projectId}-${risk.id}`,
@@ -590,6 +603,16 @@ test("project snapshot import creates a new active project and audit event", () 
 });
 
 test("project clone creates an independent active project copy", () => {
+  completeEvtWorkPackages();
+  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
+    userId: "user-project-manager",
+  });
+  const approval = workflow.approveGate("gate-evt_exit", {
+    userId: "user-project-manager",
+    comment: "复制前批准。",
+  });
+  assert.equal(approval.statusCode, 200);
+
   const result = workflow.cloneProject("project-smart-controller", {
     name: "智能控制器项目 Copy",
     userId: "user-project-manager",
@@ -608,6 +631,9 @@ test("project clone creates an independent active project copy", () => {
   const copy = workflow.getProjectSnapshot(result.body.project.project.id);
   assert.equal(original.project.name, "智能控制器项目");
   assert.equal(copy.project.clonedFromProjectId, "project-smart-controller");
+  assert.equal(copy.summary.gateApprovalPackCount, 1);
+  assert.equal(copy.gateApprovalPacks[0].projectId, copy.project.id);
+  assert.equal(copy.gateApprovalPacks[0].reviewPack.gate.id, `${copy.project.id}-gate-evt_exit`);
 });
 
 test("project creation expands the standard phase template", () => {
@@ -654,10 +680,18 @@ test("gate approval locks the current phase and advances to the next phase", () 
   assert.equal(result.body.project.currentPhaseId, "phase-dvt_exit");
   assert.equal(result.body.gate.status, "APPROVED");
   assert.equal(result.body.gate.approvalComment, "EVT 证据齐备，批准进入 DVT。");
+  assert.equal(result.body.approvalPack.gateId, "gate-evt_exit");
+  assert.equal(result.body.approvalPack.reviewPack.gate.status, "APPROVED");
+  assert.equal(result.body.approvalPack.reviewPack.gate.approvalComment, "EVT 证据齐备，批准进入 DVT。");
 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");
   assert.equal(project.phases.find((phase) => phase.id === "phase-dvt_exit").status, "GATE_BLOCKED");
+  assert.equal(workflow.getGateApprovalPack("gate-evt_exit").id, result.body.approvalPack.id);
+
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(snapshot.summary.gateApprovalPackCount, 1);
+  assert.equal(snapshot.gateApprovalPacks[0].reviewPack.summary.readyForApproval, true);
 
   const repeated = workflow.approveGate("gate-evt_exit", {
     userId: "user-project-manager",

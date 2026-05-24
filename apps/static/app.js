@@ -339,6 +339,7 @@ function renderStorageStatus() {
         <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
+        <tr><th>批准包归档</th><td>${escapeHtml(status.gateApprovalPackCount || 0)}</td></tr>
         <tr><th>站内通知</th><td>${escapeHtml(status.notificationCount)}</td></tr>
       </tbody>
     </table>
@@ -382,6 +383,10 @@ function renderOverview() {
       <article class="panel">
         <h3>逾期/临期</h3>
         <p class="metric">${state.project.scheduleSummary?.overdueWorkPackageCount || 0}/${state.project.scheduleSummary?.dueSoonWorkPackageCount || 0}</p>
+      </article>
+      <article class="panel">
+        <h3>批准包归档</h3>
+        <p class="metric">${state.project.gateApprovalPacks?.length || 0}</p>
       </article>
     </div>
     <article class="panel">

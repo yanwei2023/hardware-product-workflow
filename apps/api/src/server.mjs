@@ -118,6 +118,7 @@ export function createDemoStore() {
     agentRuns: [],
     agentFindings: [],
     evidenceRefs: [],
+    gateApprovalPacks: [],
     auditEvents: [],
     notifications: [],
   };
@@ -134,6 +135,7 @@ function persistStore() {
 function ensureStoreShape() {
   store.notifications ||= [];
   store.evidenceRefs ||= [];
+  store.gateApprovalPacks ||= [];
 }
 
 export function getStorageStatus() {
@@ -148,6 +150,7 @@ export function getStorageStatus() {
     activeProjectId: store.activeProjectId,
     projectCount: store.projects.length,
     auditEventCount: store.auditEvents.length,
+    gateApprovalPackCount: store.gateApprovalPacks?.length || 0,
     notificationCount: store.notifications?.length || 0,
   };
 }
@@ -264,6 +267,15 @@ function renderProjectSnapshotMarkdown(snapshot) {
         })
         .join("\n")
     : "| 无 | - | - | - |";
+  const gateApprovalPackRows = snapshot.gateApprovalPacks.length
+    ? snapshot.gateApprovalPacks
+        .slice(-12)
+        .map((item) => {
+          const gate = snapshot.gates.find((gate) => gate.id === item.gateId);
+          return `| ${item.approvedAt} | ${gate?.name || item.gateId} | ${item.approvedByUserId} | ${item.approvalComment || "-"} |`;
+        })
+        .join("\n")
+    : "| 无 | - | - | - |";
 
   return `# ${snapshot.project.name} 项目快照
 
@@ -282,6 +294,7 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 风险：${snapshot.summary.riskCount}
 - 打开高风险：${snapshot.summary.openHighRiskCount}
 - 证据引用：${snapshot.summary.evidenceRefCount}
+- 批准包归档：${snapshot.summary.gateApprovalPackCount}
 - 站内通知：${snapshot.summary.notificationCount}
 - 审计事件：${snapshot.summary.auditEventCount}
 
@@ -308,6 +321,12 @@ ${riskRows}
 | 时间 | 工作包 | 标题 | 引用 |
 |---|---|---|---|
 ${evidenceRefRows}
+
+## 阶段门批准包
+
+| 批准时间 | 阶段门 | 批准人 | 批准说明 |
+|---|---|---|---|
+${gateApprovalPackRows}
 
 ## 最近通知
 
@@ -635,6 +654,7 @@ export function getActiveProjectView() {
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
     reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
     evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
+    gateApprovalPacks: (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id),
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
@@ -666,6 +686,7 @@ export function getProjectSnapshot(projectId) {
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   const workPackageIds = new Set(workPackages.map((item) => item.id));
   const evidenceRefs = (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId));
+  const gateApprovalPacks = (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id);
   const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
   const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
   const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
@@ -691,6 +712,7 @@ export function getProjectSnapshot(projectId) {
           risk.status !== "ACCEPTED",
       ).length,
       evidenceRefCount: evidenceRefs.length,
+      gateApprovalPackCount: gateApprovalPacks.length,
       notificationCount: notifications.length,
       auditEventCount: auditEvents.length,
     },
@@ -711,6 +733,7 @@ export function getProjectSnapshot(projectId) {
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
     reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
     evidenceRefs,
+    gateApprovalPacks,
     risks: risks.map((risk) => ({
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
@@ -801,6 +824,7 @@ export function validateProjectSnapshotImport(input = {}) {
   const artifactVersions = asArray(snapshot.artifactVersions);
   const reviews = asArray(snapshot.reviews);
   const evidenceRefs = asArray(snapshot.evidenceRefs);
+  const gateApprovalPacks = asArray(snapshot.gateApprovalPacks);
   const risks = asArray(snapshot.risks);
   const agentRuns = asArray(snapshot.agentRuns);
   const agentFindings = asArray(snapshot.agentFindings);
@@ -909,6 +933,21 @@ export function validateProjectSnapshotImport(input = {}) {
     });
   }
 
+  for (const approvalPack of gateApprovalPacks) {
+    pushIfMissing(errors, approvalPack.projectId === project?.id, "阶段门批准包 projectId 与项目不一致", {
+      approvalPackId: approvalPack.id,
+      projectId: approvalPack.projectId,
+    });
+    pushIfMissing(errors, gateIds.has(approvalPack.gateId), "阶段门批准包 gateId 未指向快照内阶段门", {
+      approvalPackId: approvalPack.id,
+      gateId: approvalPack.gateId,
+    });
+    pushIfMissing(errors, phaseIds.has(approvalPack.phaseId), "阶段门批准包 phaseId 未指向快照内阶段", {
+      approvalPackId: approvalPack.id,
+      phaseId: approvalPack.phaseId,
+    });
+  }
+
   for (const risk of risks) {
     pushIfMissing(errors, risk.projectId === project?.id, "风险 projectId 与项目不一致", {
       riskId: risk.id,
@@ -964,6 +1003,7 @@ export function validateProjectSnapshotImport(input = {}) {
       artifactVersionCount: artifactVersions.length,
       reviewCount: reviews.length,
       evidenceRefCount: evidenceRefs.length,
+      gateApprovalPackCount: gateApprovalPacks.length,
       riskCount: risks.length,
       agentRunCount: agentRuns.length,
       agentFindingCount: agentFindings.length,
@@ -992,6 +1032,7 @@ export function importProjectSnapshot(input = {}) {
   const artifactVersions = asArray(snapshot.artifactVersions).map((item) => ({ ...item }));
   const reviews = asArray(snapshot.reviews).map((item) => ({ ...item }));
   const evidenceRefs = asArray(snapshot.evidenceRefs).map((item) => ({ ...item }));
+  const gateApprovalPacks = asArray(snapshot.gateApprovalPacks).map((item) => ({ ...item }));
   const risks = asArray(snapshot.risks).map(({ phaseName, ...item }) => ({ ...item }));
   const agentRuns = asArray(snapshot.agentRuns).map((item) => ({ ...item }));
   const agentFindings = asArray(snapshot.agentFindings).map((item) => ({ ...item }));
@@ -1011,6 +1052,7 @@ export function importProjectSnapshot(input = {}) {
   store.artifactVersions.push(...artifactVersions);
   store.reviews.push(...reviews);
   store.evidenceRefs.push(...evidenceRefs);
+  store.gateApprovalPacks.push(...gateApprovalPacks);
   store.risks.push(...risks);
   store.agentRuns.push(...agentRuns);
   store.agentFindings.push(...agentFindings);
@@ -1118,6 +1160,20 @@ function remapSnapshotForProjectCopy(snapshot, projectId, name) {
     workPackageId: workPackageIdMap.get(evidenceRef.workPackageId),
   }));
 
+  copy.gateApprovalPacks = asArray(copy.gateApprovalPacks).map((approvalPack) => ({
+    ...approvalPack,
+    id: `${projectId}-${approvalPack.id}`,
+    projectId,
+    gateId: gateIdMap.get(approvalPack.gateId),
+    phaseId: phaseIdMap.get(approvalPack.phaseId),
+    reviewPack: remapGateReviewPackForProjectCopy(approvalPack.reviewPack, {
+      projectId,
+      phaseIdMap,
+      gateIdMap,
+      workPackageIdMap,
+    }),
+  }));
+
   copy.risks = asArray(copy.risks).map(({ phaseName, ...risk }) => ({
     ...risk,
     id: `${projectId}-${risk.id}`,
@@ -1158,6 +1214,53 @@ function remapSnapshotForProjectCopy(snapshot, projectId, name) {
   }));
 
   return copy;
+}
+
+function remapGateReviewPackForProjectCopy(reviewPack, maps) {
+  if (!reviewPack) {
+    return reviewPack;
+  }
+
+  return {
+    ...reviewPack,
+    project: reviewPack.project ? { ...reviewPack.project, id: maps.projectId } : reviewPack.project,
+    phase: reviewPack.phase
+      ? {
+          ...reviewPack.phase,
+          id: maps.phaseIdMap.get(reviewPack.phase.id) || reviewPack.phase.id,
+        }
+      : reviewPack.phase,
+    gate: reviewPack.gate
+      ? {
+          ...reviewPack.gate,
+          id: maps.gateIdMap.get(reviewPack.gate.id) || reviewPack.gate.id,
+        }
+      : reviewPack.gate,
+    readiness: reviewPack.readiness
+      ? {
+          ...reviewPack.readiness,
+          gateId: maps.gateIdMap.get(reviewPack.readiness.gateId) || reviewPack.readiness.gateId,
+          blockers: asArray(reviewPack.readiness.blockers).map((blocker) => ({
+            ...blocker,
+            relatedObjectId: maps.workPackageIdMap.get(blocker.relatedObjectId) || blocker.relatedObjectId,
+          })),
+        }
+      : reviewPack.readiness,
+    evidence: asArray(reviewPack.evidence).map((item) => ({
+      ...item,
+      workPackageId: maps.workPackageIdMap.get(item.workPackageId) || item.workPackageId,
+      manualEvidenceRefs: asArray(item.manualEvidenceRefs).map((evidenceRef) => ({
+        ...evidenceRef,
+        id: `${maps.projectId}-${evidenceRef.id}`,
+        projectId: maps.projectId,
+        workPackageId: maps.workPackageIdMap.get(evidenceRef.workPackageId) || evidenceRef.workPackageId,
+      })),
+    })),
+    blockers: asArray(reviewPack.blockers).map((blocker) => ({
+      ...blocker,
+      relatedObjectId: maps.workPackageIdMap.get(blocker.relatedObjectId) || blocker.relatedObjectId,
+    })),
+  };
 }
 
 export function cloneProject(projectId, body = {}) {
@@ -1648,6 +1751,50 @@ export function getGateReviewPack(gateId) {
   };
 }
 
+export function getGateApprovalPack(gateId) {
+  return (
+    (store.gateApprovalPacks || [])
+      .filter((item) => item.gateId === gateId)
+      .sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))[0] || null
+  );
+}
+
+function createGateApprovalPack(gate, reviewPack, approval) {
+  const frozenPack = structuredClone({
+    ...reviewPack,
+    gate: {
+      ...reviewPack.gate,
+      status: "APPROVED",
+      approvedByUserId: approval.approvedByUserId,
+      approvedAt: approval.approvedAt,
+      approvalComment: approval.approvalComment,
+    },
+    readiness: {
+      ...reviewPack.readiness,
+      status: "READY",
+      blockers: [],
+    },
+    blockers: [],
+    summary: {
+      ...reviewPack.summary,
+      blockerCount: 0,
+      readyForApproval: true,
+    },
+  });
+  const approvalPack = {
+    id: `gate-pack-${randomUUID()}`,
+    projectId: gate.projectId,
+    gateId: gate.id,
+    phaseId: gate.phaseId,
+    approvedByUserId: approval.approvedByUserId,
+    approvedAt: approval.approvedAt,
+    approvalComment: approval.approvalComment,
+    reviewPack: frozenPack,
+  };
+  store.gateApprovalPacks.push(approvalPack);
+  return approvalPack;
+}
+
 export function runAgentWorkPackage(body) {
   const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
   if (!workPackage) {
@@ -2132,6 +2279,7 @@ export function approveGate(gateId, body = {}) {
       },
     };
   }
+  const reviewPack = getGateReviewPack(gateId);
 
   const phase = store.phases.find((item) => item.id === gate.phaseId);
   const project = store.projects.find((item) => item.id === gate.projectId) || currentProject();
@@ -2139,6 +2287,11 @@ export function approveGate(gateId, body = {}) {
   gate.approvedByUserId = actorUserId;
   gate.approvedAt = new Date().toISOString();
   gate.approvalComment = body.comment || "";
+  const approvalPack = createGateApprovalPack(gate, reviewPack, {
+    approvedByUserId: actorUserId,
+    approvedAt: gate.approvedAt,
+    approvalComment: gate.approvalComment,
+  });
 
   if (phase) {
     phase.status = "LOCKED";
@@ -2160,6 +2313,7 @@ export function approveGate(gateId, body = {}) {
   audit("GATE_APPROVED", "human", actorUserId, "gate", gate.id, {
     nextPhaseId: project.currentPhaseId,
     comment: gate.approvalComment,
+    approvalPackId: approvalPack.id,
   });
   notifyRole("项目经理", {
     title: "阶段门已批准",
@@ -2174,6 +2328,7 @@ export function approveGate(gateId, body = {}) {
     statusCode: 200,
     body: {
       gate,
+      approvalPack,
       project,
       phases: store.phases,
     },
@@ -2477,6 +2632,20 @@ export const server = http.createServer(async (req, res) => {
       return result
         ? writeText(res, 200, renderGateReviewPackMarkdown(result), "text/markdown; charset=utf-8")
         : writeJson(res, 404, { error: "阶段门不存在" });
+    }
+
+    const gateApprovalPackMarkdownMatch = url.pathname.match(/^\/gates\/([^/]+)\/approval-pack\.md$/);
+    if (req.method === "GET" && gateApprovalPackMarkdownMatch) {
+      const result = getGateApprovalPack(gateApprovalPackMarkdownMatch[1]);
+      return result
+        ? writeText(res, 200, renderGateReviewPackMarkdown(result.reviewPack), "text/markdown; charset=utf-8")
+        : writeJson(res, 404, { error: "阶段门批准包不存在" });
+    }
+
+    const gateApprovalPackMatch = url.pathname.match(/^\/gates\/([^/]+)\/approval-pack$/);
+    if (req.method === "GET" && gateApprovalPackMatch) {
+      const result = getGateApprovalPack(gateApprovalPackMatch[1]);
+      return result ? writeJson(res, 200, result) : writeJson(res, 404, { error: "阶段门批准包不存在" });
     }
 
     const gateApproveMatch = url.pathname.match(/^\/gates\/([^/]+)\/approve$/);

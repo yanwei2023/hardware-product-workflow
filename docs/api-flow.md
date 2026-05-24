@@ -45,6 +45,8 @@
 | `GET` | `/gates/:id/check` | 检查阶段门是否可通过 |
 | `GET` | `/gates/:id/review-pack` | 查看阶段门审核包、证据状态、风险和阻塞项 |
 | `GET` | `/gates/:id/review-pack.md` | 导出阶段门审核包 Markdown |
+| `GET` | `/gates/:id/approval-pack` | 查看阶段门批准时固化的审核包归档 |
+| `GET` | `/gates/:id/approval-pack.md` | 导出阶段门批准包 Markdown |
 | `GET` | `/users/:id/action-items` | 查看指定用户在当前项目中的待办 |
 | `GET` | `/users/:id/notifications` | 查看指定用户在当前项目中的站内通知 |
 | `POST` | `/notifications/:id/read` | 将站内通知标记为已读 |
