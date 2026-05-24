@@ -29,6 +29,8 @@
 | `GET` | `/projects/demo` | 查看演示项目状态 |
 | `GET` | `/projects/:id/snapshot` | 导出项目快照 JSON |
 | `GET` | `/projects/:id/snapshot.md` | 导出项目快照 Markdown |
+| `GET` | `/projects/:id/risk-register` | 查看项目风险台账与阻塞风险汇总 |
+| `GET` | `/projects/:id/risk-register.md` | 导出项目风险台账 Markdown |
 | `POST` | `/projects/import/validate` | 导入项目前校验快照结构与引用完整性 |
 | `POST` | `/projects/import` | 安全导入通过校验且不冲突的项目快照 |
 | `POST` | `/projects/:id/clone` | 复制已有项目并自动切换到副本 |
@@ -53,3 +55,4 @@
 - 项目快照导入必须先通过结构与引用完整性校验，且不能覆盖已有项目 ID。
 - 项目复制必须生成新的项目 ID，并写入 `PROJECT_CLONED` 审计事件。
 - 工作包 Markdown 导出必须带上最新交付物、模板校验结果、审核记录和 Agent 草稿，便于离线归档。
+- 风险台账必须按项目隔离，并标记哪些打开的高/严重风险会阻塞阶段门。

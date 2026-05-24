@@ -354,6 +354,21 @@ test("user action items reflect review and risk responsibilities", () => {
   assert.equal(testLeadItems.pendingReviews.length, 0);
 });
 
+test("project risk register summarizes blocking and resolved risks", () => {
+  let register = workflow.getProjectRiskRegister("project-smart-controller");
+  assert.equal(register.summary.totalRiskCount, 1);
+  assert.equal(register.summary.openRiskCount, 1);
+  assert.equal(register.summary.openBlockingRiskCount, 1);
+  assert.equal(register.risks[0].blocksGate, true);
+  assert.equal(register.risks[0].phaseName, "EVT Exit");
+
+  workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", { userId: "user-project-manager" });
+  register = workflow.getProjectRiskRegister("project-smart-controller");
+  assert.equal(register.summary.openBlockingRiskCount, 0);
+  assert.equal(register.summary.acceptedRiskCount, 1);
+  assert.equal(workflow.getProjectRiskRegister("missing-project"), null);
+});
+
 test("project snapshot summarizes project state without changing active project", () => {
   const created = workflow.createProject({
     name: "Snapshot Device",

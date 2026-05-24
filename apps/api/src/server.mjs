@@ -295,6 +295,37 @@ ${draft}
 `;
 }
 
+function renderRiskRegisterMarkdown(register) {
+  const riskRows = register.risks.length
+    ? register.risks
+        .map(
+          (risk) =>
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.acceptedByUserId || "-"} |`,
+        )
+        .join("\n")
+    : "| 无 | - | - | - | - | - |";
+
+  return `# ${register.project.name} 风险台账
+
+导出时间：${register.exportedAt}
+项目 ID：${register.project.id}
+
+## 汇总
+
+- 风险总数：${register.summary.totalRiskCount}
+- 打开风险：${register.summary.openRiskCount}
+- 阻塞阶段门风险：${register.summary.openBlockingRiskCount}
+- 已接受风险：${register.summary.acceptedRiskCount}
+- 已关闭风险：${register.summary.closedRiskCount}
+
+## 风险明细
+
+| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 接受人 |
+|---|---|---|---|---|---|
+${riskRows}
+`;
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -541,6 +572,44 @@ export function getProjectSnapshot(projectId) {
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     auditEvents,
+  };
+}
+
+export function getProjectRiskRegister(projectId) {
+  const project = store.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return null;
+  }
+
+  const phases = store.phases.filter((item) => item.projectId === project.id);
+  const phaseIds = new Set(phases.map((item) => item.id));
+  const risks = store.risks
+    .filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId))
+    .map((risk) => ({
+      ...risk,
+      phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
+      blocksGate:
+        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+        risk.status !== "CLOSED" &&
+        risk.status !== "ACCEPTED",
+    }))
+    .sort((a, b) => {
+      const phaseA = phases.find((phase) => phase.id === a.phaseId)?.sequence || 0;
+      const phaseB = phases.find((phase) => phase.id === b.phaseId)?.sequence || 0;
+      return phaseA - phaseB || a.title.localeCompare(b.title);
+    });
+
+  return {
+    exportedAt: new Date().toISOString(),
+    project,
+    summary: {
+      totalRiskCount: risks.length,
+      openRiskCount: risks.filter((risk) => risk.status === "OPEN").length,
+      openBlockingRiskCount: risks.filter((risk) => risk.blocksGate).length,
+      acceptedRiskCount: risks.filter((risk) => risk.status === "ACCEPTED").length,
+      closedRiskCount: risks.filter((risk) => risk.status === "CLOSED").length,
+    },
+    risks,
   };
 }
 
@@ -1762,6 +1831,20 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && projectSnapshotMatch) {
       const snapshot = getProjectSnapshot(projectSnapshotMatch[1]);
       return snapshot ? writeJson(res, 200, snapshot) : writeJson(res, 404, { error: "项目不存在" });
+    }
+
+    const projectRiskRegisterMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/risk-register\.md$/);
+    if (req.method === "GET" && projectRiskRegisterMarkdownMatch) {
+      const register = getProjectRiskRegister(projectRiskRegisterMarkdownMatch[1]);
+      return register
+        ? writeText(res, 200, renderRiskRegisterMarkdown(register), "text/markdown; charset=utf-8")
+        : writeJson(res, 404, { error: "项目不存在" });
+    }
+
+    const projectRiskRegisterMatch = url.pathname.match(/^\/projects\/([^/]+)\/risk-register$/);
+    if (req.method === "GET" && projectRiskRegisterMatch) {
+      const register = getProjectRiskRegister(projectRiskRegisterMatch[1]);
+      return register ? writeJson(res, 200, register) : writeJson(res, 404, { error: "项目不存在" });
     }
 
     const selectProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/select$/);

@@ -164,6 +164,7 @@ function render() {
     projects: "项目管理",
     workpackages: "工作包审核",
     gate: "阶段门",
+    risks: "风险台账",
     audit: "审计",
   }[state.currentView];
 
@@ -174,6 +175,7 @@ function render() {
   renderProjects();
   renderWorkPackages();
   renderGate();
+  renderRisks();
   renderAudit();
 }
 
@@ -356,6 +358,10 @@ function renderOverview() {
         <h3>当前阶段工作包</h3>
         <p class="metric">${workPackagesForActivePhase().length}</p>
       </article>
+      <article class="panel">
+        <h3>打开高风险</h3>
+        <p class="metric">${state.project.risks.filter((risk) => (risk.severity === "HIGH" || risk.severity === "CRITICAL") && risk.status === "OPEN").length}</p>
+      </article>
     </div>
     <article class="panel">
       <div class="detail-head">
@@ -396,7 +402,7 @@ function renderActionItems() {
         <tr>
           <td>风险决策</td>
           <td>${escapeHtml(item.title)} · ${escapeHtml(item.severity)}</td>
-          <td><button onclick="goGate()">处理</button></td>
+          <td><button onclick="goRisks()">处理</button></td>
         </tr>
       `,
     ),
@@ -504,6 +510,73 @@ function renderWorkPackageDetail(workPackage) {
       <h4>Agent 输出草稿</h4>
       <pre class="markdown-preview">${escapeHtml(draft || "暂无草稿。")}</pre>
     </section>
+  `;
+}
+
+function renderRisks() {
+  const risks = state.project.risks
+    .slice()
+    .sort((a, b) => {
+      const phaseA = state.project.phases.find((phase) => phase.id === a.phaseId)?.sequence || 0;
+      const phaseB = state.project.phases.find((phase) => phase.id === b.phaseId)?.sequence || 0;
+      return phaseA - phaseB || a.title.localeCompare(b.title);
+    });
+  const openBlockingRisks = risks.filter(
+    (risk) => (risk.severity === "HIGH" || risk.severity === "CRITICAL") && risk.status === "OPEN",
+  );
+
+  q("#risksView").innerHTML = `
+    <article class="panel">
+      <div class="detail-head">
+        <div>
+          <h3>项目风险台账</h3>
+          <p class="muted">${escapeHtml(state.project.project.name)}</p>
+        </div>
+        <button class="ghost" onclick="openRiskRegisterMarkdown()">导出 Markdown</button>
+      </div>
+      <div class="grid cols-3">
+        <div class="metric-block">
+          <span>风险总数</span>
+          <strong>${risks.length}</strong>
+        </div>
+        <div class="metric-block">
+          <span>打开风险</span>
+          <strong>${risks.filter((risk) => risk.status === "OPEN").length}</strong>
+        </div>
+        <div class="metric-block">
+          <span>阻塞阶段门</span>
+          <strong>${openBlockingRisks.length}</strong>
+        </div>
+      </div>
+      <table class="table">
+        <thead><tr><th>阶段</th><th>风险</th><th>严重度</th><th>状态</th><th>决策</th></tr></thead>
+        <tbody>
+          ${
+            risks.length
+              ? risks
+                  .map((risk) => {
+                    const phase = state.project.phases.find((item) => item.id === risk.phaseId);
+                    return `
+                      <tr>
+                        <td>${escapeHtml(phase?.name || risk.phaseId)}</td>
+                        <td>${escapeHtml(risk.title)}${risk.acceptedByUserId ? `<br><span class="muted">接受人：${escapeHtml(risk.acceptedByUserId)}</span>` : ""}</td>
+                        <td>${escapeHtml(risk.severity)}</td>
+                        <td>${statusBadge(risk.status)}</td>
+                        <td>
+                          <div class="actions">
+                            <button onclick="acceptRisk('${risk.id}')" ${state.busy || risk.status !== "OPEN" ? "disabled" : ""}>接受风险</button>
+                            <button class="secondary" onclick="closeRisk('${risk.id}')" ${state.busy || risk.status !== "OPEN" ? "disabled" : ""}>关闭风险</button>
+                          </div>
+                        </td>
+                      </tr>
+                    `;
+                  })
+                  .join("")
+              : `<tr><td colspan="5">当前项目暂无风险。</td></tr>`
+          }
+        </tbody>
+      </table>
+    </article>
   `;
 }
 
@@ -694,8 +767,18 @@ function goGate() {
   render();
 }
 
+function goRisks() {
+  state.currentView = "risks";
+  document.querySelectorAll(".nav").forEach((item) => item.classList.toggle("active", item.dataset.view === "risks"));
+  render();
+}
+
 function openWorkPackageMarkdown(workPackageId) {
   window.open(`/work-packages/${workPackageId}/export.md`, "_blank");
+}
+
+function openRiskRegisterMarkdown() {
+  window.open(`/projects/${state.project.project.id}/risk-register.md`, "_blank");
 }
 
 async function runAgent(workPackageId) {

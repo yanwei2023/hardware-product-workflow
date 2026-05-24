@@ -99,8 +99,29 @@ test("project snapshot endpoints export current project state", async () => {
   assert.match(markdownResult.body, /## 工作包/);
 });
 
+test("project risk register endpoints export current project risks", async () => {
+  const jsonResult = await dispatch("/projects/project-smart-controller/risk-register");
+  assert.equal(jsonResult.status, 200);
+  assert.equal(jsonResult.body.summary.totalRiskCount, 1);
+  assert.equal(jsonResult.body.summary.openBlockingRiskCount, 1);
+  assert.equal(jsonResult.body.risks[0].phaseName, "EVT Exit");
+
+  const markdownResult = await dispatch("/projects/project-smart-controller/risk-register.md");
+  assert.equal(markdownResult.status, 200);
+  assert.match(markdownResult.headers["content-type"], /text\/markdown/);
+  assert.match(markdownResult.body, /# 智能控制器项目 风险台账/);
+  assert.match(markdownResult.body, /热设计裕量不足/);
+});
+
 test("project snapshot endpoint rejects unknown projects", async () => {
   const result = await dispatch("/projects/missing-project/snapshot");
+
+  assert.equal(result.status, 404);
+  assert.equal(result.body.error, "项目不存在");
+});
+
+test("project risk register endpoint rejects unknown projects", async () => {
+  const result = await dispatch("/projects/missing-project/risk-register");
 
   assert.equal(result.status, 404);
   assert.equal(result.body.error, "项目不存在");
