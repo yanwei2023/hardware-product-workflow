@@ -217,6 +217,17 @@ test("requesting revision removes the stale artifact from pending review", () =>
   );
 });
 
+test("work package markdown export includes artifact and review context", () => {
+  approveWorkPackage("wp-evt_exit-evt_test_plan", "user-test-lead");
+
+  const markdown = workflow.getWorkPackageMarkdown("wp-evt_exit-evt_test_plan");
+  assert.match(markdown, /# EVT 测试计划 工作包/);
+  assert.match(markdown, /## 最新交付物/);
+  assert.match(markdown, /user-test-lead/);
+  assert.match(markdown, /## Agent 输出草稿/);
+  assert.equal(workflow.getWorkPackageMarkdown("missing-work-package"), null);
+});
+
 test("invalid agent output is rejected before human review", () => {
   const result = workflow.runAgentWorkPackage({
     workPackageId: "wp-evt_exit-evt_test_report",

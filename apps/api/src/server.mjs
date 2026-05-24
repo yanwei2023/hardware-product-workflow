@@ -247,6 +247,54 @@ ${auditRows}
 `;
 }
 
+function renderWorkPackageMarkdown(detail) {
+  const latestArtifact = detail.artifacts.at(-1) || null;
+  const latestAgentRun = detail.agentRuns.at(-1) || null;
+  const validation = latestArtifact?.content?.validation || latestAgentRun?.validation || null;
+  const reviewRows = detail.reviews.length
+    ? detail.reviews
+        .map((review) => `| ${review.reviewedAt} | ${review.reviewerUserId} | ${review.decision} | ${review.comment || "-"} |`)
+        .join("\n")
+    : "| 无 | - | - | - |";
+  const missingSections = validation?.missingSections?.length ? validation.missingSections.join("、") : "无";
+  const emptySections = validation?.emptySections?.length ? validation.emptySections.join("、") : "无";
+  const draft = latestArtifact?.content?.draftMarkdown || latestArtifact?.content?.summary || "暂无草稿。";
+
+  return `# ${detail.workPackage.title} 工作包
+
+项目 ID：${detail.workPackage.projectId}
+工作包 ID：${detail.workPackage.id}
+状态：${detail.workPackage.status}
+交付物类型：${detail.workPackage.requiredArtifactType}
+交付物模板：${detail.workPackage.artifactTemplateKey || "-"}
+负责人：${detail.rolePair?.humanUserId || "-"}
+Agent：${detail.rolePair?.agentKey || "-"}
+
+## 最新交付物
+
+- 交付物 ID：${latestArtifact?.id || "-"}
+- 状态：${latestArtifact?.status || "-"}
+- 版本：${latestArtifact?.version || "-"}
+- 创建者：${latestArtifact?.createdByActor || "-"}
+
+## 模板校验
+
+- 状态：${validation?.status || "未校验"}
+- 缺失项：${missingSections}
+- 空内容项：${emptySections}
+
+## 审核记录
+
+| 时间 | 审核人 | 决定 | 备注 |
+|---|---|---|---|
+${reviewRows}
+
+## Agent 输出草稿
+
+${draft}
+`;
+}
+
 async function readJson(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -986,6 +1034,11 @@ export function getWorkPackageDetail(workPackageId) {
     reviews: store.reviews.filter((item) => item.workPackageId === workPackageId),
     agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
   };
+}
+
+export function getWorkPackageMarkdown(workPackageId) {
+  const detail = getWorkPackageDetail(workPackageId);
+  return detail ? renderWorkPackageMarkdown(detail) : null;
 }
 
 export function getUserActionItems(userId) {
@@ -1734,6 +1787,14 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && workPackageMatch) {
       const result = getWorkPackageDetail(workPackageMatch[1]);
       return result ? writeJson(res, 200, result) : writeJson(res, 404, { error: "工作包不存在" });
+    }
+
+    const workPackageMarkdownMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/export\.md$/);
+    if (req.method === "GET" && workPackageMarkdownMatch) {
+      const result = getWorkPackageMarkdown(workPackageMarkdownMatch[1]);
+      return result
+        ? writeText(res, 200, result, "text/markdown; charset=utf-8")
+        : writeJson(res, 404, { error: "工作包不存在" });
     }
 
     if (req.method === "GET" && url.pathname === "/templates/hardware") {

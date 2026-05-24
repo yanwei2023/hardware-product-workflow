@@ -239,6 +239,22 @@ test("project endpoint rejects unknown active phase keys", async () => {
   assert.equal(result.body.error, "activePhaseKey 不存在于硬件阶段模板");
 });
 
+test("work package markdown endpoint exports review context", async () => {
+  const result = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/export.md");
+
+  assert.equal(result.status, 200);
+  assert.match(result.headers["content-type"], /text\/markdown/);
+  assert.match(result.body, /# EVT 测试计划 工作包/);
+  assert.match(result.body, /## 模板校验/);
+});
+
+test("work package markdown endpoint rejects unknown work packages", async () => {
+  const result = await dispatch("/work-packages/missing-work-package/export.md");
+
+  assert.equal(result.status, 404);
+  assert.equal(result.body.error, "工作包不存在");
+});
+
 test("unauthorized approval attempt returns a clear permission error", async () => {
   await dispatch("/agent-runs", {
     method: "POST",

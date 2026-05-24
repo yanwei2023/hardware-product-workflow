@@ -469,6 +469,7 @@ function renderWorkPackageDetail(workPackage) {
       <button class="ghost" onclick="submitReview('${workPackage.id}', 'REQUEST_REVISION')" ${state.busy ? "disabled" : ""}>要求修改</button>
       <button class="ghost" onclick="submitReview('${workPackage.id}', 'REJECT')" ${state.busy ? "disabled" : ""}>驳回</button>
       <button class="ghost" onclick="runInvalidAgent('${workPackage.id}')" ${state.busy ? "disabled" : ""}>模拟无效输出</button>
+      <button class="ghost" onclick="openWorkPackageMarkdown('${workPackage.id}')">导出 Markdown</button>
     </div>
 
     <section class="subpanel">
@@ -691,6 +692,10 @@ function goGate() {
   state.currentView = "gate";
   document.querySelectorAll(".nav").forEach((item) => item.classList.toggle("active", item.dataset.view === "gate"));
   render();
+}
+
+function openWorkPackageMarkdown(workPackageId) {
+  window.open(`/work-packages/${workPackageId}/export.md`, "_blank");
 }
 
 async function runAgent(workPackageId) {
