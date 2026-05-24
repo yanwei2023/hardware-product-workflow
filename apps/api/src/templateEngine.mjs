@@ -116,7 +116,7 @@ export function buildProjectFromTemplate(project, activePhaseKey = "evt_exit") {
 
       if (workPackageDefinition.requiredForGate) {
         gateRequirements.push({
-          id: `req-${phaseDefinition.phaseKey}-${workPackageDefinition.workPackageKey}`,
+          id: `${idPrefix}req-${phaseDefinition.phaseKey}-${workPackageDefinition.workPackageKey}`,
           gateId,
           requiredWorkPackageTitle: workPackageDefinition.title,
           requiredArtifactType: workPackageDefinition.requiredArtifactType,

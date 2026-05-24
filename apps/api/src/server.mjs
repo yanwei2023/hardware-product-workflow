@@ -12,6 +12,7 @@ import { validateArtifactMarkdown } from "./artifactValidator.mjs";
 import { deleteStoreFromDisk, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
 import {
   canAcceptRisk,
+  canCloseRisk,
   canApproveGate,
   canApproveWorkPackage,
   canReviewWorkPackage,
@@ -96,7 +97,7 @@ function writeJson(res, statusCode, body) {
   res.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
     "access-control-allow-headers": "content-type",
   });
   res.end(JSON.stringify(body, null, 2));
@@ -619,6 +620,24 @@ export function updateRiskStatus(riskId, status, body = {}) {
     }
   }
 
+  if (status === "CLOSED") {
+    const permission = canCloseRisk(actorUserId);
+    if (!permission.allowed) {
+      audit("RISK_CLOSE_DENIED", "human", actorUserId || "unknown", "risk", risk.id, {
+        reason: permission.reason,
+      });
+      persistStore();
+      return {
+        statusCode: 403,
+        body: {
+          error: "当前用户无权关闭风险",
+          reason: permission.reason,
+          riskId: risk.id,
+        },
+      };
+    }
+  }
+
   risk.status = status;
   if (status === "ACCEPTED") {
     risk.acceptedByUserId = actorUserId;
@@ -704,7 +723,7 @@ export function approveGate(gateId, body = {}) {
   if (phase) {
     phase.status = "LOCKED";
     const nextPhase = store.phases
-      .filter((item) => item.sequence > phase.sequence)
+      .filter((item) => item.projectId === project.id && item.sequence > phase.sequence)
       .sort((a, b) => a.sequence - b.sequence)[0];
     if (nextPhase) {
       nextPhase.status = "IN_PROGRESS";
@@ -798,7 +817,7 @@ function serveStatic(req, res, url) {
   return writeText(res, 200, fs.readFileSync(filePath), contentType);
 }
 
-const server = http.createServer(async (req, res) => {
+export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
   if (req.method === "OPTIONS") {

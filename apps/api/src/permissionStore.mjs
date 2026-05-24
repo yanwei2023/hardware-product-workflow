@@ -77,6 +77,10 @@ export function canAcceptRisk(userId) {
     : { allowed: false, reason: `用户没有风险接受权限，需要角色：${allowedRoles.join("、")}` };
 }
 
+export function canCloseRisk(userId) {
+  return canAcceptRisk(userId);
+}
+
 export function canApproveGate(userId) {
   if (!findUser(userId)) {
     return {

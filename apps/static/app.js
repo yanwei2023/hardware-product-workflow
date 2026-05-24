@@ -385,7 +385,12 @@ function renderGate() {
                   <td>${escapeHtml(risk.title)}</td>
                   <td>${escapeHtml(risk.severity)}</td>
                   <td>${statusBadge(risk.status)}</td>
-                  <td><button onclick="acceptRisk('${risk.id}')" ${state.busy ? "disabled" : ""}>接受风险</button></td>
+                  <td>
+                    <div class="actions">
+                      <button onclick="acceptRisk('${risk.id}')" ${state.busy || risk.status !== "OPEN" ? "disabled" : ""}>接受风险</button>
+                      <button class="secondary" onclick="closeRisk('${risk.id}')" ${state.busy || risk.status !== "OPEN" ? "disabled" : ""}>关闭风险</button>
+                    </div>
+                  </td>
                 </tr>
               `,
             )
@@ -498,6 +503,16 @@ async function approveWorkPackage(workPackageId) {
 async function acceptRisk(riskId) {
   await withBusy(async () => {
     await api(`/risks/${riskId}/accept`, {
+      method: "POST",
+      body: JSON.stringify({ userId: state.actorUserId }),
+    });
+    await loadProject();
+  });
+}
+
+async function closeRisk(riskId) {
+  await withBusy(async () => {
+    await api(`/risks/${riskId}/close`, {
       method: "POST",
       body: JSON.stringify({ userId: state.actorUserId }),
     });
