@@ -385,7 +385,10 @@ function renderOverview() {
           <h3>站内通知</h3>
           <p class="muted">${escapeHtml(currentActorName())}</p>
         </div>
-        <p class="metric">${state.notifications?.unreadCount || 0}</p>
+        <div class="actions">
+          <p class="metric">${state.notifications?.unreadCount || 0}</p>
+          <button class="ghost" onclick="markAllNotificationsRead()" ${state.busy || !state.notifications?.unreadCount ? "disabled" : ""}>全部已读</button>
+        </div>
       </div>
       ${renderNotifications()}
     </article>
@@ -861,6 +864,16 @@ async function markNotificationRead(notificationId) {
     await api(`/notifications/${notificationId}/read`, {
       method: "POST",
       body: JSON.stringify({ userId: state.actorUserId }),
+    });
+    await loadProject();
+  });
+}
+
+async function markAllNotificationsRead() {
+  await withBusy(async () => {
+    await api(`/users/${state.actorUserId}/notifications/read`, {
+      method: "POST",
+      body: JSON.stringify({}),
     });
     await loadProject();
   });

@@ -113,6 +113,19 @@ function makeImportableSnapshot(snapshot, projectId = "project-importable") {
     id: `${projectId}-${finding.id}`,
     workPackageId: workPackageIdMap.get(finding.workPackageId),
   }));
+  renamed.notifications = (renamed.notifications || []).map((notification) => ({
+    ...notification,
+    id: `${projectId}-${notification.id}`,
+    projectId,
+    objectId:
+      notification.objectType === "workPackage"
+        ? workPackageIdMap.get(notification.objectId)
+        : notification.objectType === "risk"
+          ? `${projectId}-${notification.objectId}`
+          : notification.objectType === "gate"
+            ? gateIdMap.get(notification.objectId)
+            : notification.objectId,
+  }));
   renamed.auditEvents = renamed.auditEvents.map((event) => ({ ...event, id: `${projectId}-${event.id}`, projectId }));
   return renamed;
 }
@@ -373,6 +386,20 @@ test("notifications follow work package and risk events", () => {
   assert.equal(managerNotifications.notifications[0].objectType, "risk");
 });
 
+test("user notifications can be marked read in bulk", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+  runAgent("wp-evt_exit-evt_issue_closure", "quality_agent");
+
+  const before = workflow.getUserNotifications("user-test-lead");
+  assert.equal(before.unreadCount, 1);
+
+  const result = workflow.markUserNotificationsRead("user-test-lead");
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.updatedCount, 1);
+  assert.equal(result.body.notifications.unreadCount, 0);
+  assert.equal(workflow.getUserNotifications("user-quality-lead").unreadCount, 1);
+});
+
 test("project risk register summarizes blocking and resolved risks", () => {
   let register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.summary.totalRiskCount, 1);
@@ -407,6 +434,34 @@ test("project snapshot summarizes project state without changing active project"
   assert.equal(demoSnapshot.project.name, "智能控制器项目");
   assert.equal(workflow.getDemoProject().project.id, created.body.project.id);
   assert.equal(workflow.getProjectSnapshot("missing-project"), null);
+});
+
+test("project snapshot carries notifications through import and clone", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(snapshot.summary.notificationCount, 1);
+  assert.equal(snapshot.notifications[0].objectId, "wp-evt_exit-evt_test_report");
+
+  const importable = makeImportableSnapshot(snapshot, "project-with-notifications");
+  const result = workflow.importProjectSnapshot({
+    ...importable,
+    actorUserId: "user-project-manager",
+  });
+  assert.equal(result.statusCode, 201);
+
+  const importedSnapshot = workflow.getProjectSnapshot("project-with-notifications");
+  assert.equal(importedSnapshot.summary.notificationCount, 1);
+  assert.equal(importedSnapshot.notifications[0].objectId, "project-with-notifications-wp-evt_exit-evt_test_report");
+
+  workflow.selectProject("project-smart-controller");
+  const clone = workflow.cloneProject("project-smart-controller", {
+    name: "通知复制项目",
+    userId: "user-project-manager",
+  });
+  assert.equal(clone.statusCode, 201);
+  const clonedSnapshot = workflow.getProjectSnapshot(clone.body.project.project.id);
+  assert.equal(clonedSnapshot.summary.notificationCount, 1);
+  assert.equal(clonedSnapshot.notifications[0].projectId, clone.body.project.project.id);
 });
 
 test("project snapshot import validation catches conflicts and broken references", () => {

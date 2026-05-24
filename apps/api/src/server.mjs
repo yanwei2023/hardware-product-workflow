@@ -211,6 +211,12 @@ function renderProjectSnapshotMarkdown(snapshot) {
         .map((event) => `| ${event.createdAt} | ${event.eventType} | ${event.actorType}:${event.actorId} | ${event.objectType}:${event.objectId} |`)
         .join("\n")
     : "| 无 | - | - | - |";
+  const notificationRows = snapshot.notifications.length
+    ? snapshot.notifications
+        .slice(-12)
+        .map((item) => `| ${item.createdAt} | ${item.userId} | ${item.status} | ${item.title} |`)
+        .join("\n")
+    : "| 无 | - | - | - |";
 
   return `# ${snapshot.project.name} 项目快照
 
@@ -226,6 +232,7 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 已批准工作包：${snapshot.summary.approvedWorkPackageCount}
 - 风险：${snapshot.summary.riskCount}
 - 打开高风险：${snapshot.summary.openHighRiskCount}
+- 站内通知：${snapshot.summary.notificationCount}
 - 审计事件：${snapshot.summary.auditEventCount}
 
 ## 阶段
@@ -245,6 +252,12 @@ ${workPackageRows}
 | 阶段 | 风险 | 严重度 | 状态 |
 |---|---|---|---|
 ${riskRows}
+
+## 最近通知
+
+| 时间 | 用户 | 状态 | 标题 |
+|---|---|---|---|
+${notificationRows}
 
 ## 最近审计
 
@@ -566,6 +579,7 @@ export function getProjectSnapshot(projectId) {
   const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
   const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
   const auditEvents = store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id);
+  const notifications = (store.notifications || []).filter((item) => item.projectId === project.id);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -583,6 +597,7 @@ export function getProjectSnapshot(projectId) {
           risk.status !== "CLOSED" &&
           risk.status !== "ACCEPTED",
       ).length,
+      notificationCount: notifications.length,
       auditEventCount: auditEvents.length,
     },
     phases,
@@ -606,6 +621,7 @@ export function getProjectSnapshot(projectId) {
     })),
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
+    notifications,
     auditEvents,
   };
 }
@@ -689,6 +705,7 @@ export function validateProjectSnapshotImport(input = {}) {
   const risks = asArray(snapshot.risks);
   const agentRuns = asArray(snapshot.agentRuns);
   const agentFindings = asArray(snapshot.agentFindings);
+  const notifications = asArray(snapshot.notifications);
   const auditEvents = asArray(snapshot.auditEvents);
 
   pushIfMissing(errors, Array.isArray(snapshot.phases), "phases 必须是数组");
@@ -807,6 +824,20 @@ export function validateProjectSnapshotImport(input = {}) {
     });
   }
 
+  for (const notification of notifications) {
+    pushIfMissing(errors, notification.projectId === project?.id, "通知 projectId 与项目不一致", {
+      notificationId: notification.id,
+      projectId: notification.projectId,
+    });
+    if (notification.userId && !findUser(notification.userId)) {
+      warnings.push({
+        message: "通知接收人不在当前演示用户列表中",
+        notificationId: notification.id,
+        userId: notification.userId,
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     canImport: errors.length === 0,
@@ -825,6 +856,7 @@ export function validateProjectSnapshotImport(input = {}) {
       riskCount: risks.length,
       agentRunCount: agentRuns.length,
       agentFindingCount: agentFindings.length,
+      notificationCount: notifications.length,
       auditEventCount: auditEvents.length,
     },
   };
@@ -851,6 +883,7 @@ export function importProjectSnapshot(input = {}) {
   const risks = asArray(snapshot.risks).map(({ phaseName, ...item }) => ({ ...item }));
   const agentRuns = asArray(snapshot.agentRuns).map((item) => ({ ...item }));
   const agentFindings = asArray(snapshot.agentFindings).map((item) => ({ ...item }));
+  const notifications = asArray(snapshot.notifications).map((item) => ({ ...item }));
   const auditEvents = asArray(snapshot.auditEvents).map((item) => ({
     ...item,
     id: `imported-${item.id}`,
@@ -868,6 +901,7 @@ export function importProjectSnapshot(input = {}) {
   store.risks.push(...risks);
   store.agentRuns.push(...agentRuns);
   store.agentFindings.push(...agentFindings);
+  store.notifications.push(...notifications);
   store.auditEvents.push(...auditEvents);
   store.activeProjectId = project.id;
 
@@ -981,6 +1015,20 @@ function remapSnapshotForProjectCopy(snapshot, projectId, name) {
     ...finding,
     id: `${projectId}-${finding.id}`,
     workPackageId: workPackageIdMap.get(finding.workPackageId),
+  }));
+
+  copy.notifications = asArray(copy.notifications).map((notification) => ({
+    ...notification,
+    id: `${projectId}-${notification.id}`,
+    projectId,
+    objectId:
+      notification.objectType === "workPackage"
+        ? workPackageIdMap.get(notification.objectId)
+        : notification.objectType === "risk"
+          ? `${projectId}-${notification.objectId}`
+          : notification.objectType === "gate"
+            ? gateIdMap.get(notification.objectId)
+            : notification.objectId,
   }));
 
   copy.auditEvents = asArray(copy.auditEvents).map((event) => ({
@@ -1262,6 +1310,30 @@ export function markNotificationRead(notificationId, body = {}) {
     body: {
       notification,
       notifications: getUserNotifications(notification.userId),
+    },
+  };
+}
+
+export function markUserNotificationsRead(userId) {
+  const project = currentProject();
+  const now = new Date().toISOString();
+  let updatedCount = 0;
+
+  for (const notification of store.notifications || []) {
+    if (notification.userId === userId && notification.projectId === project.id && notification.status === "UNREAD") {
+      notification.status = "READ";
+      notification.readAt = now;
+      updatedCount += 1;
+    }
+  }
+
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: {
+      updatedCount,
+      notifications: getUserNotifications(userId),
     },
   };
 }
@@ -1897,6 +1969,12 @@ async function handleMarkNotificationRead(req, res, notificationId) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleMarkUserNotificationsRead(req, res, userId) {
+  await readJson(req);
+  const result = markUserNotificationsRead(userId);
+  return writeJson(res, result.statusCode, result.body);
+}
+
 function serveStatic(req, res, url) {
   const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
   const filePath = path.normalize(path.join(staticRoot, pathname));
@@ -2019,6 +2097,11 @@ export const server = http.createServer(async (req, res) => {
     const userNotificationsMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications$/);
     if (req.method === "GET" && userNotificationsMatch) {
       return writeJson(res, 200, getUserNotifications(userNotificationsMatch[1]));
+    }
+
+    const userNotificationsReadMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications\/read$/);
+    if (req.method === "POST" && userNotificationsReadMatch) {
+      return handleMarkUserNotificationsRead(req, res, userNotificationsReadMatch[1]);
     }
 
     const notificationReadMatch = url.pathname.match(/^\/notifications\/([^/]+)\/read$/);

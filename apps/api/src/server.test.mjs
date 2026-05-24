@@ -91,6 +91,7 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(jsonResult.status, 200);
   assert.equal(jsonResult.body.project.id, "project-smart-controller");
   assert.equal(jsonResult.body.summary.phaseCount, 7);
+  assert.equal(jsonResult.body.summary.notificationCount, 0);
   assert.equal(jsonResult.body.currentPhase.name, "EVT Exit");
 
   const markdownResult = await dispatch("/projects/project-smart-controller/snapshot.md");
@@ -218,6 +219,36 @@ test("notification endpoints show and mark user notifications", async () => {
   });
   assert.equal(readResult.status, 200);
   assert.equal(readResult.body.notifications.unreadCount, 0);
+});
+
+test("notification endpoint marks all current user notifications read", async () => {
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_issue_closure",
+      agentKey: "quality_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+
+  const result = await dispatch("/users/user-test-lead/notifications/read", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.updatedCount, 1);
+  assert.equal(result.body.notifications.unreadCount, 0);
+
+  const qualityResult = await dispatch("/users/user-quality-lead/notifications");
+  assert.equal(qualityResult.body.unreadCount, 1);
 });
 
 test("notification read endpoint rejects other users", async () => {
