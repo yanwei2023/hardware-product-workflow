@@ -43,6 +43,8 @@
 | `GET` | `/gates/:id/review-pack` | 查看阶段门审核包、证据状态、风险和阻塞项 |
 | `GET` | `/gates/:id/review-pack.md` | 导出阶段门审核包 Markdown |
 | `GET` | `/users/:id/action-items` | 查看指定用户在当前项目中的待办 |
+| `GET` | `/users/:id/notifications` | 查看指定用户在当前项目中的站内通知 |
+| `POST` | `/notifications/:id/read` | 将站内通知标记为已读 |
 
 ## 强制规则
 
@@ -56,3 +58,4 @@
 - 项目复制必须生成新的项目 ID，并写入 `PROJECT_CLONED` 审计事件。
 - 工作包 Markdown 导出必须带上最新交付物、模板校验结果、审核记录和 Agent 草稿，便于离线归档。
 - 风险台账必须按项目隔离，并标记哪些打开的高/严重风险会阻塞阶段门。
+- Agent 输出、审核、风险和阶段门事件必须生成可追踪的站内通知，并允许用户标记已读。

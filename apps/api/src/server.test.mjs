@@ -72,6 +72,7 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.equal(result.body.exists, true);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.projectCount, 1);
+  assert.equal(result.body.notificationCount, 0);
   assert.ok(result.body.storePath.endsWith("store.json"));
 });
 
@@ -194,6 +195,48 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.body.pendingReviews.length, 0);
   assert.equal(result.body.riskDecisions.length, 1);
   assert.equal(result.body.total, 1);
+});
+
+test("notification endpoints show and mark user notifications", async () => {
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+
+  const listResult = await dispatch("/users/user-test-lead/notifications");
+  assert.equal(listResult.status, 200);
+  assert.equal(listResult.body.unreadCount, 1);
+  assert.equal(listResult.body.notifications[0].title, "工作包待审核");
+
+  const readResult = await dispatch(`/notifications/${listResult.body.notifications[0].id}/read`, {
+    method: "POST",
+    body: JSON.stringify({ userId: "user-test-lead" }),
+  });
+  assert.equal(readResult.status, 200);
+  assert.equal(readResult.body.notifications.unreadCount, 0);
+});
+
+test("notification read endpoint rejects other users", async () => {
+  await dispatch("/agent-runs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:test-input"],
+    }),
+  });
+  const listResult = await dispatch("/users/user-test-lead/notifications");
+  const result = await dispatch(`/notifications/${listResult.body.notifications[0].id}/read`, {
+    method: "POST",
+    body: JSON.stringify({ userId: "user-project-manager" }),
+  });
+
+  assert.equal(result.status, 403);
+  assert.equal(result.body.error, "当前用户无权处理该通知");
 });
 
 test("gate review pack endpoint returns evidence and blockers", async () => {

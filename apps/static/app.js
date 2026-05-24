@@ -1,6 +1,7 @@
 const state = {
   project: null,
   actionItems: null,
+  notifications: null,
   gateReviewPack: null,
   storageStatus: null,
   importValidation: null,
@@ -30,6 +31,8 @@ const statusText = {
   OUTPUT_INVALID: "输出无效",
   BLOCKED: "阻塞",
   READY: "可通过",
+  UNREAD: "未读",
+  READ: "已读",
   LOCKED: "已锁定",
   IN_PROGRESS: "进行中",
 };
@@ -93,11 +96,13 @@ async function loadProject() {
   state.users = users.users;
   state.storageStatus = storageStatus;
   const gate = activeGate();
-  const [actionItems, gateReviewPack] = await Promise.all([
+  const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
+    api(`/users/${state.actorUserId}/notifications`),
     gate ? api(`/gates/${gate.id}/review-pack`) : Promise.resolve(null),
   ]);
   state.actionItems = actionItems;
+  state.notifications = notifications;
   state.gateReviewPack = gateReviewPack;
   if (!state.selectedWorkPackageId) {
     state.selectedWorkPackageId = workPackagesForActivePhase()[0]?.id || null;
@@ -323,6 +328,7 @@ function renderStorageStatus() {
         <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
+        <tr><th>站内通知</th><td>${escapeHtml(status.notificationCount)}</td></tr>
       </tbody>
     </table>
   `;
@@ -373,6 +379,16 @@ function renderOverview() {
       </div>
       ${renderActionItems()}
     </article>
+    <article class="panel">
+      <div class="detail-head">
+        <div>
+          <h3>站内通知</h3>
+          <p class="muted">${escapeHtml(currentActorName())}</p>
+        </div>
+        <p class="metric">${state.notifications?.unreadCount || 0}</p>
+      </div>
+      ${renderNotifications()}
+    </article>
   `;
 }
 
@@ -421,6 +437,38 @@ function renderActionItems() {
     <table class="table">
       <thead><tr><th>类型</th><th>事项</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderNotifications() {
+  const notifications = state.notifications;
+  if (!notifications || notifications.total === 0) {
+    return "<p class='muted'>当前没有通知。</p>";
+  }
+
+  return `
+    <table class="table">
+      <thead><tr><th>状态</th><th>通知</th><th>时间</th><th>操作</th></tr></thead>
+      <tbody>
+        ${notifications.notifications
+          .map(
+            (item) => `
+              <tr>
+                <td>${statusBadge(item.status)}</td>
+                <td>
+                  <strong>${escapeHtml(item.title)}</strong><br>
+                  <span class="muted">${escapeHtml(item.message)}</span>
+                </td>
+                <td>${escapeHtml(item.createdAt)}</td>
+                <td>
+                  ${item.status === "UNREAD" ? `<button class="ghost" onclick="markNotificationRead('${item.id}')" ${state.busy ? "disabled" : ""}>标记已读</button>` : "-"}
+                </td>
+              </tr>
+            `,
+          )
+          .join("")}
+      </tbody>
     </table>
   `;
 }
@@ -803,6 +851,16 @@ async function runInvalidAgent(workPackageId) {
         inputRefs: ["artifact:demo-input"],
         draftMarkdown: "# 无效草稿\n\n缺少模板必填章节。",
       }),
+    });
+    await loadProject();
+  });
+}
+
+async function markNotificationRead(notificationId) {
+  await withBusy(async () => {
+    await api(`/notifications/${notificationId}/read`, {
+      method: "POST",
+      body: JSON.stringify({ userId: state.actorUserId }),
     });
     await loadProject();
   });

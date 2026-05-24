@@ -354,6 +354,25 @@ test("user action items reflect review and risk responsibilities", () => {
   assert.equal(testLeadItems.pendingReviews.length, 0);
 });
 
+test("notifications follow work package and risk events", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+  let testLeadNotifications = workflow.getUserNotifications("user-test-lead");
+  assert.equal(testLeadNotifications.unreadCount, 1);
+  assert.equal(testLeadNotifications.notifications[0].objectId, "wp-evt_exit-evt_test_report");
+
+  const readResult = workflow.markNotificationRead(testLeadNotifications.notifications[0].id, {
+    userId: "user-test-lead",
+  });
+  assert.equal(readResult.statusCode, 200);
+  testLeadNotifications = workflow.getUserNotifications("user-test-lead");
+  assert.equal(testLeadNotifications.unreadCount, 0);
+
+  workflow.createDemoRiskForCurrentPhase({ title: "供应商交期风险", severity: "HIGH" });
+  const managerNotifications = workflow.getUserNotifications("user-project-manager");
+  assert.equal(managerNotifications.unreadCount, 1);
+  assert.equal(managerNotifications.notifications[0].objectType, "risk");
+});
+
 test("project risk register summarizes blocking and resolved risks", () => {
   let register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.summary.totalRiskCount, 1);

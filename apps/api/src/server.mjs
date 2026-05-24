@@ -90,14 +90,20 @@ export function createDemoStore() {
     agentRuns: [],
     agentFindings: [],
     auditEvents: [],
+    notifications: [],
   };
 }
 
 let store = loadStoreFromDisk() || createDemoStore();
+ensureStoreShape();
 saveStoreToDisk(store);
 
 function persistStore() {
   saveStoreToDisk(store);
+}
+
+function ensureStoreShape() {
+  store.notifications ||= [];
 }
 
 export function getStorageStatus() {
@@ -112,6 +118,7 @@ export function getStorageStatus() {
     activeProjectId: store.activeProjectId,
     projectCount: store.projects.length,
     auditEventCount: store.auditEvents.length,
+    notificationCount: store.notifications?.length || 0,
   };
 }
 
@@ -358,6 +365,34 @@ function audit(eventType, actorType, actorId, objectType, objectId, payload = {}
     payload,
     createdAt: new Date().toISOString(),
   });
+}
+
+function notifyUser(userId, notification) {
+  if (!userId || !findUser(userId)) {
+    return null;
+  }
+
+  const item = {
+    id: randomUUID(),
+    projectId: notification.projectId || currentProject()?.id || null,
+    userId,
+    title: notification.title,
+    message: notification.message || "",
+    type: notification.type || "INFO",
+    status: "UNREAD",
+    objectType: notification.objectType || null,
+    objectId: notification.objectId || null,
+    createdAt: new Date().toISOString(),
+  };
+  store.notifications.push(item);
+  return item;
+}
+
+function notifyRole(roleName, notification) {
+  return getDemoUsers()
+    .filter((user) => user.roles.includes(roleName))
+    .map((user) => notifyUser(user.userId, notification))
+    .filter(Boolean);
 }
 
 function currentProject() {
@@ -1187,6 +1222,50 @@ export function getUserActionItems(userId) {
   };
 }
 
+export function getUserNotifications(userId) {
+  const project = currentProject();
+  const notifications = (store.notifications || [])
+    .filter((item) => item.userId === userId && item.projectId === project.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return {
+    userId,
+    projectId: project.id,
+    unreadCount: notifications.filter((item) => item.status === "UNREAD").length,
+    total: notifications.length,
+    notifications,
+  };
+}
+
+export function markNotificationRead(notificationId, body = {}) {
+  const notification = (store.notifications || []).find((item) => item.id === notificationId);
+  if (!notification) {
+    return { statusCode: 404, body: { error: "通知不存在" } };
+  }
+
+  if (body.userId && notification.userId !== body.userId) {
+    return {
+      statusCode: 403,
+      body: {
+        error: "当前用户无权处理该通知",
+        notificationId,
+      },
+    };
+  }
+
+  notification.status = "READ";
+  notification.readAt = new Date().toISOString();
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: {
+      notification,
+      notifications: getUserNotifications(notification.userId),
+    },
+  };
+}
+
 export function getGateReviewPack(gateId) {
   const gate = store.gates.find((item) => item.id === gateId);
   if (!gate) {
@@ -1341,6 +1420,13 @@ export function runAgentWorkPackage(body) {
       artifactTemplateKey: artifactTemplate.templateKey,
       validation,
     });
+    notifyUser(rolePair?.humanUserId, {
+      title: "Agent 输出未通过模板校验",
+      message: `${workPackage.title} 需要重新生成或补齐必需章节。`,
+      type: "WARNING",
+      objectType: "workPackage",
+      objectId: workPackage.id,
+    });
     persistStore();
 
     return {
@@ -1384,6 +1470,13 @@ export function runAgentWorkPackage(body) {
   store.artifactVersions.push(artifact);
   audit("AGENT_OUTPUT_READY", "agent", agentRun.agentKey, "workPackage", workPackage.id, {
     artifactId: artifact.id,
+  });
+  notifyUser(rolePair?.humanUserId, {
+    title: "工作包待审核",
+    message: `${workPackage.title} 已生成 Agent 草稿，等待人类负责人审核。`,
+    type: "ACTION",
+    objectType: "workPackage",
+    objectId: workPackage.id,
   });
   persistStore();
 
@@ -1495,6 +1588,23 @@ export function submitHumanReview(body) {
   audit("HUMAN_REVIEW_SUBMITTED", "human", review.reviewerUserId, "workPackage", workPackage.id, {
     decision: review.decision,
   });
+  if (body.decision === "APPROVE" || body.decision === "APPROVE_WITH_CONDITIONS") {
+    notifyRole("项目经理", {
+      title: "工作包已批准",
+      message: `${workPackage.title} 已由 ${review.reviewerUserId} 批准。`,
+      type: "INFO",
+      objectType: "workPackage",
+      objectId: workPackage.id,
+    });
+  } else {
+    notifyRole("项目经理", {
+      title: "工作包需要返工",
+      message: `${workPackage.title} 的审核结果为 ${body.decision}。`,
+      type: "WARNING",
+      objectType: "workPackage",
+      objectId: workPackage.id,
+    });
+  }
   persistStore();
 
   return { statusCode: 201, body: { review, workPackage, latestGateCheck: currentGateCheck() } };
@@ -1556,6 +1666,20 @@ export function updateRiskStatus(riskId, status, body = {}) {
   }
 
   audit(`RISK_${status}`, "human", actorUserId, "risk", risk.id);
+  notifyRole("项目经理", {
+    title: status === "ACCEPTED" ? "风险已接受" : "风险已关闭",
+    message: `${risk.title} 状态更新为 ${status}。`,
+    type: "INFO",
+    objectType: "risk",
+    objectId: risk.id,
+  });
+  notifyRole("质量负责人", {
+    title: status === "ACCEPTED" ? "风险已接受" : "风险已关闭",
+    message: `${risk.title} 状态更新为 ${status}。`,
+    type: "INFO",
+    objectType: "risk",
+    objectId: risk.id,
+  });
   persistStore();
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
@@ -1597,6 +1721,20 @@ export function createDemoRiskForCurrentPhase(body = {}) {
   store.risks.push(risk);
   audit("RISK_CREATED", "system", "demo", "risk", risk.id, {
     phaseId: phase.id,
+  });
+  notifyRole("项目经理", {
+    title: "新风险待处理",
+    message: `${risk.title} 已创建，严重度为 ${risk.severity}。`,
+    type: "ACTION",
+    objectType: "risk",
+    objectId: risk.id,
+  });
+  notifyRole("质量负责人", {
+    title: "新风险待处理",
+    message: `${risk.title} 已创建，严重度为 ${risk.severity}。`,
+    type: "ACTION",
+    objectType: "risk",
+    objectId: risk.id,
   });
   persistStore();
 
@@ -1680,6 +1818,13 @@ export function approveGate(gateId, body = {}) {
   audit("GATE_APPROVED", "human", actorUserId, "gate", gate.id, {
     nextPhaseId: project.currentPhaseId,
   });
+  notifyRole("项目经理", {
+    title: "阶段门已批准",
+    message: `${phase?.name || gate.phaseId} 阶段门已批准。`,
+    type: "INFO",
+    objectType: "gate",
+    objectId: gate.id,
+  });
   persistStore();
 
   return {
@@ -1744,6 +1889,11 @@ async function handleUpdateRolePair(req, res, rolePairId) {
 
 async function handleGateApproval(req, res, gateId) {
   const result = approveGate(gateId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleMarkNotificationRead(req, res, notificationId) {
+  const result = markNotificationRead(notificationId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
 }
 
@@ -1864,6 +2014,16 @@ export const server = http.createServer(async (req, res) => {
     const userActionItemsMatch = url.pathname.match(/^\/users\/([^/]+)\/action-items$/);
     if (req.method === "GET" && userActionItemsMatch) {
       return writeJson(res, 200, getUserActionItems(userActionItemsMatch[1]));
+    }
+
+    const userNotificationsMatch = url.pathname.match(/^\/users\/([^/]+)\/notifications$/);
+    if (req.method === "GET" && userNotificationsMatch) {
+      return writeJson(res, 200, getUserNotifications(userNotificationsMatch[1]));
+    }
+
+    const notificationReadMatch = url.pathname.match(/^\/notifications\/([^/]+)\/read$/);
+    if (req.method === "POST" && notificationReadMatch) {
+      return handleMarkNotificationRead(req, res, notificationReadMatch[1]);
     }
 
     const workPackageMatch = url.pathname.match(/^\/work-packages\/([^/]+)$/);

@@ -293,7 +293,8 @@ textarea {
 
 .status.GATE_READY,
 .status.HUMAN_APPROVED,
-.status.APPROVED {
+.status.APPROVED,
+.status.READ {
   background: #dcfce7;
   color: var(--green);
 }
@@ -307,7 +308,8 @@ textarea {
 }
 
 .status.AGENT_DRAFT_READY,
-.status.PENDING_REVIEW {
+.status.PENDING_REVIEW,
+.status.UNREAD {
   background: #fef3c7;
   color: var(--amber);
 }
