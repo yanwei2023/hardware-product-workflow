@@ -3,6 +3,7 @@ const state = {
   actionItems: null,
   gateReviewPack: null,
   storageStatus: null,
+  importValidation: null,
   users: [],
   actorUserId: "user-project-manager",
   currentView: "overview",
@@ -252,7 +253,51 @@ function renderProjects() {
         <h3>本地数据</h3>
         ${renderStorageStatus()}
       </article>
+      <article class="panel wide">
+        <h3>导入前校验</h3>
+        <label class="field">
+          项目快照 JSON
+          <textarea id="snapshotImportJson" rows="10" placeholder="粘贴 /projects/:id/snapshot 导出的 JSON"></textarea>
+        </label>
+        <button onclick="validateProjectSnapshotImport()" ${state.busy ? "disabled" : ""}>校验快照</button>
+        ${renderImportValidation()}
+      </article>
     </div>
+  `;
+}
+
+function renderImportValidation() {
+  const result = state.importValidation;
+  if (!result) {
+    return "";
+  }
+
+  const errors = result.errors || [];
+  const warnings = result.warnings || [];
+  return `
+    <section class="subpanel">
+      <h4>校验结果</h4>
+      <p>${result.valid ? statusBadge("READY") : statusBadge("BLOCKED")}</p>
+      ${result.summary ? `
+        <table class="table">
+          <tbody>
+            <tr><th>项目</th><td>${escapeHtml(result.summary.projectName || "-")}</td></tr>
+            <tr><th>项目 ID</th><td>${escapeHtml(result.summary.projectId || "-")}</td></tr>
+            <tr><th>阶段</th><td>${escapeHtml(result.summary.phaseCount)}</td></tr>
+            <tr><th>工作包</th><td>${escapeHtml(result.summary.workPackageCount)}</td></tr>
+            <tr><th>交付物版本</th><td>${escapeHtml(result.summary.artifactVersionCount)}</td></tr>
+          </tbody>
+        </table>
+      ` : ""}
+      ${errors.length ? `
+        <h4>错误</h4>
+        <ul>${errors.map((item) => `<li>${escapeHtml(item.message)}</li>`).join("")}</ul>
+      ` : ""}
+      ${warnings.length ? `
+        <h4>警告</h4>
+        <ul>${warnings.map((item) => `<li>${escapeHtml(item.message)}</li>`).join("")}</ul>
+      ` : ""}
+    </section>
   `;
 }
 
@@ -772,6 +817,34 @@ async function selectProject(projectId) {
 
 function openProjectSnapshotMarkdown(projectId) {
   window.open(`/projects/${projectId}/snapshot.md`, "_blank");
+}
+
+async function validateProjectSnapshotImport() {
+  const raw = q("#snapshotImportJson").value.trim();
+  if (!raw) {
+    setMessage("请先粘贴项目快照 JSON。", "error");
+    return;
+  }
+
+  let snapshot;
+  try {
+    snapshot = JSON.parse(raw);
+  } catch (error) {
+    setMessage(`JSON 格式错误：${error.message}`, "error");
+    return;
+  }
+
+  await withBusy(async () => {
+    const response = await fetch("/projects/import/validate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(snapshot),
+    });
+    state.importValidation = await response.json();
+    if (!response.ok && !state.importValidation) {
+      throw new Error("快照校验失败。");
+    }
+  });
 }
 
 async function updateRolePair(rolePairId) {

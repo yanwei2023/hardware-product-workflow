@@ -114,12 +114,19 @@ select {
   padding: 9px;
 }
 
-input {
+input,
+textarea {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
+  font: inherit;
   padding: 10px;
   width: 100%;
+}
+
+textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  resize: vertical;
 }
 
 .field {

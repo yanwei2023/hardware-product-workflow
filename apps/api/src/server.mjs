@@ -253,7 +253,18 @@ async function readJson(req) {
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    const parseError = new Error("请求体不是合法 JSON");
+    parseError.statusCode = 400;
+    parseError.details = error instanceof Error ? error.message : String(error);
+    throw parseError;
+  }
 }
 
 function audit(eventType, actorType, actorId, objectType, objectId, payload = {}) {
@@ -433,6 +444,7 @@ export function getProjectSnapshot(projectId) {
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
   const phases = store.phases.filter((item) => item.projectId === project.id).sort((a, b) => a.sequence - b.sequence);
   const gates = store.gates.filter((item) => item.projectId === project.id);
+  const gateIds = new Set(gates.map((item) => item.id));
   const rolePairs = store.rolePairs.filter((item) => item.projectId === project.id);
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   const workPackageIds = new Set(workPackages.map((item) => item.id));
@@ -461,6 +473,7 @@ export function getProjectSnapshot(projectId) {
     },
     phases,
     gates,
+    gateRequirements: store.gateRequirements.filter((item) => gateIds.has(item.gateId)),
     rolePairs,
     workPackages: workPackages.map((workPackage) => {
       const rolePair = rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
@@ -480,6 +493,188 @@ export function getProjectSnapshot(projectId) {
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     auditEvents,
+  };
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function pushIfMissing(errors, condition, message, details = {}) {
+  if (!condition) {
+    errors.push({ message, ...details });
+  }
+}
+
+export function validateProjectSnapshotImport(input = {}) {
+  const snapshot = input.snapshot || input;
+  const errors = [];
+  const warnings = [];
+
+  if (!snapshot || typeof snapshot !== "object") {
+    return {
+      valid: false,
+      canImport: false,
+      errors: [{ message: "快照必须是对象" }],
+      warnings,
+      summary: null,
+    };
+  }
+
+  const project = snapshot.project || null;
+  pushIfMissing(errors, project && typeof project === "object", "快照缺少 project 对象");
+  pushIfMissing(errors, Boolean(project?.id), "project.id 不能为空");
+  pushIfMissing(errors, Boolean(project?.name), "project.name 不能为空");
+  pushIfMissing(errors, Boolean(project?.currentPhaseId), "project.currentPhaseId 不能为空");
+
+  const phases = asArray(snapshot.phases);
+  const gates = asArray(snapshot.gates);
+  const rolePairs = asArray(snapshot.rolePairs);
+  const workPackages = asArray(snapshot.workPackages);
+  const gateRequirements = asArray(snapshot.gateRequirements);
+  const artifactVersions = asArray(snapshot.artifactVersions);
+  const reviews = asArray(snapshot.reviews);
+  const risks = asArray(snapshot.risks);
+  const agentRuns = asArray(snapshot.agentRuns);
+  const agentFindings = asArray(snapshot.agentFindings);
+  const auditEvents = asArray(snapshot.auditEvents);
+
+  pushIfMissing(errors, Array.isArray(snapshot.phases), "phases 必须是数组");
+  pushIfMissing(errors, Array.isArray(snapshot.gates), "gates 必须是数组");
+  pushIfMissing(errors, Array.isArray(snapshot.rolePairs), "rolePairs 必须是数组");
+  pushIfMissing(errors, Array.isArray(snapshot.workPackages), "workPackages 必须是数组");
+
+  if (project?.id && store.projects.some((item) => item.id === project.id)) {
+    errors.push({
+      message: "项目 ID 已存在，不能直接导入",
+      projectId: project.id,
+    });
+  }
+
+  const phaseIds = new Set(phases.map((item) => item.id));
+  const gateIds = new Set(gates.map((item) => item.id));
+  const rolePairIds = new Set(rolePairs.map((item) => item.id));
+  const workPackageIds = new Set(workPackages.map((item) => item.id));
+
+  if (project?.currentPhaseId) {
+    pushIfMissing(errors, phaseIds.has(project.currentPhaseId), "project.currentPhaseId 未指向快照内阶段", {
+      currentPhaseId: project.currentPhaseId,
+    });
+  }
+
+  for (const phase of phases) {
+    pushIfMissing(errors, phase.projectId === project?.id, "阶段 projectId 与项目不一致", {
+      phaseId: phase.id,
+      projectId: phase.projectId,
+    });
+  }
+
+  for (const gate of gates) {
+    pushIfMissing(errors, gate.projectId === project?.id, "阶段门 projectId 与项目不一致", {
+      gateId: gate.id,
+      projectId: gate.projectId,
+    });
+    pushIfMissing(errors, phaseIds.has(gate.phaseId), "阶段门 phaseId 未指向快照内阶段", {
+      gateId: gate.id,
+      phaseId: gate.phaseId,
+    });
+  }
+
+  for (const rolePair of rolePairs) {
+    pushIfMissing(errors, rolePair.projectId === project?.id, "角色配对 projectId 与项目不一致", {
+      rolePairId: rolePair.id,
+      projectId: rolePair.projectId,
+    });
+    if (rolePair.humanUserId && !findUser(rolePair.humanUserId)) {
+      warnings.push({
+        message: "角色负责人不在当前演示用户列表中，导入后可能无法审批",
+        rolePairId: rolePair.id,
+        humanUserId: rolePair.humanUserId,
+      });
+    }
+  }
+
+  for (const workPackage of workPackages) {
+    pushIfMissing(errors, workPackage.projectId === project?.id, "工作包 projectId 与项目不一致", {
+      workPackageId: workPackage.id,
+      projectId: workPackage.projectId,
+    });
+    pushIfMissing(errors, phaseIds.has(workPackage.phaseId), "工作包 phaseId 未指向快照内阶段", {
+      workPackageId: workPackage.id,
+      phaseId: workPackage.phaseId,
+    });
+    pushIfMissing(errors, rolePairIds.has(workPackage.rolePairId), "工作包 rolePairId 未指向快照内角色配对", {
+      workPackageId: workPackage.id,
+      rolePairId: workPackage.rolePairId,
+    });
+  }
+
+  for (const requirement of gateRequirements) {
+    pushIfMissing(errors, gateIds.has(requirement.gateId), "阶段门条件 gateId 未指向快照内阶段门", {
+      requirementId: requirement.id,
+      gateId: requirement.gateId,
+    });
+  }
+
+  for (const artifact of artifactVersions) {
+    pushIfMissing(errors, workPackageIds.has(artifact.workPackageId), "交付物 workPackageId 未指向快照内工作包", {
+      artifactId: artifact.id,
+      workPackageId: artifact.workPackageId,
+    });
+  }
+
+  for (const review of reviews) {
+    pushIfMissing(errors, workPackageIds.has(review.workPackageId), "审核记录 workPackageId 未指向快照内工作包", {
+      reviewId: review.id,
+      workPackageId: review.workPackageId,
+    });
+  }
+
+  for (const risk of risks) {
+    pushIfMissing(errors, risk.projectId === project?.id, "风险 projectId 与项目不一致", {
+      riskId: risk.id,
+      projectId: risk.projectId,
+    });
+    pushIfMissing(errors, phaseIds.has(risk.phaseId), "风险 phaseId 未指向快照内阶段", {
+      riskId: risk.id,
+      phaseId: risk.phaseId,
+    });
+  }
+
+  for (const agentRun of agentRuns) {
+    pushIfMissing(errors, workPackageIds.has(agentRun.workPackageId), "Agent run workPackageId 未指向快照内工作包", {
+      agentRunId: agentRun.id,
+      workPackageId: agentRun.workPackageId,
+    });
+  }
+
+  for (const finding of agentFindings) {
+    pushIfMissing(errors, workPackageIds.has(finding.workPackageId), "Agent 发现 workPackageId 未指向快照内工作包", {
+      findingId: finding.id,
+      workPackageId: finding.workPackageId,
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    canImport: errors.length === 0,
+    errors,
+    warnings,
+    summary: {
+      projectId: project?.id || null,
+      projectName: project?.name || null,
+      phaseCount: phases.length,
+      gateCount: gates.length,
+      rolePairCount: rolePairs.length,
+      workPackageCount: workPackages.length,
+      gateRequirementCount: gateRequirements.length,
+      artifactVersionCount: artifactVersions.length,
+      reviewCount: reviews.length,
+      riskCount: risks.length,
+      agentRunCount: agentRuns.length,
+      agentFindingCount: agentFindings.length,
+      auditEventCount: auditEvents.length,
+    },
   };
 }
 
@@ -1218,6 +1413,11 @@ async function handleCreateProject(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleValidateProjectImport(req, res) {
+  const result = validateProjectSnapshotImport(await readJson(req));
+  return writeJson(res, result.valid ? 200 : 422, result);
+}
+
 async function handleSelectProject(req, res, projectId) {
   const result = selectProject(projectId);
   return writeJson(res, result.statusCode, result.body);
@@ -1290,6 +1490,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/projects") {
       return handleCreateProject(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/projects/import/validate") {
+      return handleValidateProjectImport(req, res);
     }
 
     const projectSnapshotMarkdownMatch = url.pathname.match(/^\/projects\/([^/]+)\/snapshot\.md$/);
@@ -1398,8 +1602,9 @@ export const server = http.createServer(async (req, res) => {
 
     return writeJson(res, 404, { error: "接口不存在" });
   } catch (error) {
-    return writeJson(res, 500, {
-      error: "服务器错误",
+    const statusCode = Number(error?.statusCode) || 500;
+    return writeJson(res, statusCode, {
+      error: statusCode === 400 ? error.message : "服务器错误",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
