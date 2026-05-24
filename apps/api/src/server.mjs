@@ -137,6 +137,7 @@ async function readJson(req) {
 function audit(eventType, actorType, actorId, objectType, objectId, payload = {}) {
   store.auditEvents.push({
     id: randomUUID(),
+    projectId: currentProject()?.id || null,
     eventType,
     actorType,
     actorId,
@@ -292,7 +293,7 @@ export function getDemoProject() {
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
-    auditEvents: store.auditEvents,
+    auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
     latestGateCheck: gate ? checkGate(gate.id) : null,
   };
 }

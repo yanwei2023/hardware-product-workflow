@@ -327,6 +327,23 @@ input {
   white-space: pre-wrap;
 }
 
+.audit-detail summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.audit-detail pre {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #1f2937;
+  max-width: 420px;
+  overflow: auto;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
   body {
     grid-template-columns: 1fr;

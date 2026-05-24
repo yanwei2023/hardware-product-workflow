@@ -493,7 +493,7 @@ function renderAudit() {
     <article class="panel">
       <h3>审计事件</h3>
       <table class="table">
-        <thead><tr><th>时间</th><th>事件</th><th>操作者</th><th>对象</th></tr></thead>
+        <thead><tr><th>时间</th><th>事件</th><th>操作者</th><th>对象</th><th>详情</th></tr></thead>
         <tbody>
           ${state.project.auditEvents
             .slice()
@@ -505,6 +505,7 @@ function renderAudit() {
                   <td>${escapeHtml(event.eventType)}</td>
                   <td>${escapeHtml(event.actorType)}:${escapeHtml(event.actorId)}</td>
                   <td>${escapeHtml(event.objectType)}:${escapeHtml(event.objectId)}</td>
+                  <td>${renderAuditPayload(event.payload)}</td>
                 </tr>
               `,
             )
@@ -512,6 +513,19 @@ function renderAudit() {
         </tbody>
       </table>
     </article>
+  `;
+}
+
+function renderAuditPayload(payload) {
+  if (!payload || Object.keys(payload).length === 0) {
+    return "<span class='muted'>无</span>";
+  }
+
+  return `
+    <details class="audit-detail">
+      <summary>查看</summary>
+      <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+    </details>
   `;
 }
 

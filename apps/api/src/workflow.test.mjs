@@ -199,6 +199,35 @@ test("risk creation and role assignment reject unknown values", () => {
   assert.equal(invalidRolePair.body.error, "负责人用户不存在");
 });
 
+test("audit events keep payload details and stay scoped to the active project", () => {
+  runAgent("wp-evt_exit-evt_test_report", "test_agent");
+  const denied = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_report",
+    reviewerUserId: "user-project-manager",
+    decision: "APPROVE",
+    comment: "越权批准。",
+  });
+  assert.equal(denied.statusCode, 403);
+
+  let project = workflow.getDemoProject();
+  const deniedEvent = project.auditEvents.find((event) => event.eventType === "HUMAN_APPROVAL_DENIED");
+  assert.equal(deniedEvent.projectId, "project-smart-controller");
+  assert.match(deniedEvent.payload.reason, /只有工作包绑定的人类负责人/);
+
+  const created = workflow.createProject({
+    name: "Audit Scope Project",
+    productLine: "IoT 产品线",
+    activePhaseKey: "initiation",
+    userId: "user-project-manager",
+  });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.body.auditEvents.some((event) => event.eventType === "PROJECT_CREATED"), true);
+
+  workflow.selectProject("project-smart-controller");
+  project = workflow.getDemoProject();
+  assert.equal(project.auditEvents.some((event) => event.objectId === created.body.project.id), false);
+});
+
 test("user action items reflect review and risk responsibilities", () => {
   let testLeadItems = workflow.getUserActionItems("user-test-lead");
   assert.equal(testLeadItems.pendingReviews.length, 1);
