@@ -363,6 +363,37 @@ test("risk creation and role assignment reject unknown values", () => {
   assert.equal(invalidRolePair.body.error, "负责人用户不存在");
 });
 
+test("role pair changes notify previous owner, new owner, and project manager", () => {
+  const project = workflow.getDemoProject();
+  const rolePair = project.rolePairs.find((item) => item.roleKey === "test_engineer");
+
+  const result = workflow.updateRolePair(rolePair.id, {
+    humanUserId: "user-quality-lead",
+    actorUserId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.rolePair.humanUserId, "user-quality-lead");
+
+  const qualityNotifications = workflow.getUserNotifications("user-quality-lead");
+  assert.equal(qualityNotifications.notifications[0].objectType, "rolePair");
+  assert.equal(qualityNotifications.notifications[0].objectId, rolePair.id);
+  assert.match(qualityNotifications.notifications[0].message, /关联工作包/);
+
+  const previousOwnerNotifications = workflow.getUserNotifications("user-test-lead");
+  assert.equal(previousOwnerNotifications.notifications[0].title, "角色负责人已变更");
+
+  const managerNotifications = workflow.getUserNotifications("user-project-manager");
+  assert.equal(managerNotifications.notifications[0].title, "角色负责人已更新");
+
+  const noChange = workflow.updateRolePair(rolePair.id, {
+    humanUserId: "user-quality-lead",
+    actorUserId: "user-project-manager",
+  });
+  assert.equal(noChange.statusCode, 200);
+  assert.equal(noChange.body.unchanged, true);
+});
+
 test("current phase risk creation records custom risk details", () => {
   const result = workflow.createCurrentPhaseRisk({
     title: "关键物料交期不确定",

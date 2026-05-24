@@ -1452,9 +1452,49 @@ export function updateRolePair(rolePairId, body = {}) {
     });
   }
 
+  const previousHumanUserId = rolePair.humanUserId;
+  if (previousHumanUserId === body.humanUserId) {
+    return {
+      statusCode: 200,
+      body: {
+        rolePair,
+        unchanged: true,
+        project: getActiveProjectView(),
+      },
+    };
+  }
+
   rolePair.humanUserId = body.humanUserId;
-  audit("ROLE_PAIR_UPDATED", "human", body.actorUserId || "user-project-manager", "rolePair", rolePair.id, {
+  const actorUserId = body.actorUserId || "user-project-manager";
+  const affectedWorkPackageCount = store.workPackages.filter((item) => item.rolePairId === rolePair.id).length;
+  audit("ROLE_PAIR_UPDATED", "human", actorUserId, "rolePair", rolePair.id, {
+    previousHumanUserId,
     humanUserId: body.humanUserId,
+    affectedWorkPackageCount,
+  });
+  notifyUser(body.humanUserId, {
+    projectId: rolePair.projectId,
+    title: "角色负责人已指派给你",
+    message: `${rolePair.humanRole || rolePair.roleKey} 已由 ${actorUserId} 指派给你，关联工作包 ${affectedWorkPackageCount} 个。`,
+    type: "INFO",
+    objectType: "rolePair",
+    objectId: rolePair.id,
+  });
+  notifyUser(previousHumanUserId, {
+    projectId: rolePair.projectId,
+    title: "角色负责人已变更",
+    message: `${rolePair.humanRole || rolePair.roleKey} 已转交给 ${body.humanUserId}。`,
+    type: "INFO",
+    objectType: "rolePair",
+    objectId: rolePair.id,
+  });
+  notifyRole("项目经理", {
+    projectId: rolePair.projectId,
+    title: "角色负责人已更新",
+    message: `${rolePair.humanRole || rolePair.roleKey} 负责人由 ${previousHumanUserId} 更新为 ${body.humanUserId}。`,
+    type: "INFO",
+    objectType: "rolePair",
+    objectId: rolePair.id,
   });
   persistStore();
 

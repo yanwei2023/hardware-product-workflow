@@ -259,6 +259,25 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.body.total, 1);
 });
 
+test("role pair update endpoint notifies owners and project manager", async () => {
+  const result = await dispatch("/role-pairs/pair-test_agent", {
+    method: "PATCH",
+    body: JSON.stringify({
+      humanUserId: "user-quality-lead",
+      actorUserId: "user-project-manager",
+    }),
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.rolePair.humanUserId, "user-quality-lead");
+
+  const newOwnerNotifications = await dispatch("/users/user-quality-lead/notifications");
+  assert.equal(newOwnerNotifications.body.notifications[0].objectType, "rolePair");
+  assert.equal(newOwnerNotifications.body.notifications[0].title, "角色负责人已指派给你");
+
+  const previousOwnerNotifications = await dispatch("/users/user-test-lead/notifications");
+  assert.equal(previousOwnerNotifications.body.notifications[0].title, "角色负责人已变更");
+});
+
 test("work package schedule endpoint updates due dates and action items", async () => {
   const updateResult = await dispatch("/work-packages/wp-evt_exit-evt_test_report/schedule", {
     method: "PATCH",
