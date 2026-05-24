@@ -47,6 +47,13 @@ function approveWorkPackage(workPackageId, reviewerUserId) {
   return result.body;
 }
 
+function completeWorkPackages(workPackages, idPrefix = "") {
+  for (const item of workPackages) {
+    runAgent(`${idPrefix}${item.workPackageId}`, item.agentKey);
+    approveWorkPackage(`${idPrefix}${item.workPackageId}`, item.reviewerUserId);
+  }
+}
+
 test("EVT gate stays blocked until required artifacts and high risks are handled", () => {
   let gateCheck = workflow.checkGate("gate-evt_exit");
   assert.equal(gateCheck.status, "BLOCKED");
@@ -290,6 +297,12 @@ test("gate approval locks the current phase and advances to the next phase", () 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");
   assert.equal(project.phases.find((phase) => phase.id === "phase-dvt_exit").status, "GATE_BLOCKED");
+
+  const repeated = workflow.approveGate("gate-evt_exit", {
+    userId: "user-project-manager",
+  });
+  assert.equal(repeated.statusCode, 409);
+  assert.equal(repeated.body.error, "阶段门已经批准，不能重复批准");
 });
 
 test("ready gate appears in approver action items", () => {
@@ -301,6 +314,52 @@ test("ready gate appears in approver action items", () => {
   const projectManagerItems = workflow.getUserActionItems("user-project-manager");
   assert.equal(projectManagerItems.gateApprovals.length, 1);
   assert.equal(projectManagerItems.gateApprovals[0].gateId, "gate-evt_exit");
+});
+
+test("completed projects cannot receive new phase risks", () => {
+  const created = workflow.createProject({
+    name: "Final Release Project",
+    productLine: "IoT 产品线",
+    activePhaseKey: "mp_readiness",
+    userId: "user-project-manager",
+  });
+  assert.equal(created.statusCode, 201);
+
+  const projectId = created.body.project.id;
+  const idPrefix = `${projectId}-`;
+  completeWorkPackages(
+    [
+      {
+        workPackageId: "wp-mp_readiness-mp_readiness_pack",
+        agentKey: "manufacturing_agent",
+        reviewerUserId: "user-mfg-lead",
+      },
+      {
+        workPackageId: "wp-mp_readiness-quality_release_summary",
+        agentKey: "quality_agent",
+        reviewerUserId: "user-quality-lead",
+      },
+      {
+        workPackageId: "wp-mp_readiness-final_project_gate_summary",
+        agentKey: "pm_agent",
+        reviewerUserId: "user-project-manager",
+      },
+    ],
+    idPrefix,
+  );
+
+  const approval = workflow.approveGate(`${idPrefix}gate-mp_readiness`, {
+    userId: "user-project-manager",
+  });
+  assert.equal(approval.statusCode, 200);
+  assert.equal(approval.body.project.status, "COMPLETED");
+
+  const risk = workflow.createDemoRiskForCurrentPhase({
+    title: "完成后风险",
+    severity: "HIGH",
+  });
+  assert.equal(risk.statusCode, 409);
+  assert.equal(risk.body.error, "项目已完成，不能继续创建阶段风险");
 });
 
 test("gate approval advances within the same project in multi-project stores", () => {

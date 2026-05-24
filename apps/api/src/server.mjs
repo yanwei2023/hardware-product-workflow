@@ -795,6 +795,16 @@ export function updateRiskStatus(riskId, status, body = {}) {
 
 export function createDemoRiskForCurrentPhase(body = {}) {
   const project = currentProject();
+  if (project.status === "COMPLETED") {
+    return {
+      statusCode: 409,
+      body: {
+        error: "项目已完成，不能继续创建阶段风险",
+        projectId: project.id,
+      },
+    };
+  }
+
   const phase = store.phases.find((item) => item.id === project.currentPhaseId);
   if (!phase) {
     return { statusCode: 404, body: { error: "当前阶段不存在" } };
@@ -836,6 +846,16 @@ export function approveGate(gateId, body = {}) {
   const gate = store.gates.find((item) => item.id === gateId);
   if (!gate) {
     return { statusCode: 404, body: { error: "阶段门不存在" } };
+  }
+
+  if (gate.status === "APPROVED") {
+    return {
+      statusCode: 409,
+      body: {
+        error: "阶段门已经批准，不能重复批准",
+        gateId: gate.id,
+      },
+    };
   }
 
   const actorUserId = body.userId || "";
