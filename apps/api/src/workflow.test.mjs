@@ -497,6 +497,7 @@ test("user action items reflect review and risk responsibilities", () => {
   let testLeadItems = workflow.getUserActionItems("user-test-lead");
   assert.equal(testLeadItems.pendingReviews.length, 1);
   assert.equal(testLeadItems.pendingReviews[0].workPackageId, "wp-evt_exit-evt_test_plan");
+  assert.equal(testLeadItems.conditionalApprovals.length, 0);
   assert.equal(testLeadItems.riskDecisions.length, 0);
 
   const projectManagerItems = workflow.getUserActionItems("user-project-manager");
@@ -508,6 +509,24 @@ test("user action items reflect review and risk responsibilities", () => {
   approveWorkPackage("wp-evt_exit-evt_test_plan", "user-test-lead");
   testLeadItems = workflow.getUserActionItems("user-test-lead");
   assert.equal(testLeadItems.pendingReviews.length, 0);
+});
+
+test("user action items include conditional approval follow-up work", () => {
+  const review = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "允许进入下一阶段，但需要补充低温测试。",
+    conditions: ["补充低温启动测试", "更新测试覆盖率矩阵"],
+  });
+  assert.equal(review.statusCode, 201);
+
+  const testLeadItems = workflow.getUserActionItems("user-test-lead");
+  assert.equal(testLeadItems.pendingReviews.length, 0);
+  assert.equal(testLeadItems.conditionalApprovals.length, 1);
+  assert.equal(testLeadItems.conditionalApprovals[0].reviewId, review.body.review.id);
+  assert.deepEqual(testLeadItems.conditionalApprovals[0].conditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
+  assert.equal(testLeadItems.total, 1);
 });
 
 test("user action items include assigned risk mitigation plans", () => {

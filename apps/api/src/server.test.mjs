@@ -318,9 +318,31 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.body.userId, "user-project-manager");
   assert.equal(result.body.pendingReviews.length, 0);
+  assert.equal(result.body.conditionalApprovals.length, 0);
   assert.equal(result.body.riskDecisions.length, 1);
   assert.equal(result.body.riskMitigations.length, 0);
   assert.equal(result.body.total, 1);
+});
+
+test("action items endpoint includes conditional approval follow-up work", async () => {
+  await dispatch("/reviews", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-test-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      comment: "允许进入下一阶段，但需要补充低温测试。",
+      conditions: ["补充低温启动测试", "更新测试覆盖率矩阵"],
+    }),
+  });
+
+  const actionItems = await dispatch("/users/user-test-lead/action-items");
+  assert.equal(actionItems.status, 200);
+  assert.equal(actionItems.body.pendingReviews.length, 0);
+  assert.equal(actionItems.body.conditionalApprovals.length, 1);
+  assert.equal(actionItems.body.conditionalApprovals[0].workPackageId, "wp-evt_exit-evt_test_plan");
+  assert.deepEqual(actionItems.body.conditionalApprovals[0].conditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
+  assert.equal(actionItems.body.total, 1);
 });
 
 test("action items endpoint includes assigned risk mitigation work", async () => {

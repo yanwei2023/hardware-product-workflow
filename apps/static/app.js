@@ -461,6 +461,18 @@ function renderActionItems() {
         </tr>
       `,
     ),
+    ...actionItems.conditionalApprovals.map(
+      (item) => `
+        <tr>
+          <td>有条件批准</td>
+          <td>
+            ${escapeHtml(item.title)} · ${escapeHtml(item.conditions.join("；"))}
+            ${item.comment ? `<br><span class="muted">${escapeHtml(item.comment)}</span>` : ""}
+          </td>
+          <td><button onclick="goWorkPackage('${item.workPackageId}')">处理</button></td>
+        </tr>
+      `,
+    ),
     ...actionItems.riskDecisions.map(
       (item) => `
         <tr>

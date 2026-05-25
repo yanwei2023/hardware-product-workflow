@@ -106,6 +106,7 @@ HARDWARE_FLOW_STORE_PATH=/path/to/store.json npm start
 
 - 待审核工作包；
 - 逾期或 3 天内到期的工作包；
+- 有条件批准后的补充条款；
 - 待处理高风险；
 - 分配给自己的风险缓解计划，完成后会从待办中移除；
 - 已 READY 的阶段门批准。

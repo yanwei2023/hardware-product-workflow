@@ -1632,6 +1632,7 @@ export function getUserActionItems(userId) {
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
   const pendingReviews = [];
   const scheduleAlerts = [];
+  const conditionalApprovals = [];
 
   for (const workPackage of workPackages) {
     const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
@@ -1645,6 +1646,31 @@ export function getUserActionItems(userId) {
         dueAt: workPackage.dueAt,
         scheduleStatus,
       });
+    }
+
+    if (rolePair?.humanUserId === userId) {
+      const latestConditionalReview = [...store.reviews]
+        .reverse()
+        .find(
+          (item) =>
+            item.workPackageId === workPackage.id &&
+            item.decision === "APPROVE_WITH_CONDITIONS" &&
+            Array.isArray(item.conditions) &&
+            item.conditions.length > 0,
+        );
+      if (latestConditionalReview) {
+        conditionalApprovals.push({
+          type: "CONDITIONAL_APPROVAL",
+          workPackageId: workPackage.id,
+          reviewId: latestConditionalReview.id,
+          title: workPackage.title,
+          phaseId: workPackage.phaseId,
+          reviewerUserId: latestConditionalReview.reviewerUserId,
+          reviewedAt: latestConditionalReview.reviewedAt,
+          comment: latestConditionalReview.comment || "",
+          conditions: latestConditionalReview.conditions,
+        });
+      }
     }
 
     const pendingArtifact = [...store.artifactVersions]
@@ -1731,10 +1757,17 @@ export function getUserActionItems(userId) {
     projectId: project.id,
     pendingReviews,
     scheduleAlerts,
+    conditionalApprovals,
     riskDecisions,
     riskMitigations,
     gateApprovals,
-    total: pendingReviews.length + scheduleAlerts.length + riskDecisions.length + riskMitigations.length + gateApprovals.length,
+    total:
+      pendingReviews.length +
+      scheduleAlerts.length +
+      conditionalApprovals.length +
+      riskDecisions.length +
+      riskMitigations.length +
+      gateApprovals.length,
   };
 }
 
