@@ -494,6 +494,7 @@ function renderRiskRegisterMarkdown(register) {
 - 阻塞阶段门风险：${register.summary.openBlockingRiskCount}
 - 已接受风险：${register.summary.acceptedRiskCount}
 - 已关闭风险：${register.summary.closedRiskCount}
+- 缓解计划：${register.summary.completedMitigationCount || 0}/${register.summary.mitigationPlanCount || 0} 已完成，${register.summary.openMitigationCount || 0} 进行中，${register.summary.overdueMitigationCount || 0} 逾期
 
 ## 风险明细
 

@@ -189,6 +189,7 @@ test("project risk register endpoints export current project risks", async () =>
   assert.equal(markdownResult.status, 200);
   assert.match(markdownResult.headers["content-type"], /text\/markdown/);
   assert.match(markdownResult.body, /# 智能控制器项目 风险台账/);
+  assert.match(markdownResult.body, /缓解计划：0\/0 已完成，0 进行中，0 逾期/);
   assert.match(markdownResult.body, /热设计裕量不足/);
 });
 
@@ -221,6 +222,9 @@ test("risk mitigation endpoint stores owner, due date, plan, and notifies owner"
   assert.equal(snapshot.body.summary.openMitigationCount, 1);
   assert.equal(snapshot.body.summary.overdueMitigationCount, 1);
   assert.equal(snapshot.body.summary.completedMitigationCount, 0);
+
+  const markdown = await dispatch("/projects/project-smart-controller/risk-register.md");
+  assert.match(markdown.body, /缓解计划：0\/1 已完成，1 进行中，1 逾期/);
 
   const notifications = await dispatch("/users/user-quality-lead/notifications?type=ACTION");
   assert.equal(notifications.body.notifications[0].title, "风险缓解任务已分配");
