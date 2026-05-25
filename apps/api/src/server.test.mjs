@@ -609,12 +609,13 @@ test("gate review pack endpoint returns evidence and blockers", async () => {
   assert.equal(testPlanEvidence.approvedReviewDecision, "APPROVE_WITH_CONDITIONS");
   assert.deepEqual(testPlanEvidence.approvedReviewConditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
   assert.equal(testPlanEvidence.approvedReviewComment, "允许进入下一阶段，但需要补充低温测试。");
+  assert.equal(testPlanEvidence.approvedReviewConditionsCompletedAt, null);
   assert.equal(result.body.risks[0].mitigationStatus, "OPEN");
   assert.equal(result.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
 });
 
 test("gate review pack markdown endpoint exports a readable package", async () => {
-  await dispatch("/reviews", {
+  const review = await dispatch("/reviews", {
     method: "POST",
     body: JSON.stringify({
       workPackageId: "wp-evt_exit-evt_test_plan",
@@ -622,6 +623,13 @@ test("gate review pack markdown endpoint exports a readable package", async () =
       decision: "APPROVE_WITH_CONDITIONS",
       comment: "允许进入下一阶段，但需要补充低温测试。",
       conditions: ["补充低温启动测试"],
+    }),
+  });
+  await dispatch(`/reviews/${review.body.review.id}/conditions/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-test-lead",
+      comment: "低温测试已补齐。",
     }),
   });
   await dispatch("/risks/risk-thermal-margin/mitigation", {
@@ -644,6 +652,7 @@ test("gate review pack markdown endpoint exports a readable package", async () =
   assert.match(result.body, /EVT 测试计划/);
   assert.match(result.body, /APPROVE_WITH_CONDITIONS/);
   assert.match(result.body, /补充低温启动测试/);
+  assert.match(result.body, /低温测试已补齐/);
   assert.match(result.body, /缓解负责人/);
   assert.match(result.body, /user-quality-lead/);
 });

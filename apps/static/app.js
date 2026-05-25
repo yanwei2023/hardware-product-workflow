@@ -967,6 +967,12 @@ function renderGateReviewPack() {
                     <span class="muted">${escapeHtml(item.approvedReviewDecision || "-")}</span>
                     ${item.approvedReviewConditions?.length ? `<br><span class="muted">条件：${item.approvedReviewConditions.map(escapeHtml).join("；")}</span>` : ""}
                     ${item.approvedReviewComment ? `<br><span class="muted">说明：${escapeHtml(item.approvedReviewComment)}</span>` : ""}
+                    ${
+                      item.approvedReviewConditions?.length
+                        ? `<br><span class="muted">条款：${item.approvedReviewConditionsCompletedAt ? "已完成" : "未完成"}${item.approvedReviewConditionsCompletedByUserId ? ` · ${escapeHtml(item.approvedReviewConditionsCompletedByUserId)}` : ""}</span>`
+                        : ""
+                    }
+                    ${item.approvedReviewConditionsCompletionComment ? `<br><span class="muted">完成说明：${escapeHtml(item.approvedReviewConditionsCompletionComment)}</span>` : ""}
                   </td>
                   <td>${item.ready ? statusBadge("READY") : statusBadge("BLOCKED")}</td>
                 </tr>

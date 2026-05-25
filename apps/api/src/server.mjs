@@ -184,7 +184,7 @@ function renderGateReviewPackMarkdown(pack) {
   const evidenceRows = pack.evidence
     .map(
       (item) =>
-        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.manualEvidenceCount} | ${item.reviewerUserId || "-"} | ${item.approvedReviewDecision || "-"} | ${item.approvedReviewConditions?.length ? item.approvedReviewConditions.join("; ") : "-"} | ${item.approvedReviewComment || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
+        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.manualEvidenceCount} | ${item.reviewerUserId || "-"} | ${item.approvedReviewDecision || "-"} | ${item.approvedReviewConditions?.length ? item.approvedReviewConditions.join("; ") : "-"} | ${item.approvedReviewComment || "-"} | ${item.approvedReviewConditionsCompletedAt ? "DONE" : item.approvedReviewConditions?.length ? "OPEN" : "-"} | ${item.approvedReviewConditionsCompletedByUserId || "-"} | ${item.approvedReviewConditionsCompletionComment || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
     )
     .join("\n");
   const riskRows = pack.risks.length
@@ -218,8 +218,8 @@ function renderGateReviewPackMarkdown(pack) {
 
 ## 必需证据
 
-| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 人工证据 | 审核人 | 审核决定 | 批准条件 | 审核说明 | 结论 |
-|---|---|---|---|---|---|---|---|---|---|
+| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 人工证据 | 审核人 | 审核决定 | 批准条件 | 审核说明 | 条款状态 | 条款完成人 | 条款完成说明 | 结论 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
 ${evidenceRows}
 
 ## 风险
@@ -1913,6 +1913,9 @@ export function getGateReviewPack(gateId) {
       approvedReviewDecision: approvedReview?.decision || null,
       approvedReviewComment: approvedReview?.comment || "",
       approvedReviewConditions: approvedReview?.conditions || [],
+      approvedReviewConditionsCompletedAt: approvedReview?.conditionsCompletedAt || null,
+      approvedReviewConditionsCompletedByUserId: approvedReview?.conditionsCompletedByUserId || null,
+      approvedReviewConditionsCompletionComment: approvedReview?.conditionsCompletionComment || "",
       approvedReviewedAt: approvedReview?.reviewedAt || null,
       manualEvidenceCount: manualEvidenceRefs.length,
       manualEvidenceRefs,

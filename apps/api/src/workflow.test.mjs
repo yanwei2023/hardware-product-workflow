@@ -232,6 +232,16 @@ test("gate review pack carries conditional approval details", () => {
   assert.equal(testPlanEvidence.approvedReviewDecision, "APPROVE_WITH_CONDITIONS");
   assert.deepEqual(testPlanEvidence.approvedReviewConditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
   assert.equal(testPlanEvidence.approvedReviewComment, "允许进入下一阶段，但需要补充低温测试。");
+  assert.equal(testPlanEvidence.approvedReviewConditionsCompletedAt, null);
+
+  workflow.completeConditionalApproval(review.body.review.id, {
+    actorUserId: "user-test-lead",
+    comment: "低温测试和覆盖率矩阵已补齐。",
+  });
+  const completedPack = workflow.getGateReviewPack("gate-evt_exit");
+  const completedEvidence = completedPack.evidence.find((item) => item.workPackageId === "wp-evt_exit-evt_test_plan");
+  assert.equal(completedEvidence.approvedReviewConditionsCompletedByUserId, "user-test-lead");
+  assert.equal(completedEvidence.approvedReviewConditionsCompletionComment, "低温测试和覆盖率矩阵已补齐。");
 });
 
 test("only the assigned human owner can approve a gate artifact", () => {
