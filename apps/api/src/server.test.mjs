@@ -515,6 +515,16 @@ test("notification read endpoint rejects other users", async () => {
 });
 
 test("gate review pack endpoint returns evidence and blockers", async () => {
+  await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2026-06-15",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+
   const result = await dispatch("/gates/gate-evt_exit/review-pack");
 
   assert.equal(result.status, 200);
@@ -524,9 +534,21 @@ test("gate review pack endpoint returns evidence and blockers", async () => {
   assert.equal(result.body.summary.openBlockingRiskCount, 1);
   assert.equal(result.body.readiness.status, "BLOCKED");
   assert.equal(result.body.evidence.length, 3);
+  assert.equal(result.body.risks[0].mitigationStatus, "OPEN");
+  assert.equal(result.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
 });
 
 test("gate review pack markdown endpoint exports a readable package", async () => {
+  await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2026-06-15",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+
   const result = await dispatch("/gates/gate-evt_exit/review-pack.md");
 
   assert.equal(result.status, 200);
@@ -535,10 +557,29 @@ test("gate review pack markdown endpoint exports a readable package", async () =
   assert.match(result.body, /批准说明/);
   assert.match(result.body, /## 必需证据/);
   assert.match(result.body, /EVT 测试计划/);
+  assert.match(result.body, /缓解负责人/);
+  assert.match(result.body, /user-quality-lead/);
 });
 
 test("gate approval pack endpoints return the frozen approval package", async () => {
   completeEvtGateForHttpTests();
+  await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2026-06-15",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+  await dispatch("/risks/risk-thermal-margin/mitigation/complete", {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-quality-lead",
+      comment: "热仿真复测通过。",
+    }),
+  });
+
   const approval = await dispatch("/gates/gate-evt_exit/approve", {
     method: "POST",
     body: JSON.stringify({
@@ -548,11 +589,13 @@ test("gate approval pack endpoints return the frozen approval package", async ()
   });
   assert.equal(approval.status, 200);
   assert.equal(approval.body.approvalPack.reviewPack.gate.approvalComment, "HTTP 批准归档。");
+  assert.equal(approval.body.approvalPack.reviewPack.risks[0].mitigationStatus, "DONE");
 
   const jsonResult = await dispatch("/gates/gate-evt_exit/approval-pack");
   assert.equal(jsonResult.status, 200);
   assert.equal(jsonResult.body.gateId, "gate-evt_exit");
   assert.equal(jsonResult.body.reviewPack.gate.status, "APPROVED");
+  assert.equal(jsonResult.body.reviewPack.risks[0].mitigationCompletionComment, "热仿真复测通过。");
 
   const markdownResult = await dispatch("/gates/gate-evt_exit/approval-pack.md");
   assert.equal(markdownResult.status, 200);

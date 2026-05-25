@@ -189,9 +189,12 @@ function renderGateReviewPackMarkdown(pack) {
     .join("\n");
   const riskRows = pack.risks.length
     ? pack.risks
-        .map((risk) => `| ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "YES" : "NO"} |`)
+        .map(
+          (risk) =>
+            `| ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "YES" : "NO"} | ${risk.mitigationStatus || "-"} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigationCompletionComment || "-"} |`,
+        )
         .join("\n")
-    : "| 无 | - | - | NO |";
+    : "| 无 | - | - | NO | - | - | - | - |";
   const blockerRows = pack.blockers.length
     ? pack.blockers.map((blocker) => `- ${blocker.code}: ${blocker.message}`).join("\n")
     : "- 无";
@@ -221,8 +224,8 @@ ${evidenceRows}
 
 ## 风险
 
-| 风险 | 严重度 | 状态 | 阻塞阶段门 |
-|---|---|---|---|
+| 风险 | 严重度 | 状态 | 阻塞阶段门 | 缓解状态 | 缓解负责人 | 缓解截止 | 缓解完成说明 |
+|---|---|---|---|---|---|---|---|
 ${riskRows}
 
 ## 阻塞项
@@ -1884,6 +1887,13 @@ export function getGateReviewPack(gateId) {
       title: risk.title,
       severity: risk.severity,
       status: risk.status,
+      mitigationStatus: risk.mitigationStatus || null,
+      mitigationOwnerUserId: risk.mitigationOwnerUserId || null,
+      mitigationDueAt: risk.mitigationDueAt || null,
+      mitigation: risk.mitigation || "",
+      mitigationCompletedAt: risk.mitigationCompletedAt || null,
+      mitigationCompletedByUserId: risk.mitigationCompletedByUserId || null,
+      mitigationCompletionComment: risk.mitigationCompletionComment || "",
       blocksGate:
         (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
         risk.status !== "CLOSED" &&

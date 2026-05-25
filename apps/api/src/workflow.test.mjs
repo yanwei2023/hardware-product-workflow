@@ -187,12 +187,21 @@ test("storage status exposes local persistence metadata", () => {
 });
 
 test("gate review pack summarizes required evidence and readiness", () => {
+  workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2026-06-15",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+
   let pack = workflow.getGateReviewPack("gate-evt_exit");
   assert.equal(pack.gate.id, "gate-evt_exit");
   assert.equal(pack.summary.requiredEvidenceCount, 3);
   assert.equal(pack.summary.readyEvidenceCount, 0);
   assert.equal(pack.summary.openBlockingRiskCount, 1);
   assert.equal(pack.summary.readyForApproval, false);
+  assert.equal(pack.risks[0].mitigationStatus, "OPEN");
+  assert.equal(pack.risks[0].mitigationOwnerUserId, "user-quality-lead");
 
   completeEvtWorkPackages();
   workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
@@ -204,6 +213,7 @@ test("gate review pack summarizes required evidence and readiness", () => {
   assert.equal(pack.summary.openBlockingRiskCount, 0);
   assert.equal(pack.summary.readyForApproval, true);
   assert.equal(pack.evidence.every((item) => item.ready), true);
+  assert.equal(pack.risks[0].mitigationDueAt, "2026-06-15");
 });
 
 test("only the assigned human owner can approve a gate artifact", () => {
@@ -819,6 +829,16 @@ test("gate approval locks the current phase and advances to the next phase", () 
   workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
     userId: "user-project-manager",
   });
+  workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2026-06-15",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+  workflow.completeRiskMitigation("risk-thermal-margin", {
+    actorUserId: "user-quality-lead",
+    comment: "热仿真复核通过。",
+  });
 
   const result = workflow.approveGate("gate-evt_exit", {
     userId: "user-project-manager",
@@ -832,6 +852,8 @@ test("gate approval locks the current phase and advances to the next phase", () 
   assert.equal(result.body.approvalPack.gateId, "gate-evt_exit");
   assert.equal(result.body.approvalPack.reviewPack.gate.status, "APPROVED");
   assert.equal(result.body.approvalPack.reviewPack.gate.approvalComment, "EVT 证据齐备，批准进入 DVT。");
+  assert.equal(result.body.approvalPack.reviewPack.risks[0].mitigationStatus, "DONE");
+  assert.equal(result.body.approvalPack.reviewPack.risks[0].mitigationCompletionComment, "热仿真复核通过。");
 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");

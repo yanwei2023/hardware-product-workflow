@@ -953,6 +953,32 @@ function renderGateReviewPack() {
             .join("")}
         </tbody>
       </table>
+      <table class="table">
+        <thead><tr><th>风险</th><th>缓解</th><th>严重度</th><th>状态</th><th>阻塞</th></tr></thead>
+        <tbody>
+          ${
+            pack.risks.length
+              ? pack.risks
+                  .map(
+                    (risk) => `
+                      <tr>
+                        <td>${escapeHtml(risk.title)}</td>
+                        <td>
+                          ${statusBadge(risk.mitigationStatus || "UNSCHEDULED")}<br>
+                          <span class="muted">${escapeHtml(risk.mitigationOwnerUserId || "未指定")} · ${escapeHtml(risk.mitigationDueAt || "未设置")}</span>
+                          ${risk.mitigationCompletionComment ? `<br><span class="muted">${escapeHtml(risk.mitigationCompletionComment)}</span>` : ""}
+                        </td>
+                        <td>${escapeHtml(risk.severity)}</td>
+                        <td>${statusBadge(risk.status)}</td>
+                        <td>${risk.blocksGate ? statusBadge("BLOCKED") : statusBadge("READY")}</td>
+                      </tr>
+                    `,
+                  )
+                  .join("")
+              : `<tr><td colspan="5">当前阶段暂无风险。</td></tr>`
+          }
+        </tbody>
+      </table>
     </article>
   `;
 }
