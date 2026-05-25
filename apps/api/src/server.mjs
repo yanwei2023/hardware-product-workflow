@@ -354,9 +354,12 @@ function renderWorkPackageMarkdown(detail) {
   const validation = latestArtifact?.content?.validation || latestAgentRun?.validation || null;
   const reviewRows = detail.reviews.length
     ? detail.reviews
-        .map((review) => `| ${review.reviewedAt} | ${review.reviewerUserId} | ${review.decision} | ${review.comment || "-"} |`)
+        .map(
+          (review) =>
+            `| ${review.reviewedAt} | ${review.reviewerUserId} | ${review.decision} | ${review.comment || "-"} | ${review.conditions?.length ? review.conditions.join("; ") : "-"} | ${review.conditionsCompletedAt ? "DONE" : review.conditions?.length ? "OPEN" : "-"} | ${review.conditionsCompletedByUserId || "-"} | ${review.conditionsCompletionComment || "-"} |`,
+        )
         .join("\n")
-    : "| 无 | - | - | - |";
+    : "| 无 | - | - | - | - | - | - | - |";
   const evidenceRows = detail.evidenceRefs.length
     ? detail.evidenceRefs
         .map((item) => `| ${item.createdAt} | ${item.label} | ${item.ref} | ${item.createdByUserId} |`)
@@ -398,8 +401,8 @@ Agent：${detail.rolePair?.agentKey || "-"}
 
 ## 审核记录
 
-| 时间 | 审核人 | 决定 | 备注 |
-|---|---|---|---|
+| 时间 | 审核人 | 决定 | 备注 | 批准条件 | 条款状态 | 条款完成人 | 条款完成说明 |
+|---|---|---|---|---|---|---|---|
 ${reviewRows}
 
 ## 证据引用
@@ -1608,15 +1611,21 @@ export function getWorkPackageDetail(workPackageId) {
   if (!workPackage) {
     return null;
   }
+  const reviews = store.reviews.filter((item) => item.workPackageId === workPackageId);
+  const reviewIds = new Set(reviews.map((review) => review.id));
 
   return {
     workPackage,
     rolePair: store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null,
     artifacts: store.artifactVersions.filter((item) => item.workPackageId === workPackageId),
-    reviews: store.reviews.filter((item) => item.workPackageId === workPackageId),
+    reviews,
     evidenceRefs: (store.evidenceRefs || []).filter((item) => item.workPackageId === workPackageId),
     agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
-    auditEvents: store.auditEvents.filter((event) => event.objectType === "workPackage" && event.objectId === workPackageId),
+    auditEvents: store.auditEvents.filter(
+      (event) =>
+        (event.objectType === "workPackage" && event.objectId === workPackageId) ||
+        (event.objectType === "review" && reviewIds.has(event.objectId)),
+    ),
     scheduleStatus: workPackageScheduleStatus(workPackage),
   };
 }

@@ -283,14 +283,28 @@ test("requesting revision removes the stale artifact from pending review", () =>
 });
 
 test("work package markdown export includes artifact and review context", () => {
-  approveWorkPackage("wp-evt_exit-evt_test_plan", "user-test-lead");
+  const review = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "允许进入下一阶段，但需要补充低温测试。",
+    conditions: ["补充低温启动测试"],
+  });
+  assert.equal(review.statusCode, 201);
+  workflow.completeConditionalApproval(review.body.review.id, {
+    actorUserId: "user-test-lead",
+    comment: "低温测试已补齐。",
+  });
 
   const markdown = workflow.getWorkPackageMarkdown("wp-evt_exit-evt_test_plan");
   assert.match(markdown, /# EVT 测试计划 工作包/);
   assert.match(markdown, /## 最新交付物/);
   assert.match(markdown, /user-test-lead/);
+  assert.match(markdown, /补充低温启动测试/);
+  assert.match(markdown, /低温测试已补齐/);
   assert.match(markdown, /## 活动记录/);
   assert.match(markdown, /HUMAN_REVIEW_SUBMITTED/);
+  assert.match(markdown, /CONDITIONAL_APPROVAL_COMPLETED/);
   assert.match(markdown, /## Agent 输出草稿/);
   assert.equal(workflow.getWorkPackageMarkdown("missing-work-package"), null);
 });

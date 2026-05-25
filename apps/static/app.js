@@ -604,8 +604,11 @@ function renderWorkPackageDetail(workPackage) {
   const agentRun = latestAgentRun(workPackage.id);
   const reviews = reviewsFor(workPackage.id);
   const evidenceRefs = evidenceRefsFor(workPackage.id);
+  const reviewIds = new Set(reviews.map((review) => review.id));
   const auditEvents = state.project.auditEvents.filter(
-    (event) => event.objectType === "workPackage" && event.objectId === workPackage.id,
+    (event) =>
+      (event.objectType === "workPackage" && event.objectId === workPackage.id) ||
+      (event.objectType === "review" && reviewIds.has(event.objectId)),
   );
   const validation = artifact?.content?.validation || agentRun?.validation || null;
   const draft = artifact?.content?.draftMarkdown || "";
@@ -697,7 +700,16 @@ function renderWorkPackageDetail(workPackage) {
           ? reviews
               .map(
                 (review) => `
-                  <p>${escapeHtml(review.reviewerUserId)} · ${escapeHtml(review.decision)} · ${escapeHtml(review.comment)}</p>
+                  <p>
+                    ${escapeHtml(review.reviewerUserId)} · ${escapeHtml(review.decision)} · ${escapeHtml(review.comment)}
+                    ${review.conditions?.length ? `<br><span class="muted">条件：${review.conditions.map(escapeHtml).join("；")}</span>` : ""}
+                    ${
+                      review.conditions?.length
+                        ? `<br><span class="muted">条款：${review.conditionsCompletedAt ? "已完成" : "未完成"}${review.conditionsCompletedByUserId ? ` · ${escapeHtml(review.conditionsCompletedByUserId)}` : ""}</span>`
+                        : ""
+                    }
+                    ${review.conditionsCompletionComment ? `<br><span class="muted">完成说明：${escapeHtml(review.conditionsCompletionComment)}</span>` : ""}
+                  </p>
                 `,
               )
               .join("")
