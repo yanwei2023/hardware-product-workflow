@@ -365,6 +365,7 @@ function renderStorageStatus() {
 function renderOverview() {
   const gate = activeGate();
   const check = state.project.latestGateCheck;
+  const conditionalSummary = state.project.conditionalApprovalSummary || {};
   q("#overviewView").innerHTML = `
     <div class="phase-strip">
       ${state.project.phases
@@ -403,6 +404,10 @@ function renderOverview() {
       <article class="panel">
         <h3>批准包归档</h3>
         <p class="metric">${state.project.gateApprovalPacks?.length || 0}</p>
+      </article>
+      <article class="panel">
+        <h3>条件条款</h3>
+        <p class="metric">${conditionalSummary.completedConditionalApprovalCount || 0}/${conditionalSummary.conditionalApprovalCount || 0}</p>
       </article>
     </div>
     <article class="panel">

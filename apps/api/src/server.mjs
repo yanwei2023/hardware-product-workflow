@@ -302,6 +302,7 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 打开高风险：${snapshot.summary.openHighRiskCount}
 - 证据引用：${snapshot.summary.evidenceRefCount}
 - 批准包归档：${snapshot.summary.gateApprovalPackCount}
+- 有条件批准条款：${snapshot.summary.completedConditionalApprovalCount || 0}/${snapshot.summary.conditionalApprovalCount || 0} 已完成，${snapshot.summary.openConditionalApprovalCount || 0} 未完成
 - 站内通知：${snapshot.summary.notificationCount}
 - 审计事件：${snapshot.summary.auditEventCount}
 
@@ -646,6 +647,10 @@ export function getActiveProjectView() {
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackageIds = new Set(store.workPackages.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
+  const reviews = store.reviews.filter((item) => workPackageIds.has(item.workPackageId));
+  const conditionalApprovalReviews = reviews.filter(
+    (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
+  );
   return {
     project,
     projects: store.projects,
@@ -662,7 +667,7 @@ export function getActiveProjectView() {
       scheduleStatus: workPackageScheduleStatus(item),
     })),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
-    reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
+    reviews,
     evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
     gateApprovalPacks: (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id),
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
@@ -674,6 +679,11 @@ export function getActiveProjectView() {
       overdueWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE").length,
       dueSoonWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "DUE_SOON").length,
       unscheduledWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "UNSCHEDULED").length,
+    },
+    conditionalApprovalSummary: {
+      conditionalApprovalCount: conditionalApprovalReviews.length,
+      openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
+      completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
     },
   };
 }
@@ -698,6 +708,10 @@ export function getProjectSnapshot(projectId) {
   const evidenceRefs = (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId));
   const gateApprovalPacks = (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id);
   const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
+  const reviews = store.reviews.filter((item) => workPackageIds.has(item.workPackageId));
+  const conditionalApprovalReviews = reviews.filter(
+    (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
+  );
   const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
   const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
   const auditEvents = store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id);
@@ -723,6 +737,9 @@ export function getProjectSnapshot(projectId) {
       ).length,
       evidenceRefCount: evidenceRefs.length,
       gateApprovalPackCount: gateApprovalPacks.length,
+      conditionalApprovalCount: conditionalApprovalReviews.length,
+      openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
+      completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
       notificationCount: notifications.length,
       auditEventCount: auditEvents.length,
     },
@@ -741,7 +758,7 @@ export function getProjectSnapshot(projectId) {
       };
     }),
     artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
-    reviews: store.reviews.filter((item) => workPackageIds.has(item.workPackageId)),
+    reviews,
     evidenceRefs,
     gateApprovalPacks,
     risks: risks.map((risk) => ({

@@ -716,6 +716,9 @@ test("project snapshot summarizes project state without changing active project"
   assert.equal(createdSnapshot.summary.phaseCount, 7);
   assert.equal(createdSnapshot.summary.workPackageCount, createdSnapshot.workPackages.length);
   assert.equal(createdSnapshot.summary.overdueWorkPackageCount, 0);
+  assert.equal(createdSnapshot.summary.conditionalApprovalCount, 0);
+  assert.equal(createdSnapshot.summary.openConditionalApprovalCount, 0);
+  assert.equal(createdSnapshot.summary.completedConditionalApprovalCount, 0);
   assert.equal(createdSnapshot.currentPhase.name, "EVT Exit");
 
   workflow.updateWorkPackageSchedule(`${created.body.project.id}-wp-evt_exit-evt_test_report`, {
@@ -730,6 +733,31 @@ test("project snapshot summarizes project state without changing active project"
   assert.equal(demoSnapshot.project.name, "智能控制器项目");
   assert.equal(workflow.getDemoProject().project.id, created.body.project.id);
   assert.equal(workflow.getProjectSnapshot("missing-project"), null);
+});
+
+test("project snapshot summarizes conditional approval follow-ups", () => {
+  const review = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "允许进入下一阶段，但需要补充低温测试。",
+    conditions: ["补充低温启动测试"],
+  });
+
+  const openSnapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(openSnapshot.summary.conditionalApprovalCount, 1);
+  assert.equal(openSnapshot.summary.openConditionalApprovalCount, 1);
+  assert.equal(openSnapshot.summary.completedConditionalApprovalCount, 0);
+
+  workflow.completeConditionalApproval(review.body.review.id, {
+    actorUserId: "user-test-lead",
+    comment: "低温测试已补齐。",
+  });
+
+  const completedSnapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(completedSnapshot.summary.conditionalApprovalCount, 1);
+  assert.equal(completedSnapshot.summary.openConditionalApprovalCount, 0);
+  assert.equal(completedSnapshot.summary.completedConditionalApprovalCount, 1);
 });
 
 test("project snapshot carries notifications through import and clone", () => {

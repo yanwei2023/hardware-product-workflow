@@ -120,6 +120,9 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(jsonResult.body.project.id, "project-smart-controller");
   assert.equal(jsonResult.body.summary.phaseCount, 7);
   assert.equal(jsonResult.body.summary.gateApprovalPackCount, 0);
+  assert.equal(jsonResult.body.summary.conditionalApprovalCount, 0);
+  assert.equal(jsonResult.body.summary.openConditionalApprovalCount, 0);
+  assert.equal(jsonResult.body.summary.completedConditionalApprovalCount, 0);
   assert.equal(jsonResult.body.summary.notificationCount, 0);
   assert.equal(jsonResult.body.currentPhase.name, "EVT Exit");
 
@@ -127,7 +130,40 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(markdownResult.status, 200);
   assert.match(markdownResult.headers["content-type"], /text\/markdown/);
   assert.match(markdownResult.body, /# 智能控制器项目 项目快照/);
+  assert.match(markdownResult.body, /有条件批准条款：0\/0 已完成，0 未完成/);
   assert.match(markdownResult.body, /## 工作包/);
+});
+
+test("project snapshot summarizes conditional approval follow-ups", async () => {
+  const review = await dispatch("/reviews", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-test-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      comment: "允许进入下一阶段，但需要补充低温测试。",
+      conditions: ["补充低温启动测试"],
+    }),
+  });
+
+  const openSnapshot = await dispatch("/projects/project-smart-controller/snapshot");
+  assert.equal(openSnapshot.status, 200);
+  assert.equal(openSnapshot.body.summary.conditionalApprovalCount, 1);
+  assert.equal(openSnapshot.body.summary.openConditionalApprovalCount, 1);
+  assert.equal(openSnapshot.body.summary.completedConditionalApprovalCount, 0);
+
+  await dispatch(`/reviews/${review.body.review.id}/conditions/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-test-lead",
+      comment: "低温测试已补齐。",
+    }),
+  });
+
+  const completedSnapshot = await dispatch("/projects/project-smart-controller/snapshot");
+  assert.equal(completedSnapshot.body.summary.conditionalApprovalCount, 1);
+  assert.equal(completedSnapshot.body.summary.openConditionalApprovalCount, 0);
+  assert.equal(completedSnapshot.body.summary.completedConditionalApprovalCount, 1);
 });
 
 test("project risk register endpoints export current project risks", async () => {
