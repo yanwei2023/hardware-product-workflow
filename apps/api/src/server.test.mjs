@@ -610,6 +610,9 @@ test("gate review pack endpoint returns evidence and blockers", async () => {
   assert.deepEqual(testPlanEvidence.approvedReviewConditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
   assert.equal(testPlanEvidence.approvedReviewComment, "允许进入下一阶段，但需要补充低温测试。");
   assert.equal(testPlanEvidence.approvedReviewConditionsCompletedAt, null);
+  assert.equal(result.body.summary.conditionalApprovalCount, 1);
+  assert.equal(result.body.summary.openConditionalApprovalCount, 1);
+  assert.equal(result.body.summary.completedConditionalApprovalCount, 0);
   assert.equal(result.body.risks[0].mitigationStatus, "OPEN");
   assert.equal(result.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
 });
@@ -653,6 +656,7 @@ test("gate review pack markdown endpoint exports a readable package", async () =
   assert.match(result.body, /APPROVE_WITH_CONDITIONS/);
   assert.match(result.body, /补充低温启动测试/);
   assert.match(result.body, /低温测试已补齐/);
+  assert.match(result.body, /有条件批准条款：1\/1 已完成/);
   assert.match(result.body, /缓解负责人/);
   assert.match(result.body, /user-quality-lead/);
 });

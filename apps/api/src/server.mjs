@@ -214,6 +214,7 @@ function renderGateReviewPackMarkdown(pack) {
 - 必需证据：${pack.summary.readyEvidenceCount}/${pack.summary.requiredEvidenceCount}
 - 阻塞项：${pack.summary.blockerCount}
 - 阻塞风险：${pack.summary.openBlockingRiskCount}
+- 有条件批准条款：${pack.summary.completedConditionalApprovalCount || 0}/${pack.summary.conditionalApprovalCount || 0} 已完成
 - 可批准：${pack.summary.readyForApproval ? "是" : "否"}
 
 ## 必需证据
@@ -1970,6 +1971,9 @@ export function getGateReviewPack(gateId) {
       requiredEvidenceCount: evidence.length,
       readyEvidenceCount: evidence.filter((item) => item.ready).length,
       manualEvidenceRefCount: evidence.reduce((total, item) => total + item.manualEvidenceCount, 0),
+      conditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length).length,
+      openConditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length && !item.approvedReviewConditionsCompletedAt).length,
+      completedConditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length && item.approvedReviewConditionsCompletedAt).length,
       openBlockingRiskCount: risks.filter((item) => item.blocksGate).length,
       blockerCount: readiness.blockers.length,
       readyForApproval: readiness.status === "READY",

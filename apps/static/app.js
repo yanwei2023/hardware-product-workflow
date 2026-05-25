@@ -962,6 +962,10 @@ function renderGateReviewPack() {
           <span>阻塞风险</span>
           <strong>${pack.summary.openBlockingRiskCount}</strong>
         </div>
+        <div class="metric-block">
+          <span>条件条款</span>
+          <strong>${pack.summary.completedConditionalApprovalCount || 0}/${pack.summary.conditionalApprovalCount || 0}</strong>
+        </div>
       </div>
       <table class="table">
         <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>人工证据</th><th>审核结论</th><th>状态</th></tr></thead>
