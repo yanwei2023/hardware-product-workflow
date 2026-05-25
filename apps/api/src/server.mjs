@@ -245,10 +245,10 @@ function renderProjectSnapshotMarkdown(snapshot) {
     ? snapshot.risks
         .map(
           (risk) =>
-            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.decisionComment || "-"} |`,
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.mitigationStatus || "-"} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.mitigationCompletionComment || "-"} | ${risk.decisionComment || "-"} |`,
         )
         .join("\n")
-    : "| 无 | - | - | - | - | - | - | - |";
+    : "| 无 | - | - | - | - | - | - | - | - | - |";
   const auditRows = snapshot.auditEvents.length
     ? snapshot.auditEvents
         .slice(-12)
@@ -315,8 +315,8 @@ ${workPackageRows}
 
 ## 风险
 
-| 阶段 | 风险 | 严重度 | 状态 | 缓解负责人 | 缓解截止 | 缓解措施 | 处置说明 |
-|---|---|---|---|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 缓解状态 | 缓解负责人 | 缓解截止 | 缓解措施 | 缓解完成说明 | 处置说明 |
+|---|---|---|---|---|---|---|---|---|---|
 ${riskRows}
 
 ## 最近证据引用
@@ -422,10 +422,10 @@ function renderRiskRegisterMarkdown(register) {
     ? register.risks
         .map(
           (risk) =>
-            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.decisionUserId || "-"} | ${risk.decisionComment || "-"} |`,
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.mitigationStatus || "-"} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.mitigationCompletionComment || "-"} | ${risk.decisionUserId || "-"} | ${risk.decisionComment || "-"} |`,
         )
         .join("\n")
-    : "| 无 | - | - | - | - | - | - | - | - | - |";
+    : "| 无 | - | - | - | - | - | - | - | - | - | - | - |";
 
   return `# ${register.project.name} 风险台账
 
@@ -442,8 +442,8 @@ function renderRiskRegisterMarkdown(register) {
 
 ## 风险明细
 
-| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 缓解负责人 | 缓解截止 | 缓解措施 | 处置人 | 处置说明 |
-|---|---|---|---|---|---|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 缓解状态 | 缓解负责人 | 缓解截止 | 缓解措施 | 缓解完成说明 | 处置人 | 处置说明 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
 ${riskRows}
 `;
 }
@@ -1693,7 +1693,8 @@ export function getUserActionItems(userId) {
         risk.projectId === project.id &&
         phaseIds.has(risk.phaseId) &&
         risk.mitigationOwnerUserId === userId &&
-        risk.status !== "CLOSED",
+        risk.status !== "CLOSED" &&
+        risk.mitigationStatus !== "DONE",
     )
     .map((risk) => ({
       type: "RISK_MITIGATION",
@@ -1703,7 +1704,7 @@ export function getUserActionItems(userId) {
       severity: risk.severity,
       riskStatus: risk.status,
       dueAt: risk.mitigationDueAt || null,
-      scheduleStatus: workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: risk.status }),
+      scheduleStatus: workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: "OPEN" }),
       mitigation: risk.mitigation || "",
     }));
 
@@ -2333,6 +2334,10 @@ export function updateRiskMitigation(riskId, body = {}) {
   risk.mitigation = mitigation;
   risk.mitigationDueAt = mitigationDueAt || null;
   risk.mitigationOwnerUserId = mitigationOwnerUserId || null;
+  risk.mitigationStatus = mitigation || mitigationDueAt || mitigationOwnerUserId ? "OPEN" : null;
+  risk.mitigationCompletedAt = null;
+  risk.mitigationCompletedByUserId = null;
+  risk.mitigationCompletionComment = "";
   risk.mitigationUpdatedAt = new Date().toISOString();
   risk.mitigationUpdatedByUserId = actorUserId;
 
@@ -2352,6 +2357,58 @@ export function updateRiskMitigation(riskId, body = {}) {
       objectId: risk.id,
     });
   }
+
+  persistStore();
+  return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
+}
+
+export function completeRiskMitigation(riskId, body = {}) {
+  const risk = store.risks.find((item) => item.id === riskId);
+  if (!risk) {
+    return { statusCode: 404, body: { error: "风险不存在" } };
+  }
+
+  if (!risk.mitigationOwnerUserId && !risk.mitigation && !risk.mitigationDueAt) {
+    return validationError("风险缓解计划尚未设置", { riskId: risk.id });
+  }
+
+  const actorUserId = body.userId || body.actorUserId || "user-project-manager";
+  const ownerCanComplete = risk.mitigationOwnerUserId && risk.mitigationOwnerUserId === actorUserId;
+  const riskDecisionPermission = canAcceptRisk(actorUserId);
+  if (!ownerCanComplete && !riskDecisionPermission.allowed) {
+    return {
+      statusCode: 403,
+      body: {
+        error: "当前用户无权完成风险缓解任务",
+        reason: riskDecisionPermission.reason,
+        riskId: risk.id,
+      },
+    };
+  }
+
+  risk.mitigationStatus = "DONE";
+  risk.mitigationCompletedAt = new Date().toISOString();
+  risk.mitigationCompletedByUserId = actorUserId;
+  risk.mitigationCompletionComment = body.comment || "";
+
+  audit("RISK_MITIGATION_DONE", "human", actorUserId, "risk", risk.id, {
+    mitigationOwnerUserId: risk.mitigationOwnerUserId,
+    comment: risk.mitigationCompletionComment,
+  });
+  notifyRole("项目经理", {
+    title: "风险缓解已完成",
+    message: `${risk.title} 的缓解任务已由 ${actorUserId} 完成。`,
+    type: "INFO",
+    objectType: "risk",
+    objectId: risk.id,
+  });
+  notifyRole("质量负责人", {
+    title: "风险缓解已完成",
+    message: `${risk.title} 的缓解任务已由 ${actorUserId} 完成。`,
+    type: "INFO",
+    objectType: "risk",
+    objectId: risk.id,
+  });
 
   persistStore();
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
@@ -2561,6 +2618,11 @@ async function handleRiskUpdate(req, res, riskId, status) {
 
 async function handleRiskMitigationUpdate(req, res, riskId) {
   const result = updateRiskMitigation(riskId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleRiskMitigationComplete(req, res, riskId) {
+  const result = completeRiskMitigation(riskId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
 }
 
@@ -2833,6 +2895,11 @@ export const server = http.createServer(async (req, res) => {
     const riskMitigationMatch = url.pathname.match(/^\/risks\/([^/]+)\/mitigation$/);
     if (req.method === "PATCH" && riskMitigationMatch) {
       return await handleRiskMitigationUpdate(req, res, riskMitigationMatch[1]);
+    }
+
+    const riskMitigationCompleteMatch = url.pathname.match(/^\/risks\/([^/]+)\/mitigation\/complete$/);
+    if (req.method === "POST" && riskMitigationCompleteMatch) {
+      return await handleRiskMitigationComplete(req, res, riskMitigationCompleteMatch[1]);
     }
 
     const riskAcceptMatch = url.pathname.match(/^\/risks\/([^/]+)\/accept$/);

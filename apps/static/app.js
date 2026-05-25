@@ -795,8 +795,11 @@ function renderRisks() {
 }
 
 function renderRiskMitigationEditor(risk) {
+  const hasPlan = risk.mitigationOwnerUserId || risk.mitigationDueAt || risk.mitigation;
+  const mitigationStatus = risk.mitigationStatus || (hasPlan ? "OPEN" : "UNSCHEDULED");
   return `
     <div class="risk-plan">
+      <span>${statusBadge(mitigationStatus)}</span>
       <select id="riskOwner-${escapeHtml(risk.id)}" aria-label="缓解负责人">
         <option value="">未指定负责人</option>
         ${state.users
@@ -812,6 +815,8 @@ function renderRiskMitigationEditor(risk) {
       <input id="riskDue-${escapeHtml(risk.id)}" type="date" value="${escapeHtml(risk.mitigationDueAt || "")}" aria-label="缓解截止日期" />
       <input id="riskMitigation-${escapeHtml(risk.id)}" value="${escapeHtml(risk.mitigation || "")}" placeholder="缓解措施" aria-label="缓解措施" />
       <button class="ghost" onclick="updateRiskMitigation('${risk.id}')" ${state.busy ? "disabled" : ""}>保存缓解计划</button>
+      <button class="secondary" onclick="completeRiskMitigation('${risk.id}')" ${state.busy || !hasPlan || risk.mitigationStatus === "DONE" ? "disabled" : ""}>完成缓解</button>
+      ${risk.mitigationCompletionComment ? `<span class="muted">完成说明：${escapeHtml(risk.mitigationCompletionComment)}</span>` : ""}
     </div>
   `;
 }
@@ -1194,6 +1199,21 @@ async function updateRiskMitigation(riskId) {
         mitigationDueAt,
         mitigation,
         actorUserId: state.actorUserId,
+      }),
+    });
+    await loadProject();
+  });
+}
+
+async function completeRiskMitigation(riskId) {
+  const comment = window.prompt("请输入风险缓解完成说明", "缓解措施已完成并记录验证结果。");
+  if (comment === null) return;
+  await withBusy(async () => {
+    await api(`/risks/${riskId}/mitigation/complete`, {
+      method: "POST",
+      body: JSON.stringify({
+        actorUserId: state.actorUserId,
+        comment,
       }),
     });
     await loadProject();

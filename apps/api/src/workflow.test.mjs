@@ -575,6 +575,7 @@ test("risk mitigation plans are tracked in register, snapshot, and notifications
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
   assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
+  assert.equal(result.body.risk.mitigationStatus, "OPEN");
 
   const register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.risks[0].mitigation, "补充热仿真并准备散热垫备选方案。");
@@ -591,6 +592,29 @@ test("risk mitigation plans are tracked in register, snapshot, and notifications
   });
   assert.equal(invalid.statusCode, 400);
   assert.equal(invalid.body.error, "缓解负责人用户不存在");
+});
+
+test("completed risk mitigation plans leave risk status intact and clear mitigation work", () => {
+  workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2026-06-15",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+
+  const completed = workflow.completeRiskMitigation("risk-thermal-margin", {
+    actorUserId: "user-quality-lead",
+    comment: "热仿真复核通过，散热垫备选方案已归档。",
+  });
+
+  assert.equal(completed.statusCode, 200);
+  assert.equal(completed.body.risk.status, "OPEN");
+  assert.equal(completed.body.risk.mitigationStatus, "DONE");
+  assert.equal(completed.body.risk.mitigationCompletionComment, "热仿真复核通过，散热垫备选方案已归档。");
+  assert.equal(workflow.getUserActionItems("user-quality-lead").riskMitigations.length, 0);
+
+  const register = workflow.getProjectRiskRegister("project-smart-controller");
+  assert.equal(register.risks[0].mitigationStatus, "DONE");
 });
 
 test("project snapshot summarizes project state without changing active project", () => {

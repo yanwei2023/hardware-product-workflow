@@ -159,6 +159,7 @@ test("risk mitigation endpoint stores owner, due date, plan, and notifies owner"
   assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
   assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
   assert.equal(result.body.risk.mitigation, "补充热仿真并准备散热垫备选方案。");
+  assert.equal(result.body.risk.mitigationStatus, "OPEN");
 
   const register = await dispatch("/projects/project-smart-controller/risk-register");
   assert.equal(register.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
@@ -173,6 +174,37 @@ test("risk mitigation endpoint stores owner, due date, plan, and notifies owner"
   });
   assert.equal(invalid.status, 400);
   assert.equal(invalid.body.error, "mitigationDueAt 必须是 YYYY-MM-DD 格式");
+});
+
+test("risk mitigation completion endpoint clears owner action item", async () => {
+  await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2026-06-15",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+
+  const completed = await dispatch("/risks/risk-thermal-margin/mitigation/complete", {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-quality-lead",
+      comment: "热仿真复核通过，散热垫备选方案已归档。",
+    }),
+  });
+
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.risk.mitigationStatus, "DONE");
+  assert.equal(completed.body.risk.mitigationCompletedByUserId, "user-quality-lead");
+  assert.equal(completed.body.risk.mitigationCompletionComment, "热仿真复核通过，散热垫备选方案已归档。");
+
+  const actionItems = await dispatch("/users/user-quality-lead/action-items");
+  assert.equal(actionItems.body.riskMitigations.length, 0);
+
+  const notifications = await dispatch("/users/user-project-manager/notifications?type=INFO");
+  assert.equal(notifications.body.notifications[0].title, "风险缓解已完成");
 });
 
 test("project snapshot endpoint rejects unknown projects", async () => {
