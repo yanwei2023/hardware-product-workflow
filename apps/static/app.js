@@ -935,7 +935,7 @@ function renderGateReviewPack() {
         </div>
       </div>
       <table class="table">
-        <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>人工证据</th><th>审核人</th><th>状态</th></tr></thead>
+        <thead><tr><th>必需交付物</th><th>工作包</th><th>交付物</th><th>人工证据</th><th>审核结论</th><th>状态</th></tr></thead>
         <tbody>
           ${pack.evidence
             .map(
@@ -945,7 +945,12 @@ function renderGateReviewPack() {
                   <td>${escapeHtml(item.requiredWorkPackageTitle)}<br><span class="muted">${escapeHtml(item.workPackageStatus)}</span></td>
                   <td>${escapeHtml(item.latestArtifactStatus)}</td>
                   <td>${escapeHtml(item.manualEvidenceCount)}</td>
-                  <td>${escapeHtml(item.reviewerUserId || "-")}</td>
+                  <td>
+                    ${escapeHtml(item.reviewerUserId || "-")}<br>
+                    <span class="muted">${escapeHtml(item.approvedReviewDecision || "-")}</span>
+                    ${item.approvedReviewConditions?.length ? `<br><span class="muted">条件：${item.approvedReviewConditions.map(escapeHtml).join("；")}</span>` : ""}
+                    ${item.approvedReviewComment ? `<br><span class="muted">说明：${escapeHtml(item.approvedReviewComment)}</span>` : ""}
+                  </td>
                   <td>${item.ready ? statusBadge("READY") : statusBadge("BLOCKED")}</td>
                 </tr>
               `,

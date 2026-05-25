@@ -184,7 +184,7 @@ function renderGateReviewPackMarkdown(pack) {
   const evidenceRows = pack.evidence
     .map(
       (item) =>
-        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.manualEvidenceCount} | ${item.reviewerUserId || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
+        `| ${item.requiredWorkPackageTitle} | ${item.requiredArtifactType} | ${item.workPackageStatus} | ${item.latestArtifactStatus} | ${item.manualEvidenceCount} | ${item.reviewerUserId || "-"} | ${item.approvedReviewDecision || "-"} | ${item.approvedReviewConditions?.length ? item.approvedReviewConditions.join("; ") : "-"} | ${item.approvedReviewComment || "-"} | ${item.ready ? "READY" : "BLOCKED"} |`,
     )
     .join("\n");
   const riskRows = pack.risks.length
@@ -218,8 +218,8 @@ function renderGateReviewPackMarkdown(pack) {
 
 ## 必需证据
 
-| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 人工证据 | 审核人 | 结论 |
-|---|---|---|---|---|---|---|
+| 工作包 | 交付物类型 | 工作包状态 | 最新交付物状态 | 人工证据 | 审核人 | 审核决定 | 批准条件 | 审核说明 | 结论 |
+|---|---|---|---|---|---|---|---|---|---|
 ${evidenceRows}
 
 ## 风险
@@ -1875,6 +1875,10 @@ export function getGateReviewPack(gateId) {
       approvedArtifactId: approvedArtifact?.id || null,
       approvedReviewId: approvedReview?.id || null,
       reviewerUserId: approvedReview?.reviewerUserId || null,
+      approvedReviewDecision: approvedReview?.decision || null,
+      approvedReviewComment: approvedReview?.comment || "",
+      approvedReviewConditions: approvedReview?.conditions || [],
+      approvedReviewedAt: approvedReview?.reviewedAt || null,
       manualEvidenceCount: manualEvidenceRefs.length,
       manualEvidenceRefs,
       ready: Boolean(approvedArtifact && approvedReview),

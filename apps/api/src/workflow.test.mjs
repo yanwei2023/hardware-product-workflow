@@ -216,6 +216,24 @@ test("gate review pack summarizes required evidence and readiness", () => {
   assert.equal(pack.risks[0].mitigationDueAt, "2026-06-15");
 });
 
+test("gate review pack carries conditional approval details", () => {
+  const review = workflow.submitHumanReview({
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "允许进入下一阶段，但需要补充低温测试。",
+    conditions: ["补充低温启动测试", "更新测试覆盖率矩阵"],
+  });
+  assert.equal(review.statusCode, 201);
+
+  const pack = workflow.getGateReviewPack("gate-evt_exit");
+  const testPlanEvidence = pack.evidence.find((item) => item.workPackageId === "wp-evt_exit-evt_test_plan");
+  assert.equal(testPlanEvidence.ready, true);
+  assert.equal(testPlanEvidence.approvedReviewDecision, "APPROVE_WITH_CONDITIONS");
+  assert.deepEqual(testPlanEvidence.approvedReviewConditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
+  assert.equal(testPlanEvidence.approvedReviewComment, "允许进入下一阶段，但需要补充低温测试。");
+});
+
 test("only the assigned human owner can approve a gate artifact", () => {
   runAgent("wp-evt_exit-evt_test_report", "test_agent");
 
