@@ -1687,6 +1687,25 @@ export function getUserActionItems(userId) {
           severity: risk.severity,
         }))
     : [];
+  const riskMitigations = store.risks
+    .filter(
+      (risk) =>
+        risk.projectId === project.id &&
+        phaseIds.has(risk.phaseId) &&
+        risk.mitigationOwnerUserId === userId &&
+        risk.status !== "CLOSED",
+    )
+    .map((risk) => ({
+      type: "RISK_MITIGATION",
+      riskId: risk.id,
+      title: risk.title,
+      phaseId: risk.phaseId,
+      severity: risk.severity,
+      riskStatus: risk.status,
+      dueAt: risk.mitigationDueAt || null,
+      scheduleStatus: workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: risk.status }),
+      mitigation: risk.mitigation || "",
+    }));
 
   const gateApprovalPermission = canApproveGate(userId);
   const gateApprovals = [];
@@ -1709,8 +1728,9 @@ export function getUserActionItems(userId) {
     pendingReviews,
     scheduleAlerts,
     riskDecisions,
+    riskMitigations,
     gateApprovals,
-    total: pendingReviews.length + scheduleAlerts.length + riskDecisions.length + gateApprovals.length,
+    total: pendingReviews.length + scheduleAlerts.length + riskDecisions.length + riskMitigations.length + gateApprovals.length,
   };
 }
 

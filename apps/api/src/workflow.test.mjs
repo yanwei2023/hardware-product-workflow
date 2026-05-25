@@ -475,10 +475,33 @@ test("user action items reflect review and risk responsibilities", () => {
   assert.equal(projectManagerItems.pendingReviews.length, 0);
   assert.equal(projectManagerItems.riskDecisions.length, 1);
   assert.equal(projectManagerItems.riskDecisions[0].riskId, "risk-thermal-margin");
+  assert.equal(projectManagerItems.riskMitigations.length, 0);
 
   approveWorkPackage("wp-evt_exit-evt_test_plan", "user-test-lead");
   testLeadItems = workflow.getUserActionItems("user-test-lead");
   assert.equal(testLeadItems.pendingReviews.length, 0);
+});
+
+test("user action items include assigned risk mitigation plans", () => {
+  workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2020-01-01",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+
+  let qualityItems = workflow.getUserActionItems("user-quality-lead");
+  assert.equal(qualityItems.riskMitigations.length, 1);
+  assert.equal(qualityItems.riskMitigations[0].riskId, "risk-thermal-margin");
+  assert.equal(qualityItems.riskMitigations[0].scheduleStatus, "OVERDUE");
+  assert.equal(qualityItems.total, qualityItems.riskDecisions.length + qualityItems.riskMitigations.length);
+
+  workflow.updateRiskStatus("risk-thermal-margin", "CLOSED", {
+    userId: "user-quality-lead",
+    comment: "缓解措施已完成。",
+  });
+  qualityItems = workflow.getUserActionItems("user-quality-lead");
+  assert.equal(qualityItems.riskMitigations.length, 0);
 });
 
 test("notifications follow work package and risk events", () => {

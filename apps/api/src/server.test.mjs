@@ -287,7 +287,27 @@ test("action items endpoint returns user-specific work", async () => {
   assert.equal(result.body.userId, "user-project-manager");
   assert.equal(result.body.pendingReviews.length, 0);
   assert.equal(result.body.riskDecisions.length, 1);
+  assert.equal(result.body.riskMitigations.length, 0);
   assert.equal(result.body.total, 1);
+});
+
+test("action items endpoint includes assigned risk mitigation work", async () => {
+  await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2020-01-01",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+
+  const actionItems = await dispatch("/users/user-quality-lead/action-items");
+  assert.equal(actionItems.status, 200);
+  assert.equal(actionItems.body.riskMitigations.length, 1);
+  assert.equal(actionItems.body.riskMitigations[0].riskId, "risk-thermal-margin");
+  assert.equal(actionItems.body.riskMitigations[0].scheduleStatus, "OVERDUE");
+  assert.equal(actionItems.body.total, actionItems.body.riskDecisions.length + actionItems.body.riskMitigations.length);
 });
 
 test("role pair update endpoint notifies owners and project manager", async () => {

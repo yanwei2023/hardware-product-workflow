@@ -470,6 +470,15 @@ function renderActionItems() {
         </tr>
       `,
     ),
+    ...actionItems.riskMitigations.map(
+      (item) => `
+        <tr>
+          <td>风险缓解</td>
+          <td>${escapeHtml(item.title)} · ${statusText[item.scheduleStatus] || item.scheduleStatus} · ${escapeHtml(item.dueAt || "未排期")}</td>
+          <td><button onclick="goRisks()">处理</button></td>
+        </tr>
+      `,
+    ),
     ...actionItems.gateApprovals.map(
       (item) => `
         <tr>
