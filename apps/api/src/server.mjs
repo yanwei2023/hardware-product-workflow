@@ -66,6 +66,21 @@ function workPackageScheduleStatus(workPackage, today = new Date()) {
   return "ON_TRACK";
 }
 
+function hasRiskMitigationPlan(risk) {
+  return Boolean(risk.mitigationOwnerUserId || risk.mitigationDueAt || risk.mitigation);
+}
+
+function summarizeRiskMitigations(risks) {
+  const plannedRisks = risks.filter(hasRiskMitigationPlan);
+  const openRisks = plannedRisks.filter((risk) => risk.mitigationStatus !== "DONE" && risk.status !== "CLOSED");
+  return {
+    mitigationPlanCount: plannedRisks.length,
+    openMitigationCount: openRisks.length,
+    overdueMitigationCount: openRisks.filter((risk) => workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: "OPEN" }) === "OVERDUE").length,
+    completedMitigationCount: plannedRisks.filter((risk) => risk.mitigationStatus === "DONE").length,
+  };
+}
+
 export function createDemoStore() {
   const projectId = "project-smart-controller";
   const project = {
@@ -300,6 +315,7 @@ function renderProjectSnapshotMarkdown(snapshot) {
 - 临期工作包：${snapshot.summary.dueSoonWorkPackageCount}
 - 风险：${snapshot.summary.riskCount}
 - 打开高风险：${snapshot.summary.openHighRiskCount}
+- 风险缓解：${snapshot.summary.completedMitigationCount || 0}/${snapshot.summary.mitigationPlanCount || 0} 已完成，${snapshot.summary.openMitigationCount || 0} 进行中，${snapshot.summary.overdueMitigationCount || 0} 逾期
 - 证据引用：${snapshot.summary.evidenceRefCount}
 - 批准包归档：${snapshot.summary.gateApprovalPackCount}
 - 有条件批准条款：${snapshot.summary.completedConditionalApprovalCount || 0}/${snapshot.summary.conditionalApprovalCount || 0} 已完成，${snapshot.summary.openConditionalApprovalCount || 0} 未完成
@@ -647,6 +663,7 @@ export function getActiveProjectView() {
   const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackageIds = new Set(store.workPackages.filter((item) => item.projectId === project.id).map((item) => item.id));
   const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
+  const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
   const reviews = store.reviews.filter((item) => workPackageIds.has(item.workPackageId));
   const conditionalApprovalReviews = reviews.filter(
     (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
@@ -670,7 +687,7 @@ export function getActiveProjectView() {
     reviews,
     evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
     gateApprovalPacks: (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id),
-    risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
+    risks,
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
@@ -685,6 +702,7 @@ export function getActiveProjectView() {
       openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
       completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
     },
+    riskMitigationSummary: summarizeRiskMitigations(risks),
   };
 }
 
@@ -735,6 +753,7 @@ export function getProjectSnapshot(projectId) {
           risk.status !== "CLOSED" &&
           risk.status !== "ACCEPTED",
       ).length,
+      ...summarizeRiskMitigations(risks),
       evidenceRefCount: evidenceRefs.length,
       gateApprovalPackCount: gateApprovalPacks.length,
       conditionalApprovalCount: conditionalApprovalReviews.length,
@@ -807,6 +826,7 @@ export function getProjectRiskRegister(projectId) {
       openBlockingRiskCount: risks.filter((risk) => risk.blocksGate).length,
       acceptedRiskCount: risks.filter((risk) => risk.status === "ACCEPTED").length,
       closedRiskCount: risks.filter((risk) => risk.status === "CLOSED").length,
+      ...summarizeRiskMitigations(risks),
     },
     risks,
   };

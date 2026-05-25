@@ -120,6 +120,10 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(jsonResult.body.project.id, "project-smart-controller");
   assert.equal(jsonResult.body.summary.phaseCount, 7);
   assert.equal(jsonResult.body.summary.gateApprovalPackCount, 0);
+  assert.equal(jsonResult.body.summary.mitigationPlanCount, 0);
+  assert.equal(jsonResult.body.summary.openMitigationCount, 0);
+  assert.equal(jsonResult.body.summary.overdueMitigationCount, 0);
+  assert.equal(jsonResult.body.summary.completedMitigationCount, 0);
   assert.equal(jsonResult.body.summary.conditionalApprovalCount, 0);
   assert.equal(jsonResult.body.summary.openConditionalApprovalCount, 0);
   assert.equal(jsonResult.body.summary.completedConditionalApprovalCount, 0);
@@ -130,6 +134,7 @@ test("project snapshot endpoints export current project state", async () => {
   assert.equal(markdownResult.status, 200);
   assert.match(markdownResult.headers["content-type"], /text\/markdown/);
   assert.match(markdownResult.body, /# 智能控制器项目 项目快照/);
+  assert.match(markdownResult.body, /风险缓解：0\/0 已完成，0 进行中，0 逾期/);
   assert.match(markdownResult.body, /有条件批准条款：0\/0 已完成，0 未完成/);
   assert.match(markdownResult.body, /## 工作包/);
 });
@@ -171,6 +176,7 @@ test("project risk register endpoints export current project risks", async () =>
   assert.equal(jsonResult.status, 200);
   assert.equal(jsonResult.body.summary.totalRiskCount, 1);
   assert.equal(jsonResult.body.summary.openBlockingRiskCount, 1);
+  assert.equal(jsonResult.body.summary.mitigationPlanCount, 0);
   assert.equal(jsonResult.body.risks[0].phaseName, "EVT Exit");
 
   const markdownResult = await dispatch("/projects/project-smart-controller/risk-register.md");
@@ -185,7 +191,7 @@ test("risk mitigation endpoint stores owner, due date, plan, and notifies owner"
     method: "PATCH",
     body: JSON.stringify({
       mitigationOwnerUserId: "user-quality-lead",
-      mitigationDueAt: "2026-06-15",
+      mitigationDueAt: "2020-01-01",
       mitigation: "补充热仿真并准备散热垫备选方案。",
       actorUserId: "user-project-manager",
     }),
@@ -193,12 +199,22 @@ test("risk mitigation endpoint stores owner, due date, plan, and notifies owner"
 
   assert.equal(result.status, 200);
   assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
-  assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
+  assert.equal(result.body.risk.mitigationDueAt, "2020-01-01");
   assert.equal(result.body.risk.mitigation, "补充热仿真并准备散热垫备选方案。");
   assert.equal(result.body.risk.mitigationStatus, "OPEN");
 
   const register = await dispatch("/projects/project-smart-controller/risk-register");
   assert.equal(register.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
+  assert.equal(register.body.summary.mitigationPlanCount, 1);
+  assert.equal(register.body.summary.openMitigationCount, 1);
+  assert.equal(register.body.summary.overdueMitigationCount, 1);
+  assert.equal(register.body.summary.completedMitigationCount, 0);
+
+  const snapshot = await dispatch("/projects/project-smart-controller/snapshot");
+  assert.equal(snapshot.body.summary.mitigationPlanCount, 1);
+  assert.equal(snapshot.body.summary.openMitigationCount, 1);
+  assert.equal(snapshot.body.summary.overdueMitigationCount, 1);
+  assert.equal(snapshot.body.summary.completedMitigationCount, 0);
 
   const notifications = await dispatch("/users/user-quality-lead/notifications?type=ACTION");
   assert.equal(notifications.body.notifications[0].title, "风险缓解任务已分配");
@@ -235,6 +251,11 @@ test("risk mitigation completion endpoint clears owner action item", async () =>
   assert.equal(completed.body.risk.mitigationStatus, "DONE");
   assert.equal(completed.body.risk.mitigationCompletedByUserId, "user-quality-lead");
   assert.equal(completed.body.risk.mitigationCompletionComment, "热仿真复核通过，散热垫备选方案已归档。");
+
+  const snapshot = await dispatch("/projects/project-smart-controller/snapshot");
+  assert.equal(snapshot.body.summary.mitigationPlanCount, 1);
+  assert.equal(snapshot.body.summary.openMitigationCount, 0);
+  assert.equal(snapshot.body.summary.completedMitigationCount, 1);
 
   const actionItems = await dispatch("/users/user-quality-lead/action-items");
   assert.equal(actionItems.body.riskMitigations.length, 0);

@@ -652,21 +652,29 @@ test("project risk register summarizes blocking and resolved risks", () => {
 test("risk mitigation plans are tracked in register, snapshot, and notifications", () => {
   const result = workflow.updateRiskMitigation("risk-thermal-margin", {
     mitigationOwnerUserId: "user-quality-lead",
-    mitigationDueAt: "2026-06-15",
+    mitigationDueAt: "2020-01-01",
     mitigation: "补充热仿真并准备散热垫备选方案。",
     actorUserId: "user-project-manager",
   });
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
-  assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
+  assert.equal(result.body.risk.mitigationDueAt, "2020-01-01");
   assert.equal(result.body.risk.mitigationStatus, "OPEN");
 
   const register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.risks[0].mitigation, "补充热仿真并准备散热垫备选方案。");
+  assert.equal(register.summary.mitigationPlanCount, 1);
+  assert.equal(register.summary.openMitigationCount, 1);
+  assert.equal(register.summary.overdueMitigationCount, 1);
+  assert.equal(register.summary.completedMitigationCount, 0);
 
   const snapshot = workflow.getProjectSnapshot("project-smart-controller");
   assert.equal(snapshot.risks[0].mitigationOwnerUserId, "user-quality-lead");
+  assert.equal(snapshot.summary.mitigationPlanCount, 1);
+  assert.equal(snapshot.summary.openMitigationCount, 1);
+  assert.equal(snapshot.summary.overdueMitigationCount, 1);
+  assert.equal(snapshot.summary.completedMitigationCount, 0);
 
   const notifications = workflow.getUserNotifications("user-quality-lead", { type: "ACTION" });
   assert.equal(notifications.notifications[0].title, "风险缓解任务已分配");
@@ -700,6 +708,8 @@ test("completed risk mitigation plans leave risk status intact and clear mitigat
 
   const register = workflow.getProjectRiskRegister("project-smart-controller");
   assert.equal(register.risks[0].mitigationStatus, "DONE");
+  assert.equal(register.summary.openMitigationCount, 0);
+  assert.equal(register.summary.completedMitigationCount, 1);
 });
 
 test("project snapshot summarizes project state without changing active project", () => {
@@ -716,6 +726,10 @@ test("project snapshot summarizes project state without changing active project"
   assert.equal(createdSnapshot.summary.phaseCount, 7);
   assert.equal(createdSnapshot.summary.workPackageCount, createdSnapshot.workPackages.length);
   assert.equal(createdSnapshot.summary.overdueWorkPackageCount, 0);
+  assert.equal(createdSnapshot.summary.mitigationPlanCount, 0);
+  assert.equal(createdSnapshot.summary.openMitigationCount, 0);
+  assert.equal(createdSnapshot.summary.overdueMitigationCount, 0);
+  assert.equal(createdSnapshot.summary.completedMitigationCount, 0);
   assert.equal(createdSnapshot.summary.conditionalApprovalCount, 0);
   assert.equal(createdSnapshot.summary.openConditionalApprovalCount, 0);
   assert.equal(createdSnapshot.summary.completedConditionalApprovalCount, 0);

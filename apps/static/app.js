@@ -366,6 +366,7 @@ function renderOverview() {
   const gate = activeGate();
   const check = state.project.latestGateCheck;
   const conditionalSummary = state.project.conditionalApprovalSummary || {};
+  const mitigationSummary = state.project.riskMitigationSummary || {};
   q("#overviewView").innerHTML = `
     <div class="phase-strip">
       ${state.project.phases
@@ -396,6 +397,10 @@ function renderOverview() {
       <article class="panel">
         <h3>打开高风险</h3>
         <p class="metric">${state.project.risks.filter((risk) => (risk.severity === "HIGH" || risk.severity === "CRITICAL") && risk.status === "OPEN").length}</p>
+      </article>
+      <article class="panel">
+        <h3>风险缓解</h3>
+        <p class="metric">${mitigationSummary.completedMitigationCount || 0}/${mitigationSummary.mitigationPlanCount || 0}</p>
       </article>
       <article class="panel">
         <h3>逾期/临期</h3>
