@@ -527,6 +527,15 @@ test("user action items include conditional approval follow-up work", () => {
   assert.equal(testLeadItems.conditionalApprovals[0].reviewId, review.body.review.id);
   assert.deepEqual(testLeadItems.conditionalApprovals[0].conditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
   assert.equal(testLeadItems.total, 1);
+
+  const completed = workflow.completeConditionalApproval(review.body.review.id, {
+    actorUserId: "user-test-lead",
+    comment: "低温测试和覆盖率矩阵已补齐。",
+  });
+  assert.equal(completed.statusCode, 200);
+  assert.equal(completed.body.review.conditionsCompletedByUserId, "user-test-lead");
+  assert.equal(completed.body.review.conditionsCompletionComment, "低温测试和覆盖率矩阵已补齐。");
+  assert.equal(workflow.getUserActionItems("user-test-lead").conditionalApprovals.length, 0);
 });
 
 test("user action items include assigned risk mitigation plans", () => {

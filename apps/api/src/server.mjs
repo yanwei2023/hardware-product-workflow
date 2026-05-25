@@ -1656,7 +1656,8 @@ export function getUserActionItems(userId) {
             item.workPackageId === workPackage.id &&
             item.decision === "APPROVE_WITH_CONDITIONS" &&
             Array.isArray(item.conditions) &&
-            item.conditions.length > 0,
+            item.conditions.length > 0 &&
+            !item.conditionsCompletedAt,
         );
       if (latestConditionalReview) {
         conditionalApprovals.push({
@@ -1669,6 +1670,7 @@ export function getUserActionItems(userId) {
           reviewedAt: latestConditionalReview.reviewedAt,
           comment: latestConditionalReview.comment || "",
           conditions: latestConditionalReview.conditions,
+          conditionsCompletedAt: latestConditionalReview.conditionsCompletedAt || null,
         });
       }
     }
@@ -2276,6 +2278,63 @@ export function submitHumanReview(body) {
   return { statusCode: 201, body: { review, workPackage, latestGateCheck: currentGateCheck() } };
 }
 
+export function completeConditionalApproval(reviewId, body = {}) {
+  const review = store.reviews.find((item) => item.id === reviewId);
+  if (!review) {
+    return { statusCode: 404, body: { error: "审核记录不存在" } };
+  }
+  if (review.decision !== "APPROVE_WITH_CONDITIONS" || !Array.isArray(review.conditions) || review.conditions.length === 0) {
+    return validationError("审核记录不是有条件批准", { reviewId });
+  }
+
+  const workPackage = store.workPackages.find((item) => item.id === review.workPackageId);
+  if (!workPackage) {
+    return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+
+  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const actorUserId = body.userId || body.actorUserId || "";
+  const isOwner = rolePair?.humanUserId === actorUserId;
+  const canApprove = canApproveWorkPackage(actorUserId, rolePair).allowed;
+  if (!isOwner && !canApprove) {
+    return {
+      statusCode: 403,
+      body: {
+        error: "当前用户无权完成有条件批准条款",
+        workPackageId: workPackage.id,
+        reviewId: review.id,
+      },
+    };
+  }
+
+  review.conditionsCompletedAt = new Date().toISOString();
+  review.conditionsCompletedByUserId = actorUserId;
+  review.conditionsCompletionComment = String(body.comment || "").trim();
+
+  audit("CONDITIONAL_APPROVAL_COMPLETED", "human", actorUserId, "review", review.id, {
+    workPackageId: workPackage.id,
+    conditions: review.conditions,
+    comment: review.conditionsCompletionComment,
+  });
+  notifyRole("项目经理", {
+    title: "有条件批准条款已完成",
+    message: `${workPackage.title} 的补充条款已由 ${actorUserId} 完成。`,
+    type: "INFO",
+    objectType: "review",
+    objectId: review.id,
+  });
+  persistStore();
+  return {
+    statusCode: 200,
+    body: {
+      review,
+      workPackage,
+      actionItems: getUserActionItems(actorUserId),
+      latestGateCheck: currentGateCheck(),
+    },
+  };
+}
+
 export function updateRiskStatus(riskId, status, body = {}) {
   const risk = store.risks.find((item) => item.id === riskId);
   if (!risk) {
@@ -2658,6 +2717,11 @@ async function handleReview(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleConditionalApprovalComplete(req, res, reviewId) {
+  const result = completeConditionalApproval(reviewId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleRiskUpdate(req, res, riskId, status) {
   const result = updateRiskStatus(riskId, status, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -2937,6 +3001,11 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/reviews") {
       return await handleReview(req, res);
+    }
+
+    const conditionalApprovalCompleteMatch = url.pathname.match(/^\/reviews\/([^/]+)\/conditions\/complete$/);
+    if (req.method === "POST" && conditionalApprovalCompleteMatch) {
+      return await handleConditionalApprovalComplete(req, res, conditionalApprovalCompleteMatch[1]);
     }
 
     const riskMitigationMatch = url.pathname.match(/^\/risks\/([^/]+)\/mitigation$/);

@@ -469,7 +469,12 @@ function renderActionItems() {
             ${escapeHtml(item.title)} · ${escapeHtml(item.conditions.join("；"))}
             ${item.comment ? `<br><span class="muted">${escapeHtml(item.comment)}</span>` : ""}
           </td>
-          <td><button onclick="goWorkPackage('${item.workPackageId}')">处理</button></td>
+          <td>
+            <div class="actions">
+              <button onclick="goWorkPackage('${item.workPackageId}')">处理</button>
+              <button class="secondary" onclick="completeConditionalApproval('${item.reviewId}')" ${state.busy ? "disabled" : ""}>完成条款</button>
+            </div>
+          </td>
         </tr>
       `,
     ),
@@ -1198,6 +1203,21 @@ async function submitReview(workPackageId, decision) {
         workPackageId,
         reviewerUserId: state.actorUserId,
         decision,
+        comment,
+      }),
+    });
+    await loadProject();
+  });
+}
+
+async function completeConditionalApproval(reviewId) {
+  const comment = window.prompt("请输入有条件批准条款完成说明", "补充条款已完成并记录验证结果。");
+  if (comment === null) return;
+  await withBusy(async () => {
+    await api(`/reviews/${reviewId}/conditions/complete`, {
+      method: "POST",
+      body: JSON.stringify({
+        actorUserId: state.actorUserId,
         comment,
       }),
     });

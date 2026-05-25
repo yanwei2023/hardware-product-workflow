@@ -325,7 +325,7 @@ test("action items endpoint returns user-specific work", async () => {
 });
 
 test("action items endpoint includes conditional approval follow-up work", async () => {
-  await dispatch("/reviews", {
+  const review = await dispatch("/reviews", {
     method: "POST",
     body: JSON.stringify({
       workPackageId: "wp-evt_exit-evt_test_plan",
@@ -343,6 +343,45 @@ test("action items endpoint includes conditional approval follow-up work", async
   assert.equal(actionItems.body.conditionalApprovals[0].workPackageId, "wp-evt_exit-evt_test_plan");
   assert.deepEqual(actionItems.body.conditionalApprovals[0].conditions, ["补充低温启动测试", "更新测试覆盖率矩阵"]);
   assert.equal(actionItems.body.total, 1);
+
+  const completed = await dispatch(`/reviews/${review.body.review.id}/conditions/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-test-lead",
+      comment: "低温测试和覆盖率矩阵已补齐。",
+    }),
+  });
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.review.conditionsCompletedByUserId, "user-test-lead");
+  assert.equal(completed.body.review.conditionsCompletionComment, "低温测试和覆盖率矩阵已补齐。");
+  assert.equal(completed.body.actionItems.conditionalApprovals.length, 0);
+
+  const refreshedItems = await dispatch("/users/user-test-lead/action-items");
+  assert.equal(refreshedItems.body.conditionalApprovals.length, 0);
+});
+
+test("conditional approval completion endpoint rejects unrelated users", async () => {
+  const review = await dispatch("/reviews", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-test-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      comment: "允许进入下一阶段，但需要补充低温测试。",
+      conditions: ["补充低温启动测试"],
+    }),
+  });
+
+  const result = await dispatch(`/reviews/${review.body.review.id}/conditions/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      actorUserId: "user-product-manager",
+      comment: "越权完成。",
+    }),
+  });
+
+  assert.equal(result.status, 403);
+  assert.equal(result.body.error, "当前用户无权完成有条件批准条款");
 });
 
 test("action items endpoint includes assigned risk mitigation work", async () => {
