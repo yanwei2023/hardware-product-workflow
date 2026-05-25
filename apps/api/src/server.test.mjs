@@ -144,6 +144,37 @@ test("project risk register endpoints export current project risks", async () =>
   assert.match(markdownResult.body, /热设计裕量不足/);
 });
 
+test("risk mitigation endpoint stores owner, due date, plan, and notifies owner", async () => {
+  const result = await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({
+      mitigationOwnerUserId: "user-quality-lead",
+      mitigationDueAt: "2026-06-15",
+      mitigation: "补充热仿真并准备散热垫备选方案。",
+      actorUserId: "user-project-manager",
+    }),
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
+  assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
+  assert.equal(result.body.risk.mitigation, "补充热仿真并准备散热垫备选方案。");
+
+  const register = await dispatch("/projects/project-smart-controller/risk-register");
+  assert.equal(register.body.risks[0].mitigationOwnerUserId, "user-quality-lead");
+
+  const notifications = await dispatch("/users/user-quality-lead/notifications?type=ACTION");
+  assert.equal(notifications.body.notifications[0].title, "风险缓解任务已分配");
+  assert.equal(notifications.body.notifications[0].objectType, "risk");
+
+  const invalid = await dispatch("/risks/risk-thermal-margin/mitigation", {
+    method: "PATCH",
+    body: JSON.stringify({ mitigationDueAt: "2026/06/15" }),
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.error, "mitigationDueAt 必须是 YYYY-MM-DD 格式");
+});
+
 test("project snapshot endpoint rejects unknown projects", async () => {
   const result = await dispatch("/projects/missing-project/snapshot");
 

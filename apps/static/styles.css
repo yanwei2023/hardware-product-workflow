@@ -351,6 +351,17 @@ textarea {
   gap: 8px;
 }
 
+.risk-plan {
+  display: grid;
+  gap: 8px;
+  min-width: 260px;
+}
+
+.risk-plan input,
+.risk-plan select {
+  width: 100%;
+}
+
 .segmented {
   display: flex;
   flex-wrap: wrap;

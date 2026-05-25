@@ -243,9 +243,12 @@ function renderProjectSnapshotMarkdown(snapshot) {
     .join("\n");
   const riskRows = snapshot.risks.length
     ? snapshot.risks
-        .map((risk) => `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.decisionComment || "-"} |`)
+        .map(
+          (risk) =>
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.decisionComment || "-"} |`,
+        )
         .join("\n")
-    : "| 无 | - | - | - | - |";
+    : "| 无 | - | - | - | - | - | - | - |";
   const auditRows = snapshot.auditEvents.length
     ? snapshot.auditEvents
         .slice(-12)
@@ -312,8 +315,8 @@ ${workPackageRows}
 
 ## 风险
 
-| 阶段 | 风险 | 严重度 | 状态 | 处置说明 |
-|---|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 缓解负责人 | 缓解截止 | 缓解措施 | 处置说明 |
+|---|---|---|---|---|---|---|---|
 ${riskRows}
 
 ## 最近证据引用
@@ -419,10 +422,10 @@ function renderRiskRegisterMarkdown(register) {
     ? register.risks
         .map(
           (risk) =>
-            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.decisionUserId || "-"} | ${risk.decisionComment || "-"} |`,
+            `| ${risk.phaseName} | ${risk.title} | ${risk.severity} | ${risk.status} | ${risk.blocksGate ? "是" : "否"} | ${risk.mitigationOwnerUserId || "-"} | ${risk.mitigationDueAt || "-"} | ${risk.mitigation || "-"} | ${risk.decisionUserId || "-"} | ${risk.decisionComment || "-"} |`,
         )
         .join("\n")
-    : "| 无 | - | - | - | - | - | - |";
+    : "| 无 | - | - | - | - | - | - | - | - | - |";
 
   return `# ${register.project.name} 风险台账
 
@@ -439,8 +442,8 @@ function renderRiskRegisterMarkdown(register) {
 
 ## 风险明细
 
-| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 处置人 | 处置说明 |
-|---|---|---|---|---|---|---|
+| 阶段 | 风险 | 严重度 | 状态 | 阻塞阶段门 | 缓解负责人 | 缓解截止 | 缓解措施 | 处置人 | 处置说明 |
+|---|---|---|---|---|---|---|---|---|---|
 ${riskRows}
 `;
 }
@@ -957,6 +960,13 @@ export function validateProjectSnapshotImport(input = {}) {
       riskId: risk.id,
       phaseId: risk.phaseId,
     });
+    if (risk.mitigationOwnerUserId && !findUser(risk.mitigationOwnerUserId)) {
+      warnings.push({
+        message: "风险缓解负责人用户不存在，导入后仍会保留原始负责人 ID",
+        riskId: risk.id,
+        mitigationOwnerUserId: risk.mitigationOwnerUserId,
+      });
+    }
   }
 
   for (const agentRun of agentRuns) {
@@ -2282,6 +2292,51 @@ export function updateRiskStatus(riskId, status, body = {}) {
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
 
+export function updateRiskMitigation(riskId, body = {}) {
+  const risk = store.risks.find((item) => item.id === riskId);
+  if (!risk) {
+    return { statusCode: 404, body: { error: "风险不存在" } };
+  }
+
+  const actorUserId = body.userId || body.actorUserId || "user-project-manager";
+  const mitigation = String(body.mitigation || "").trim();
+  const mitigationDueAt = String(body.mitigationDueAt || body.dueAt || "").trim();
+  if (mitigationDueAt && !/^\d{4}-\d{2}-\d{2}$/.test(mitigationDueAt)) {
+    return validationError("mitigationDueAt 必须是 YYYY-MM-DD 格式", { mitigationDueAt });
+  }
+
+  const mitigationOwnerUserId = String(body.mitigationOwnerUserId || body.ownerUserId || "").trim();
+  if (mitigationOwnerUserId && !findUser(mitigationOwnerUserId)) {
+    return validationError("缓解负责人用户不存在", { mitigationOwnerUserId });
+  }
+
+  risk.mitigation = mitigation;
+  risk.mitigationDueAt = mitigationDueAt || null;
+  risk.mitigationOwnerUserId = mitigationOwnerUserId || null;
+  risk.mitigationUpdatedAt = new Date().toISOString();
+  risk.mitigationUpdatedByUserId = actorUserId;
+
+  audit("RISK_MITIGATION_UPDATED", "human", actorUserId, "risk", risk.id, {
+    mitigationOwnerUserId: risk.mitigationOwnerUserId,
+    mitigationDueAt: risk.mitigationDueAt,
+    mitigation: risk.mitigation,
+  });
+
+  if (risk.mitigationOwnerUserId) {
+    notifyUser(risk.mitigationOwnerUserId, {
+      projectId: risk.projectId,
+      title: "风险缓解任务已分配",
+      message: `${risk.title} 的缓解措施已更新，截止日期 ${risk.mitigationDueAt || "未设置"}。`,
+      type: "ACTION",
+      objectType: "risk",
+      objectId: risk.id,
+    });
+  }
+
+  persistStore();
+  return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
+}
+
 function createRiskForCurrentPhase(body = {}, options = {}) {
   const project = currentProject();
   if (project.status === "COMPLETED") {
@@ -2481,6 +2536,11 @@ async function handleReview(req, res) {
 
 async function handleRiskUpdate(req, res, riskId, status) {
   const result = updateRiskStatus(riskId, status, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleRiskMitigationUpdate(req, res, riskId) {
+  const result = updateRiskMitigation(riskId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
 }
 
@@ -2748,6 +2808,11 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/reviews") {
       return await handleReview(req, res);
+    }
+
+    const riskMitigationMatch = url.pathname.match(/^\/risks\/([^/]+)\/mitigation$/);
+    if (req.method === "PATCH" && riskMitigationMatch) {
+      return await handleRiskMitigationUpdate(req, res, riskMitigationMatch[1]);
     }
 
     const riskAcceptMatch = url.pathname.match(/^\/risks\/([^/]+)\/accept$/);

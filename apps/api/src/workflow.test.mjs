@@ -541,6 +541,35 @@ test("project risk register summarizes blocking and resolved risks", () => {
   assert.equal(workflow.getProjectRiskRegister("missing-project"), null);
 });
 
+test("risk mitigation plans are tracked in register, snapshot, and notifications", () => {
+  const result = workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2026-06-15",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.risk.mitigationOwnerUserId, "user-quality-lead");
+  assert.equal(result.body.risk.mitigationDueAt, "2026-06-15");
+
+  const register = workflow.getProjectRiskRegister("project-smart-controller");
+  assert.equal(register.risks[0].mitigation, "补充热仿真并准备散热垫备选方案。");
+
+  const snapshot = workflow.getProjectSnapshot("project-smart-controller");
+  assert.equal(snapshot.risks[0].mitigationOwnerUserId, "user-quality-lead");
+
+  const notifications = workflow.getUserNotifications("user-quality-lead", { type: "ACTION" });
+  assert.equal(notifications.notifications[0].title, "风险缓解任务已分配");
+  assert.equal(notifications.notifications[0].objectType, "risk");
+
+  const invalid = workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "missing-user",
+  });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.body.error, "缓解负责人用户不存在");
+});
+
 test("project snapshot summarizes project state without changing active project", () => {
   const created = workflow.createProject({
     name: "Snapshot Device",

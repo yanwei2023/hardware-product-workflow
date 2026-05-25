@@ -748,7 +748,7 @@ function renderRisks() {
       </div>
       ${renderRiskCreateForm("register")}
       <table class="table">
-        <thead><tr><th>阶段</th><th>风险</th><th>严重度</th><th>状态</th><th>决策</th></tr></thead>
+        <thead><tr><th>阶段</th><th>风险</th><th>缓解计划</th><th>严重度</th><th>状态</th><th>决策</th></tr></thead>
         <tbody>
           ${
             risks.length
@@ -764,6 +764,7 @@ function renderRisks() {
                           ${risk.closedByUserId ? `<br><span class="muted">关闭人：${escapeHtml(risk.closedByUserId)}</span>` : ""}
                           ${risk.acceptedComment || risk.closedComment ? `<br><span class="muted">说明：${escapeHtml(risk.closedComment || risk.acceptedComment)}</span>` : ""}
                         </td>
+                        <td>${renderRiskMitigationEditor(risk)}</td>
                         <td>${escapeHtml(risk.severity)}</td>
                         <td>${statusBadge(risk.status)}</td>
                         <td>
@@ -776,11 +777,33 @@ function renderRisks() {
                     `;
                   })
                   .join("")
-              : `<tr><td colspan="5">当前项目暂无风险。</td></tr>`
+              : `<tr><td colspan="6">当前项目暂无风险。</td></tr>`
           }
         </tbody>
       </table>
     </article>
+  `;
+}
+
+function renderRiskMitigationEditor(risk) {
+  return `
+    <div class="risk-plan">
+      <select id="riskOwner-${escapeHtml(risk.id)}" aria-label="缓解负责人">
+        <option value="">未指定负责人</option>
+        ${state.users
+          .map(
+            (user) => `
+              <option value="${escapeHtml(user.userId)}" ${user.userId === risk.mitigationOwnerUserId ? "selected" : ""}>
+                ${escapeHtml(user.name)}
+              </option>
+            `,
+          )
+          .join("")}
+      </select>
+      <input id="riskDue-${escapeHtml(risk.id)}" type="date" value="${escapeHtml(risk.mitigationDueAt || "")}" aria-label="缓解截止日期" />
+      <input id="riskMitigation-${escapeHtml(risk.id)}" value="${escapeHtml(risk.mitigation || "")}" placeholder="缓解措施" aria-label="缓解措施" />
+      <button class="ghost" onclick="updateRiskMitigation('${risk.id}')" ${state.busy ? "disabled" : ""}>保存缓解计划</button>
+    </div>
   `;
 }
 
@@ -820,6 +843,11 @@ function renderGate() {
               (risk) => `
                 <tr>
                   <td>${escapeHtml(risk.title)}</td>
+                  <td>
+                    ${risk.mitigationOwnerUserId || risk.mitigationDueAt || risk.mitigation
+                      ? `<span class="muted">缓解：${escapeHtml(risk.mitigationOwnerUserId || "未指定")} · ${escapeHtml(risk.mitigationDueAt || "未设置")} · ${escapeHtml(risk.mitigation || "未填写")}</span>`
+                      : `<span class="muted">未设置缓解计划</span>`}
+                  </td>
                   <td>${escapeHtml(risk.severity)}</td>
                   <td>${statusBadge(risk.status)}</td>
                   <td>
@@ -831,7 +859,7 @@ function renderGate() {
                 </tr>
               `,
             )
-            .join("") : `<tr><td colspan="4">当前阶段暂无风险。</td></tr>`}
+            .join("") : `<tr><td colspan="5">当前阶段暂无风险。</td></tr>`}
         </tbody>
       </table>
     </article>
@@ -1139,6 +1167,25 @@ async function closeRisk(riskId) {
     await api(`/risks/${riskId}/close`, {
       method: "POST",
       body: JSON.stringify({ userId: state.actorUserId, comment }),
+    });
+    await loadProject();
+  });
+}
+
+async function updateRiskMitigation(riskId) {
+  const safeId = CSS.escape(riskId);
+  const mitigationOwnerUserId = q(`#riskOwner-${safeId}`).value;
+  const mitigationDueAt = q(`#riskDue-${safeId}`).value;
+  const mitigation = q(`#riskMitigation-${safeId}`).value.trim();
+  await withBusy(async () => {
+    await api(`/risks/${riskId}/mitigation`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        mitigationOwnerUserId,
+        mitigationDueAt,
+        mitigation,
+        actorUserId: state.actorUserId,
+      }),
     });
     await loadProject();
   });
