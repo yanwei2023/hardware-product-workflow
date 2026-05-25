@@ -81,6 +81,37 @@ function summarizeRiskMitigations(risks) {
   };
 }
 
+function summarizeProjectListItem(project) {
+  const phases = store.phases.filter((phase) => phase.projectId === project.id);
+  const phaseIds = new Set(phases.map((phase) => phase.id));
+  const currentPhase = phases.find((phase) => phase.id === project.currentPhaseId) || null;
+  const currentGate = currentPhase ? store.gates.find((gate) => gate.phaseId === currentPhase.id) || null : null;
+  const workPackages = store.workPackages.filter((workPackage) => workPackage.projectId === project.id);
+  const workPackageIds = new Set(workPackages.map((workPackage) => workPackage.id));
+  const reviews = store.reviews.filter((review) => workPackageIds.has(review.workPackageId));
+  const risks = store.risks.filter((risk) => risk.projectId === project.id && phaseIds.has(risk.phaseId));
+  const conditionalApprovalReviews = reviews.filter(
+    (review) => review.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(review.conditions) && review.conditions.length > 0,
+  );
+
+  return {
+    ...project,
+    currentPhaseName: currentPhase?.name || project.currentPhaseId,
+    currentGateName: currentGate?.name || null,
+    currentGateStatus: currentGate?.status || null,
+    workPackageCount: workPackages.length,
+    overdueWorkPackageCount: workPackages.filter((workPackage) => workPackageScheduleStatus(workPackage) === "OVERDUE").length,
+    openHighRiskCount: risks.filter(
+      (risk) =>
+        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+        risk.status !== "CLOSED" &&
+        risk.status !== "ACCEPTED",
+    ).length,
+    openConditionalApprovalCount: conditionalApprovalReviews.filter((review) => !review.conditionsCompletedAt).length,
+    ...summarizeRiskMitigations(risks),
+  };
+}
+
 export function createDemoStore() {
   const projectId = "project-smart-controller";
   const project = {
@@ -671,10 +702,7 @@ export function getActiveProjectView() {
   return {
     project,
     projects: store.projects,
-    projectSummaries: store.projects.map((item) => ({
-      ...item,
-      currentPhaseName: store.phases.find((phase) => phase.id === item.currentPhaseId)?.name || item.currentPhaseId,
-    })),
+    projectSummaries: store.projects.map(summarizeProjectListItem),
     activeProjectId: store.activeProjectId,
     phases: store.phases.filter((item) => item.projectId === project.id),
     gates: store.gates.filter((item) => item.projectId === project.id),

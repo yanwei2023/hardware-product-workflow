@@ -224,7 +224,7 @@ function renderProjects() {
       <article class="panel wide">
         <h3>项目列表</h3>
         <table class="table">
-          <thead><tr><th>项目</th><th>当前阶段</th><th>状态</th><th>操作</th></tr></thead>
+          <thead><tr><th>项目</th><th>当前阶段</th><th>阶段门</th><th>风险</th><th>待闭环</th><th>状态</th><th>操作</th></tr></thead>
           <tbody>
             ${state.project.projectSummaries
               .map((project) => {
@@ -233,6 +233,16 @@ function renderProjects() {
                   <tr>
                     <td>${escapeHtml(project.name)} ${isActive ? statusBadge("IN_PROGRESS") : ""}</td>
                     <td>${escapeHtml(project.currentPhaseName || project.currentPhaseId)}</td>
+                    <td>
+                      ${escapeHtml(project.currentGateName || "-")}
+                      ${project.currentGateStatus ? `<br>${statusBadge(project.currentGateStatus)}` : ""}
+                    </td>
+                    <td>${project.openHighRiskCount || 0}</td>
+                    <td>
+                      <span class="muted">逾期 ${project.overdueWorkPackageCount || 0}</span><br>
+                      <span class="muted">条款 ${project.openConditionalApprovalCount || 0}</span><br>
+                      <span class="muted">缓解 ${project.openMitigationCount || 0}</span>
+                    </td>
                     <td>${statusBadge(project.status)}</td>
                     <td>
                       <div class="actions">

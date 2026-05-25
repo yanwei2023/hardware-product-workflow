@@ -186,6 +186,26 @@ test("storage status exposes local persistence metadata", () => {
   assert.ok(status.sizeBytes > 0);
 });
 
+test("active project view includes project list health summaries", () => {
+  let project = workflow.getDemoProject();
+  assert.equal(project.projectSummaries.length, 1);
+  assert.equal(project.projectSummaries[0].currentGateName, "EVT Exit 阶段门");
+  assert.equal(project.projectSummaries[0].currentGateStatus, "GATE_BLOCKED");
+  assert.equal(project.projectSummaries[0].openHighRiskCount, 1);
+  assert.equal(project.projectSummaries[0].openMitigationCount, 0);
+
+  workflow.updateRiskMitigation("risk-thermal-margin", {
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2020-01-01",
+    mitigation: "补充热仿真并准备散热垫备选方案。",
+    actorUserId: "user-project-manager",
+  });
+
+  project = workflow.getDemoProject();
+  assert.equal(project.projectSummaries[0].openMitigationCount, 1);
+  assert.equal(project.projectSummaries[0].overdueMitigationCount, 1);
+});
+
 test("gate review pack summarizes required evidence and readiness", () => {
   workflow.updateRiskMitigation("risk-thermal-margin", {
     mitigationOwnerUserId: "user-quality-lead",

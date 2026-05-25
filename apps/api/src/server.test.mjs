@@ -112,6 +112,12 @@ test("project endpoint returns the current workflow snapshot", async () => {
   assert.equal(result.body.phases.length, 7);
   assert.equal(result.body.gates.length, 7);
   assert.equal(result.body.latestGateCheck.status, "BLOCKED");
+  assert.equal(result.body.projectSummaries.length, 1);
+  assert.equal(result.body.projectSummaries[0].currentGateName, "EVT Exit 阶段门");
+  assert.equal(result.body.projectSummaries[0].currentGateStatus, "GATE_BLOCKED");
+  assert.equal(result.body.projectSummaries[0].openHighRiskCount, 1);
+  assert.equal(result.body.projectSummaries[0].openMitigationCount, 0);
+  assert.equal(result.body.projectSummaries[0].openConditionalApprovalCount, 0);
 });
 
 test("project snapshot endpoints export current project state", async () => {
