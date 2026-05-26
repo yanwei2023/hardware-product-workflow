@@ -12,7 +12,7 @@
     "start:lan": "HOST=0.0.0.0 node apps/api/src/server.mjs",
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run dev",
-    "check": "npm test && npm run smoke",
+    "check": "npm test && npm run smoke && npm run db:export-rows -- /tmp/hardware-flow-postgres-rows.json",
     "test": "node --test apps/api/src/*.test.mjs",
     "smoke": "node apps/api/src/smoke.mjs",
     "demo": "node apps/api/src/demo.mjs",
