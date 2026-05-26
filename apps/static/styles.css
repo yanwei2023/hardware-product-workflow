@@ -298,6 +298,7 @@ textarea {
 .status.GATE_READY,
 .status.HUMAN_APPROVED,
 .status.APPROVED,
+.status.READY,
 .status.READ {
   background: #dcfce7;
   color: var(--green);

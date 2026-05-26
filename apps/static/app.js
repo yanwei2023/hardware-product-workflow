@@ -4,6 +4,7 @@ const state = {
   notifications: null,
   gateReviewPack: null,
   storageStatus: null,
+  storageDoctor: null,
   importValidation: null,
   importSnapshotRaw: "",
   users: [],
@@ -96,14 +97,16 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users, storageStatus] = await Promise.all([
+  const [project, users, storageStatus, storageDoctor] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
     api("/storage/status"),
+    api("/storage/doctor"),
   ]);
   state.project = project;
   state.users = users.users;
   state.storageStatus = storageStatus;
+  state.storageDoctor = storageDoctor;
   const gate = activeGate();
   const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
@@ -352,23 +355,35 @@ function renderImportValidation() {
 
 function renderStorageStatus() {
   const status = state.storageStatus;
+  const doctor = state.storageDoctor;
   if (!status) {
     return "<p class='muted'>加载中。</p>";
   }
+  const doctorErrors = doctor?.errors || [];
 
   return `
     <table class="table">
       <tbody>
+        <tr><th>健康状态</th><td>${doctor ? statusBadge(doctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
         <tr><th>数据文件</th><td>${escapeHtml(status.storePath)}</td></tr>
         <tr><th>文件状态</th><td>${status.exists ? "存在" : "不存在"}</td></tr>
         <tr><th>文件大小</th><td>${escapeHtml(status.sizeBytes)} bytes</td></tr>
         <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
+        <tr><th>备份文件</th><td>${escapeHtml(status.backupPath || doctor?.backupPath || "-")}</td></tr>
+        <tr><th>备份状态</th><td>${status.backupExists ? `存在 · ${escapeHtml(status.backupSizeBytes)} bytes` : "暂无备份"}</td></tr>
+        <tr><th>备份时间</th><td>${escapeHtml(status.backupUpdatedAt || "-")}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
         <tr><th>批准包归档</th><td>${escapeHtml(status.gateApprovalPackCount || 0)}</td></tr>
         <tr><th>站内通知</th><td>${escapeHtml(status.notificationCount)}</td></tr>
       </tbody>
     </table>
+    ${doctorErrors.length ? `
+      <section class="subpanel">
+        <h4>数据问题</h4>
+        <ul>${doctorErrors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>
+      </section>
+    ` : ""}
   `;
 }
 
