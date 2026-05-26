@@ -6,6 +6,24 @@ function json(value, fallback) {
   return value === undefined ? fallback : value;
 }
 
+export const postgresTableNames = [
+  "projects",
+  "phases",
+  "gates",
+  "role_pairs",
+  "work_packages",
+  "gate_requirements",
+  "artifact_versions",
+  "reviews",
+  "risks",
+  "agent_runs",
+  "agent_findings",
+  "work_package_evidence_refs",
+  "gate_approval_packs",
+  "notifications",
+  "audit_events",
+];
+
 export function mapStoreToPostgresRows(store) {
   return {
     projects: asArray(store.projects).map((project) => ({

@@ -2,11 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { createDemoStore } from "./server.mjs";
 import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
-import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
+import { mapStoreToPostgresRows, postgresTableNames } from "./postgresMapper.mjs";
 
 const outputPath = process.argv[2] || path.resolve("data/postgres-rows.json");
 const store = loadStoreFromDisk() || createDemoStore();
 const rows = mapStoreToPostgresRows(store);
+const missingTables = postgresTableNames.filter((table) => !Array.isArray(rows[table]));
+
+if (missingTables.length > 0) {
+  throw new Error(`PostgreSQL row export is missing tables: ${missingTables.join(", ")}`);
+}
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(rows, null, 2)}\n`);

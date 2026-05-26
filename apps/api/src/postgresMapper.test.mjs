@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
+import { mapStoreToPostgresRows, postgresTableNames } from "./postgresMapper.mjs";
 
 test("store mapper produces PostgreSQL-shaped rows for the demo store", () => {
   const store = createDemoStore();
   const rows = mapStoreToPostgresRows(store);
 
+  assert.deepEqual(Object.keys(rows), postgresTableNames);
   assert.equal(rows.projects.length, 1);
   assert.equal(rows.projects[0].product_line, null);
   assert.equal(rows.projects[0].current_phase_id, "phase-evt_exit");
