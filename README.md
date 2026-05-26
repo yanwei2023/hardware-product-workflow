@@ -88,7 +88,10 @@ docs/postgres-migration.md
 - `schemas/hardware-phase-template.json` 定义第一版硬件开发阶段模板。
 - `apps/api/src/gateEngine.ts` 检查阶段门是阻塞还是可通过。
 - `apps/api/src/artifactValidator.mjs` 检查 Agent 输出是否满足交付物模板要求。
-- `apps/api/src/server.mjs` 提供第一条端到端 API 演示链路。
+- `apps/api/src/server.mjs` 提供本地可运行 API、静态工作台、项目快照、阶段门、审核、风险、通知和导入导出链路。
+- `apps/static` 提供当前主力本地工作台。
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
-- `apps/web/src/App.tsx` 勾勒第一版项目工作台页面。
-- `schemas/database.sql` 起草第一版 PostgreSQL 表结构。
+- `apps/web/src/App.tsx` 保留第一版 React 工作台草案。
+- `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
+- `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
+- `apps/api/src/postgresMapper.mjs`、`exportPostgresRows.mjs`、`exportPostgresSeed.mjs` 提供 JSON store 到 PostgreSQL rows/seed SQL 的迁移准备工具。
