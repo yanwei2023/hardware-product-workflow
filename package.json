@@ -12,7 +12,9 @@
     "start:lan": "HOST=0.0.0.0 node apps/api/src/server.mjs",
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run dev",
+    "check": "npm test && npm run smoke",
     "test": "node --test apps/api/src/*.test.mjs",
+    "smoke": "node apps/api/src/smoke.mjs",
     "demo": "node apps/api/src/demo.mjs",
     "demo:multi-phase": "node apps/api/src/multiPhaseDemo.mjs",
     "agent:sample": "python3 agents/worker/worker.py"
