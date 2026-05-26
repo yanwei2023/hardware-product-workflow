@@ -16,6 +16,7 @@
     "test": "node --test apps/api/src/*.test.mjs",
     "smoke": "node apps/api/src/smoke.mjs",
     "store:doctor": "node apps/api/src/storeDoctor.mjs",
+    "store:restore-backup": "node apps/api/src/restoreStoreBackup.mjs",
     "demo": "node apps/api/src/demo.mjs",
     "demo:multi-phase": "node apps/api/src/multiPhaseDemo.mjs",
     "db:migration-check": "node apps/api/src/postgresMigrationCheck.mjs",

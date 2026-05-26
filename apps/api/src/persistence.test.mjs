@@ -3,7 +3,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { deleteStoreFromDisk, getBackupPath, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
+import {
+  deleteStoreFromDisk,
+  getBackupPath,
+  getPreRestorePath,
+  loadStoreFromDisk,
+  restoreStoreFromBackup,
+  saveStoreToDisk,
+} from "./persistence.mjs";
 
 function withTempStore(callback) {
   const originalStorePath = process.env.HARDWARE_FLOW_STORE_PATH;
@@ -70,5 +77,29 @@ test("deleteStoreFromDisk keeps a backup before removing the store", () => {
 
     assert.equal(fs.existsSync(storePath), false);
     assert.deepEqual(JSON.parse(fs.readFileSync(backupPath, "utf8")), store);
+  });
+});
+
+test("restoreStoreFromBackup restores backup content and preserves the current store", () => {
+  withTempStore(({ storePath, backupPath }) => {
+    const currentStore = { activeProjectId: "project-current", projects: [{ id: "project-current" }] };
+    const backupStore = { activeProjectId: "project-backup", projects: [{ id: "project-backup" }] };
+    const restoredAt = new Date("2026-05-26T08:30:00.000Z");
+
+    fs.mkdirSync(path.dirname(storePath), { recursive: true });
+    fs.writeFileSync(storePath, `${JSON.stringify(currentStore, null, 2)}\n`);
+    fs.writeFileSync(backupPath, `${JSON.stringify(backupStore, null, 2)}\n`);
+
+    const result = restoreStoreFromBackup({ storePath, restoredAt });
+
+    assert.deepEqual(loadStoreFromDisk(), backupStore);
+    assert.equal(result.preRestorePath, getPreRestorePath(storePath, restoredAt));
+    assert.deepEqual(JSON.parse(fs.readFileSync(result.preRestorePath, "utf8")), currentStore);
+  });
+});
+
+test("restoreStoreFromBackup rejects missing backups", () => {
+  withTempStore(({ storePath }) => {
+    assert.throws(() => restoreStoreFromBackup({ storePath }), /backup store file not found/);
   });
 });

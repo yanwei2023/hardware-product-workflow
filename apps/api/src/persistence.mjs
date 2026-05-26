@@ -13,6 +13,11 @@ export function getBackupPath(storePath = getStorePath()) {
   return `${storePath}.bak`;
 }
 
+export function getPreRestorePath(storePath = getStorePath(), restoredAt = new Date()) {
+  const timestamp = restoredAt.toISOString().replace(/[:.]/g, "-");
+  return `${storePath}.pre-restore-${timestamp}.bak`;
+}
+
 export function loadStoreFromDisk() {
   const storePath = getStorePath();
   if (!fs.existsSync(storePath)) {
@@ -57,4 +62,29 @@ export function deleteStoreFromDisk() {
     backupExistingStore(storePath);
     fs.unlinkSync(storePath);
   }
+}
+
+export function restoreStoreFromBackup({ storePath = getStorePath(), restoredAt = new Date() } = {}) {
+  const backupPath = getBackupPath(storePath);
+  if (!fs.existsSync(backupPath)) {
+    throw new Error(`backup store file not found: ${backupPath}`);
+  }
+
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
+  const backupContent = fs.readFileSync(backupPath, "utf8");
+  const tempPath = `${storePath}.${process.pid}.restore.tmp`;
+  const preRestorePath = fs.existsSync(storePath) ? getPreRestorePath(storePath, restoredAt) : null;
+
+  if (preRestorePath) {
+    fs.copyFileSync(storePath, preRestorePath);
+  }
+
+  fs.writeFileSync(tempPath, backupContent);
+  fs.renameSync(tempPath, storePath);
+
+  return {
+    storePath,
+    backupPath,
+    preRestorePath,
+  };
 }

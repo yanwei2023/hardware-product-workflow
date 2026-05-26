@@ -77,6 +77,15 @@ data/demo-store.json
 
 点击页面左侧“重置演示数据”会删除并重建演示项目数据。
 
+如果主文件损坏，可以先检查，再从备份恢复：
+
+```text
+npm run store:doctor
+npm run store:restore-backup
+```
+
+恢复时会先把当前主文件另存为 `*.pre-restore-时间.bak`，再把 `.bak` 复制回主文件。
+
 如果需要指定其他数据文件：
 
 ```text

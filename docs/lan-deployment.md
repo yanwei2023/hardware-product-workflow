@@ -96,6 +96,8 @@ data/demo-store.json
 
 后台写入本地 JSON 时会先保留同目录 `.bak` 备份，再原子替换主文件；点击“重置演示数据”前也会留下最近一次旧数据备份。
 
+如果主文件损坏，先运行 `npm run store:doctor` 确认状态，再运行 `npm run store:restore-backup` 从 `.bak` 恢复。恢复动作会额外保留当前主文件的 `*.pre-restore-时间.bak` 副本，便于排查损坏原因。
+
 正式内部部署时，应把该 JSON 持久化替换为 PostgreSQL，并把文件上传、Agent 执行记录、通知回调等数据统一写入数据库。
 
 ## GitHub 多机开发
