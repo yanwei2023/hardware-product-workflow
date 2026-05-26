@@ -30,8 +30,17 @@
 - 导入脚本必须先复用现有快照校验规则，避免破坏引用完整性。
 - 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
 - 当前已提供 `npm run db:export-seed`，可生成面向 PostgreSQL schema 的幂等 SQL 种子文件。该文件使用延迟外键事务和主键 upsert，适合验证 schema 与 JSON store 的字段映射。
-- 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验 `schemas/database.sql` 的表/列是否被 rows 映射覆盖。
+- 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
+  - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
+  - `not null` 和主键列是否会被导出为非空值；
+  - rows 内部常见外键引用是否能找到目标记录。
 - 当前已提供 `npm run db:migration-check`，可校验第一版迁移文件没有和 `schemas/database.sql` 漂移。
+
+## 当前导出约束
+
+- JSON 中没有显式 `workPackageId` 的阶段门条件，会按同项目、同阶段、同交付物类型解析到目标工作包，再写入 `gate_requirements.work_package_id`。
+- 旧 JSON 缺少 `createdAt/updatedAt` 时，PostgreSQL rows 会使用 `1970-01-01T00:00:00.000Z` 作为迁移占位时间，便于识别历史补齐字段。
+- 旧角色配对缺少 Agent 权限级别时，PostgreSQL rows 会使用 `L1_DRAFT`，与当前 Agent 只能生成草稿的产品约束一致。
 
 ## 第四阶段：运行约束
 
