@@ -25,6 +25,7 @@
     "db:export-report": "node apps/api/src/exportPostgresReport.mjs",
     "db:prepare-import": "node apps/api/src/preparePostgresImport.mjs",
     "db:verify-import-bundle": "node apps/api/src/verifyPostgresImportBundle.mjs",
+    "db:preflight": "node apps/api/src/postgresPreflightCli.mjs",
     "db:schema-check": "node apps/api/src/postgresSchemaCheck.mjs",
     "agent:sample": "python3 agents/worker/worker.py"
   }

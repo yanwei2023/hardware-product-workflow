@@ -33,6 +33,7 @@
 - 当前已提供 `npm run db:export-report`，可只输出 PostgreSQL 导出诊断报告，不写 rows 或 SQL 文件；适合在导入前快速确认 `valid: true`、表行数和错误列表。
 - 当前已提供 `npm run db:prepare-import -- /tmp/hardware-flow-postgres-import`，可一次性生成 rows JSON、seed SQL、report JSON 和 manifest。manifest 中包含基于 `DATABASE_URL` 的 `psql` 建表与导入命令。
 - 当前已提供 `npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import`，可在不连接数据库的情况下检查导入包文件完整性、report 是否有效、seed SQL 是否包含事务和幂等 upsert。
+- 当前已提供 `npm run db:preflight -- /tmp/hardware-flow-postgres-import`，可检查 `DATABASE_URL`、本机 `psql` 客户端和导入包完整性。默认只输出 `ready/blockers`，不会因为未配置数据库而失败；需要在部署脚本中强制失败时追加 `--strict`。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
   - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
   - `not null` 和主键列是否会被导出为非空值；
@@ -50,7 +51,9 @@
 ```text
 npm run db:prepare-import -- /tmp/hardware-flow-postgres-import
 npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import
+npm run db:preflight -- /tmp/hardware-flow-postgres-import
 export DATABASE_URL=postgres://user:password@localhost:5432/hardware_flow
+npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict
 psql "$DATABASE_URL" -f schemas/database.sql
 psql "$DATABASE_URL" -f /tmp/hardware-flow-postgres-import/postgres-seed.sql
 ```
