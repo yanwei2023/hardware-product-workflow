@@ -4,6 +4,10 @@ import { mapStoreToPostgresRows, postgresTableNames } from "./postgresMapper.mjs
 
 const schemaPath = path.resolve("schemas/database.sql");
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function splitColumnDefinitions(block) {
   const definitions = [];
   let current = "";
@@ -107,11 +111,56 @@ export function validatePostgresRequiredValues(schemaColumns, rows) {
   return errors;
 }
 
+const rowReferenceRules = [
+  ["phases", "project_id", "projects"],
+  ["gates", "project_id", "projects"],
+  ["gates", "phase_id", "phases"],
+  ["role_pairs", "project_id", "projects"],
+  ["work_packages", "project_id", "projects"],
+  ["work_packages", "phase_id", "phases"],
+  ["work_packages", "role_pair_id", "role_pairs"],
+  ["gate_requirements", "gate_id", "gates"],
+  ["gate_requirements", "work_package_id", "work_packages"],
+  ["artifact_versions", "work_package_id", "work_packages"],
+  ["reviews", "work_package_id", "work_packages"],
+  ["risks", "project_id", "projects"],
+  ["risks", "phase_id", "phases"],
+  ["risks", "owner_role_pair_id", "role_pairs"],
+  ["agent_runs", "work_package_id", "work_packages"],
+  ["agent_findings", "work_package_id", "work_packages"],
+  ["agent_findings", "agent_run_id", "agent_runs"],
+  ["work_package_evidence_refs", "project_id", "projects"],
+  ["work_package_evidence_refs", "work_package_id", "work_packages"],
+  ["gate_approval_packs", "project_id", "projects"],
+  ["gate_approval_packs", "gate_id", "gates"],
+  ["gate_approval_packs", "phase_id", "phases"],
+  ["notifications", "project_id", "projects"],
+  ["audit_events", "project_id", "projects"],
+];
+
+export function validatePostgresRowReferences(rows) {
+  const errors = [];
+  const idsByTable = Object.fromEntries(Object.entries(rows).map(([table, tableRows]) => [table, new Set(asArray(tableRows).map((row) => row.id))]));
+
+  for (const [table, column, targetTable] of rowReferenceRules) {
+    const targetIds = idsByTable[targetTable] || new Set();
+    for (const [index, row] of asArray(rows[table]).entries()) {
+      const value = row[column];
+      if (value !== null && value !== undefined && !targetIds.has(value)) {
+        errors.push(`${table}[${index}].${column} references missing ${targetTable}.id ${value}`);
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function checkPostgresRowCoverage(sql, store) {
   const rows = mapStoreToPostgresRows(store);
   return [
     ...validatePostgresRowCoverage(parsePostgresSchemaTables(sql), rows),
     ...validatePostgresRequiredValues(parsePostgresSchemaColumns(sql), rows),
+    ...validatePostgresRowReferences(rows),
   ];
 }
 

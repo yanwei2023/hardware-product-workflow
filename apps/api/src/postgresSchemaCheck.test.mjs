@@ -5,8 +5,11 @@ import {
   parsePostgresSchemaColumns,
   parsePostgresSchemaTables,
   validatePostgresRowCoverage,
+  validatePostgresRowReferences,
   validatePostgresRequiredValues,
 } from "./postgresSchemaCheck.mjs";
+import { createDemoStore } from "./server.mjs";
+import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
 import { postgresTableNames } from "./postgresMapper.mjs";
 
 test("schema parser reads PostgreSQL tables and columns", () => {
@@ -105,6 +108,22 @@ test("schema required value check reports null required values", () => {
   );
 
   assert.deepEqual(errors, ["gate_requirements[0].work_package_id is required by schema"]);
+});
+
+test("row reference check accepts the current PostgreSQL mapper output", () => {
+  const rows = mapStoreToPostgresRows(createDemoStore());
+
+  assert.deepEqual(validatePostgresRowReferences(rows), []);
+});
+
+test("row reference check reports missing foreign-key targets", () => {
+  const errors = validatePostgresRowReferences({
+    projects: [{ id: "project-1" }],
+    phases: [],
+    gates: [{ id: "gate-1", project_id: "project-1", phase_id: "missing-phase" }],
+  });
+
+  assert.deepEqual(errors, ["gates[0].phase_id references missing phases.id missing-phase"]);
 });
 
 test("current database schema is covered by PostgreSQL row mapper", async () => {
