@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
+import { getBackupPath } from "./persistence.mjs";
 import { validateStoreFile, validateStoreObject } from "./storeDoctor.mjs";
 
 test("store doctor accepts the demo store shape", () => {
@@ -35,4 +36,8 @@ test("store doctor validates JSON files", () => {
     errors: [],
     store: null,
   });
+});
+
+test("store backup path uses the store file location", () => {
+  assert.equal(getBackupPath("/tmp/hardware-flow/store.json"), "/tmp/hardware-flow/store.json.bak");
 });

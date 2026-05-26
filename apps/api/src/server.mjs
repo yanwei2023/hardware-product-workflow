@@ -9,7 +9,7 @@ import {
   loadArtifactTemplateByType,
 } from "./artifactTemplateStore.mjs";
 import { validateArtifactMarkdown } from "./artifactValidator.mjs";
-import { deleteStoreFromDisk, getStorePath, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
+import { deleteStoreFromDisk, getBackupPath, getStorePath, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
 import {
   canAcceptRisk,
   canCloseRisk,
@@ -186,13 +186,20 @@ function ensureStoreShape() {
 
 export function getStorageStatus() {
   const storePath = getStorePath();
+  const backupPath = getBackupPath(storePath);
   const exists = fs.existsSync(storePath);
+  const backupExists = fs.existsSync(backupPath);
   const stat = exists ? fs.statSync(storePath) : null;
+  const backupStat = backupExists ? fs.statSync(backupPath) : null;
   return {
     storePath,
+    backupPath,
     exists,
+    backupExists,
     sizeBytes: stat?.size || 0,
+    backupSizeBytes: backupStat?.size || 0,
     updatedAt: stat?.mtime?.toISOString() || null,
+    backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
     activeProjectId: store.activeProjectId,
     projectCount: store.projects.length,
     auditEventCount: store.auditEvents.length,

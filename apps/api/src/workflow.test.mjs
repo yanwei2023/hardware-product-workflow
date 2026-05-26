@@ -184,6 +184,8 @@ test("storage status exposes local persistence metadata", () => {
   assert.equal(status.activeProjectId, "project-smart-controller");
   assert.equal(status.projectCount, 1);
   assert.ok(status.sizeBytes > 0);
+  assert.ok(status.backupPath.endsWith("store.json.bak"));
+  assert.equal(typeof status.backupExists, "boolean");
 });
 
 test("active project view includes project list health summaries", () => {

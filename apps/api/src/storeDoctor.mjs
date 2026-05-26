@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { getStorePath } from "./persistence.mjs";
+import { getBackupPath, getStorePath } from "./persistence.mjs";
 
 const requiredArrays = [
   "projects",
@@ -56,9 +56,12 @@ export function validateStoreFile(filePath) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const filePath = process.argv[2] || getStorePath();
+  const backupPath = getBackupPath(filePath);
   const result = validateStoreFile(filePath);
   const summary = {
     filePath,
+    backupPath,
+    backupExists: fs.existsSync(backupPath),
     exists: result.exists,
     valid: result.valid,
     errors: result.errors,

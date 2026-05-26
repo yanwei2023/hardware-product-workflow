@@ -102,6 +102,8 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.equal(result.body.gateApprovalPackCount, 0);
   assert.equal(result.body.notificationCount, 0);
   assert.ok(result.body.storePath.endsWith("store.json"));
+  assert.ok(result.body.backupPath.endsWith("store.json.bak"));
+  assert.equal(typeof result.body.backupExists, "boolean");
 });
 
 test("project endpoint returns the current workflow snapshot", async () => {
