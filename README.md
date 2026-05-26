@@ -78,6 +78,7 @@ http://localhost:3001
 ```text
 docs/quick-use.md
 docs/lan-deployment.md
+docs/postgres-migration.md
 ```
 
 ## 当前骨架
