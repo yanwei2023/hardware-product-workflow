@@ -9,7 +9,7 @@ import {
   loadArtifactTemplateByType,
 } from "./artifactTemplateStore.mjs";
 import { validateArtifactMarkdown } from "./artifactValidator.mjs";
-import { deleteStoreFromDisk, getBackupPath, getStorePath, loadStoreFromDisk, saveStoreToDisk } from "./persistence.mjs";
+import { deleteStoreFromDisk, getBackupPath, getStorePath, loadStoreFromDisk, restoreStoreFromBackup, saveStoreToDisk } from "./persistence.mjs";
 import {
   canAcceptRisk,
   canCloseRisk,
@@ -220,6 +220,48 @@ export function getStorageDoctorStatus() {
     exists: result.exists,
     valid: result.valid,
     errors: result.errors,
+  };
+}
+
+export function restoreStorageBackup(body = {}) {
+  if (body.confirm !== true) {
+    return validationError("恢复备份需要 confirm: true");
+  }
+
+  const storePath = getStorePath();
+  const backupPath = getBackupPath(storePath);
+  const backupValidation = validateStoreFile(backupPath);
+
+  if (!backupValidation.exists) {
+    return {
+      statusCode: 404,
+      body: { error: "备份文件不存在", backupPath },
+    };
+  }
+
+  if (!backupValidation.valid) {
+    return {
+      statusCode: 422,
+      body: {
+        error: "备份文件无效，不能恢复",
+        backupPath,
+        errors: backupValidation.errors,
+      },
+    };
+  }
+
+  const restoreResult = restoreStoreFromBackup({ storePath });
+  store = loadStoreFromDisk() || createDemoStore();
+  ensureStoreShape();
+
+  return {
+    statusCode: 200,
+    body: {
+      restored: true,
+      ...restoreResult,
+      storageStatus: getStorageStatus(),
+      doctor: getStorageDoctorStatus(),
+    },
   };
 }
 
@@ -2856,6 +2898,11 @@ async function handleCreateProject(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleStorageRestoreBackup(req, res) {
+  const result = restoreStorageBackup(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleValidateProjectImport(req, res) {
   const result = validateProjectSnapshotImport(await readJson(req));
   return writeJson(res, result.valid ? 200 : 422, result);
@@ -2965,6 +3012,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/storage/doctor") {
       return writeJson(res, 200, getStorageDoctorStatus());
+    }
+
+    if (req.method === "POST" && url.pathname === "/storage/restore-backup") {
+      return await handleStorageRestoreBackup(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {

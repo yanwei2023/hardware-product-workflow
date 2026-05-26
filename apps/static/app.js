@@ -378,6 +378,9 @@ function renderStorageStatus() {
         <tr><th>站内通知</th><td>${escapeHtml(status.notificationCount)}</td></tr>
       </tbody>
     </table>
+    <div class="actions">
+      <button class="secondary" onclick="restoreStorageBackup()" ${state.busy || !status.backupExists ? "disabled" : ""}>从备份恢复</button>
+    </div>
     ${doctorErrors.length ? `
       <section class="subpanel">
         <h4>数据问题</h4>
@@ -385,6 +388,22 @@ function renderStorageStatus() {
       </section>
     ` : ""}
   `;
+}
+
+async function restoreStorageBackup() {
+  if (!confirm("将用 .bak 备份覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) {
+    return;
+  }
+
+  await withBusy(async () => {
+    await api("/storage/restore-backup", {
+      method: "POST",
+      body: JSON.stringify({ confirm: true }),
+    });
+    state.selectedWorkPackageId = null;
+    await loadProject();
+    setMessage("已从备份恢复本地数据。");
+  });
 }
 
 function renderOverview() {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -115,6 +115,38 @@ test("storage doctor endpoint reports JSON store validity", async () => {
   assert.deepEqual(result.body.errors, []);
   assert.ok(result.body.storePath.endsWith("store.json"));
   assert.ok(result.body.backupPath.endsWith("store.json.bak"));
+});
+
+test("storage backup restore endpoint requires explicit confirmation", async () => {
+  const result = await dispatch("/storage/restore-backup", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "恢复备份需要 confirm: true");
+});
+
+test("storage backup restore endpoint reloads the restored store", async () => {
+  const backupStore = workflow.createDemoStore();
+  backupStore.projects[0] = {
+    ...backupStore.projects[0],
+    name: "恢复后的演示项目",
+  };
+  writeFileSync(`${process.env.HARDWARE_FLOW_STORE_PATH}.bak`, `${JSON.stringify(backupStore, null, 2)}\n`);
+
+  const result = await dispatch("/storage/restore-backup", {
+    method: "POST",
+    body: JSON.stringify({ confirm: true }),
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.restored, true);
+  assert.equal(result.body.doctor.valid, true);
+  assert.ok(result.body.preRestorePath.endsWith(".bak"));
+
+  const project = await dispatch("/projects/demo");
+  assert.equal(project.body.project.name, "恢复后的演示项目");
 });
 
 test("project endpoint returns the current workflow snapshot", async () => {
