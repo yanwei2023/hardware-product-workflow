@@ -70,6 +70,22 @@ try {
   assert.equal(riskRegister.status, 200);
   assert.equal(riskRegister.body.summary.totalRiskCount, 1);
 
+  const storageStatus = await request("/storage/status");
+  assert.equal(storageStatus.status, 200);
+  assert.equal(storageStatus.body.exists, true);
+  assert.equal(storageStatus.body.backupPath.endsWith(".bak"), true);
+
+  const storageDoctor = await request("/storage/doctor");
+  assert.equal(storageDoctor.status, 200);
+  assert.equal(storageDoctor.body.valid, true);
+  assert.deepEqual(storageDoctor.body.errors, []);
+
+  const restoreWithoutConfirm = await request("/storage/restore-backup", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  assert.equal(restoreWithoutConfirm.status, 400);
+
   const rows = mapStoreToPostgresRows(createDemoStore());
   assert.equal(rows.gate_requirements.length, 22);
   assert.match(renderPostgresSeedSql(rows), /INSERT INTO gate_requirements/);
