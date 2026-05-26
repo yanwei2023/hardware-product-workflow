@@ -57,6 +57,13 @@ create table work_packages (
   due_at timestamptz
 );
 
+create table gate_requirements (
+  id text primary key,
+  gate_id text not null references gates(id),
+  work_package_id text not null references work_packages(id),
+  required_artifact_type text not null
+);
+
 create table artifact_versions (
   id text primary key,
   work_package_id text not null references work_packages(id),
@@ -192,6 +199,7 @@ create index artifact_versions_work_package_status_idx on artifact_versions(work
 create index gate_approval_packs_gate_approved_idx on gate_approval_packs(gate_id, approved_at desc);
 create index notifications_user_project_status_idx on notifications(user_id, project_id, status);
 create index reviews_work_package_reviewed_idx on reviews(work_package_id, reviewed_at);
+create index gate_requirements_gate_idx on gate_requirements(gate_id);
 create index work_package_evidence_refs_work_package_idx on work_package_evidence_refs(work_package_id);
 create index work_packages_phase_status_idx on work_packages(phase_id, status);
 create index risks_phase_status_idx on risks(phase_id, status, severity);

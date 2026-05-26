@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createDemoStore } from "./server.mjs";
+import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
+
+test("store mapper produces PostgreSQL-shaped rows for the demo store", () => {
+  const store = createDemoStore();
+  const rows = mapStoreToPostgresRows(store);
+
+  assert.equal(rows.projects.length, 1);
+  assert.equal(rows.projects[0].product_line, null);
+  assert.equal(rows.projects[0].current_phase_id, "phase-evt_exit");
+  assert.equal(rows.phases.length, 7);
+  assert.equal(rows.gates.length, 7);
+  assert.equal(rows.role_pairs.length, 10);
+  assert.equal(rows.work_packages.length, 22);
+  assert.equal(rows.gate_requirements.length, store.gateRequirements.length);
+  assert.equal(rows.artifact_versions.length, 1);
+  assert.equal(rows.risks.length, 1);
+  assert.equal(rows.audit_events.length, 0);
+});
+
+test("store mapper carries workflow closure fields", () => {
+  const store = createDemoStore();
+  store.reviews.push({
+    id: "review-1",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "补齐低温测试。",
+    conditions: ["补充低温启动测试"],
+    conditionsCompletedAt: "2026-05-26T01:00:00.000Z",
+    conditionsCompletedByUserId: "user-test-lead",
+    conditionsCompletionComment: "已补齐。",
+    reviewedAt: "2026-05-26T00:00:00.000Z",
+  });
+  store.risks[0] = {
+    ...store.risks[0],
+    mitigation: "补充热仿真。",
+    mitigationOwnerUserId: "user-quality-lead",
+    mitigationDueAt: "2026-06-15",
+    mitigationStatus: "DONE",
+    mitigationCompletedAt: "2026-05-26T02:00:00.000Z",
+    mitigationCompletedByUserId: "user-quality-lead",
+    mitigationCompletionComment: "热仿真通过。",
+  };
+  store.evidenceRefs.push({
+    id: "evidence-1",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    label: "低温测试记录",
+    ref: "file://low-temp-test.pdf",
+    createdByUserId: "user-test-lead",
+    createdAt: "2026-05-26T03:00:00.000Z",
+  });
+  store.notifications.push({
+    id: "notification-1",
+    projectId: "project-smart-controller",
+    userId: "user-project-manager",
+    title: "风险缓解已完成",
+    message: "热仿真通过。",
+    type: "INFO",
+    status: "READ",
+    objectType: "risk",
+    objectId: "risk-thermal-margin",
+    createdAt: "2026-05-26T04:00:00.000Z",
+    readAt: "2026-05-26T04:05:00.000Z",
+  });
+
+  const rows = mapStoreToPostgresRows(store);
+
+  assert.equal(rows.reviews[0].conditions_completed_by_user_id, "user-test-lead");
+  assert.equal(rows.reviews[0].conditions_completion_comment, "已补齐。");
+  assert.equal(rows.risks[0].mitigation_owner_user_id, "user-quality-lead");
+  assert.equal(rows.risks[0].mitigation_status, "DONE");
+  assert.equal(rows.work_package_evidence_refs[0].label, "低温测试记录");
+  assert.equal(rows.notifications[0].read_at, "2026-05-26T04:05:00.000Z");
+});

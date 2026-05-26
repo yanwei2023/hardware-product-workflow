@@ -27,6 +27,7 @@
 - 保留 `/projects/:id/snapshot` 作为数据备份出口。
 - 新增一次性导入脚本，把现有 JSON store 写入 PostgreSQL。
 - 导入脚本必须先复用现有快照校验规则，避免破坏引用完整性。
+- 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
 
 ## 第四阶段：运行约束
 

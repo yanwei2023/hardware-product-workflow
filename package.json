@@ -17,6 +17,7 @@
     "smoke": "node apps/api/src/smoke.mjs",
     "demo": "node apps/api/src/demo.mjs",
     "demo:multi-phase": "node apps/api/src/multiPhaseDemo.mjs",
+    "db:export-rows": "node apps/api/src/exportPostgresRows.mjs",
     "agent:sample": "python3 agents/worker/worker.py"
   }
 }
