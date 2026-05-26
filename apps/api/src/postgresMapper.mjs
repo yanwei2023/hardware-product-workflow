@@ -56,6 +56,14 @@ function sqlLiteral(column, value) {
   return `'${escapeSqlString(value)}'`;
 }
 
+function renderUpsertClause(columns) {
+  const mutableColumns = columns.filter((column) => column !== "id");
+  if (mutableColumns.length === 0) {
+    return "ON CONFLICT (id) DO NOTHING";
+  }
+  return `ON CONFLICT (id) DO UPDATE SET ${mutableColumns.map((column) => `${column} = EXCLUDED.${column}`).join(", ")}`;
+}
+
 export function renderPostgresSeedSql(rows) {
   const lines = [
     "-- Generated from hardware-product-workflow JSON store.",
@@ -78,7 +86,7 @@ export function renderPostgresSeedSql(rows) {
     lines.push(
       tableRows
         .map((row) => `  (${columns.map((column) => sqlLiteral(column, row[column])).join(", ")})`)
-        .join(",\n") + ";",
+        .join(",\n") + `\n${renderUpsertClause(columns)};`,
     );
     lines.push("");
   }

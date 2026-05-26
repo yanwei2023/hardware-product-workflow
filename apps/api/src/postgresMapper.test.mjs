@@ -85,6 +85,7 @@ test("PostgreSQL seed SQL wraps rows in a deferred transaction", () => {
   assert.match(sql, /^-- Generated from hardware-product-workflow JSON store\./);
   assert.match(sql, /BEGIN;\nSET CONSTRAINTS ALL DEFERRED;/);
   assert.match(sql, /INSERT INTO projects /);
+  assert.match(sql, /ON CONFLICT \(id\) DO UPDATE SET name = EXCLUDED.name/);
   assert.match(sql, /INSERT INTO gate_requirements /);
   assert.match(sql, /'阶段门阻塞'|GATE_BLOCKED/);
   assert.match(sql, /'\{"title":"EVT 测试计划草稿"/);

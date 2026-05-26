@@ -29,7 +29,7 @@
 - 新增一次性导入脚本，把现有 JSON store 写入 PostgreSQL。
 - 导入脚本必须先复用现有快照校验规则，避免破坏引用完整性。
 - 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
-- 当前已提供 `npm run db:export-seed`，可生成面向空 PostgreSQL schema 的 SQL 种子文件。该文件使用延迟外键事务，适合验证 schema 与 JSON store 的字段映射。
+- 当前已提供 `npm run db:export-seed`，可生成面向 PostgreSQL schema 的幂等 SQL 种子文件。该文件使用延迟外键事务和主键 upsert，适合验证 schema 与 JSON store 的字段映射。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验 `schemas/database.sql` 的表/列是否被 rows 映射覆盖。
 - 当前已提供 `npm run db:migration-check`，可校验第一版迁移文件没有和 `schemas/database.sql` 漂移。
 
