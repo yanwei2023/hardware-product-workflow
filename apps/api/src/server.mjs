@@ -19,6 +19,7 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
+import { validateStoreFile } from "./storeDoctor.mjs";
 
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || "127.0.0.1";
@@ -205,6 +206,20 @@ export function getStorageStatus() {
     auditEventCount: store.auditEvents.length,
     gateApprovalPackCount: store.gateApprovalPacks?.length || 0,
     notificationCount: store.notifications?.length || 0,
+  };
+}
+
+export function getStorageDoctorStatus() {
+  const storePath = getStorePath();
+  const backupPath = getBackupPath(storePath);
+  const result = validateStoreFile(storePath);
+  return {
+    storePath,
+    backupPath,
+    backupExists: fs.existsSync(backupPath),
+    exists: result.exists,
+    valid: result.valid,
+    errors: result.errors,
   };
 }
 
@@ -2946,6 +2961,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/storage/status") {
       return writeJson(res, 200, getStorageStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/storage/doctor") {
+      return writeJson(res, 200, getStorageDoctorStatus());
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {

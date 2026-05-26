@@ -106,6 +106,17 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.equal(typeof result.body.backupExists, "boolean");
 });
 
+test("storage doctor endpoint reports JSON store validity", async () => {
+  const result = await dispatch("/storage/doctor");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.exists, true);
+  assert.equal(result.body.valid, true);
+  assert.deepEqual(result.body.errors, []);
+  assert.ok(result.body.storePath.endsWith("store.json"));
+  assert.ok(result.body.backupPath.endsWith("store.json.bak"));
+});
+
 test("project endpoint returns the current workflow snapshot", async () => {
   const result = await dispatch("/projects/demo");
 
