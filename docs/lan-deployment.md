@@ -42,6 +42,24 @@ http://本机内网IP:3001
 http://192.168.1.20:3001
 ```
 
+## Docker 启动
+
+如果希望用容器方式运行试用版：
+
+```text
+docker build -t hardware-flow .
+docker run --rm -p 3001:3001 -v hardware-flow-data:/app/data hardware-flow
+```
+
+也可以连同 PostgreSQL、Redis、MinIO 基础设施一起启动：
+
+```text
+cd infra
+docker compose up --build
+```
+
+当前应用容器仍使用 JSON 文件持久化，数据保存在 `app-data` volume 中。PostgreSQL 服务会按 `schemas/database.sql` 初始化，供后续迁移持久化层使用。
+
 ## 端口调整
 
 如果 `3001` 被占用：
@@ -104,5 +122,4 @@ git push
 - 还没有接入 PostgreSQL；
 - 还没有接入真实大模型 Agent；
 - 还没有接入飞书、企业微信通知；
-- 还没有生产级进程守护和反向代理。
-
+- 还没有生产级反向代理、TLS 和备份策略。

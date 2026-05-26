@@ -1,4 +1,17 @@
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+      HARDWARE_FLOW_STORE_PATH: /app/data/demo-store.json
+    ports:
+      - "3001:3001"
+    volumes:
+      - app-data:/app/data
+
   postgres:
     image: postgres:16
     environment:
@@ -29,6 +42,6 @@ services:
       - minio-data:/data
 
 volumes:
+  app-data:
   postgres-data:
   minio-data:
-
