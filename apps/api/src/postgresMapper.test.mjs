@@ -11,14 +11,28 @@ test("store mapper produces PostgreSQL-shaped rows for the demo store", () => {
   assert.equal(rows.projects.length, 1);
   assert.equal(rows.projects[0].product_line, null);
   assert.equal(rows.projects[0].current_phase_id, "phase-evt_exit");
+  assert.equal(rows.projects[0].created_at, "1970-01-01T00:00:00.000Z");
+  assert.equal(rows.projects[0].updated_at, "1970-01-01T00:00:00.000Z");
   assert.equal(rows.phases.length, 7);
   assert.equal(rows.gates.length, 7);
   assert.equal(rows.role_pairs.length, 10);
+  assert.equal(rows.role_pairs.every((pair) => pair.agent_permission_level === "L1_DRAFT"), true);
   assert.equal(rows.work_packages.length, 22);
   assert.equal(rows.gate_requirements.length, store.gateRequirements.length);
+  assert.equal(rows.gate_requirements.some((requirement) => !requirement.work_package_id), false);
   assert.equal(rows.artifact_versions.length, 1);
+  assert.equal(rows.artifact_versions[0].created_at, "1970-01-01T00:00:00.000Z");
   assert.equal(rows.risks.length, 1);
+  assert.equal(rows.risks[0].created_at, "1970-01-01T00:00:00.000Z");
   assert.equal(rows.audit_events.length, 0);
+});
+
+test("store mapper resolves gate requirements to matching work packages", () => {
+  const store = createDemoStore();
+  const rows = mapStoreToPostgresRows(store);
+  const evtTestPlanRequirement = rows.gate_requirements.find((requirement) => requirement.id === "req-evt_exit-evt_test_plan");
+
+  assert.equal(evtTestPlanRequirement.work_package_id, "wp-evt_exit-evt_test_plan");
 });
 
 test("store mapper carries workflow closure fields", () => {

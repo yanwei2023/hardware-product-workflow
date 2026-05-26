@@ -6,6 +6,10 @@ function json(value, fallback) {
   return value === undefined ? fallback : value;
 }
 
+function timestamp(value) {
+  return value || new Date(0).toISOString();
+}
+
 export const postgresTableNames = [
   "projects",
   "phases",
@@ -64,6 +68,21 @@ function renderUpsertClause(columns) {
   return `ON CONFLICT (id) DO UPDATE SET ${mutableColumns.map((column) => `${column} = EXCLUDED.${column}`).join(", ")}`;
 }
 
+function resolveRequirementWorkPackageId(requirement, gatesById, workPackages) {
+  if (requirement.workPackageId) {
+    return requirement.workPackageId;
+  }
+
+  const gate = gatesById.get(requirement.gateId);
+  const match = workPackages.find(
+    (workPackage) =>
+      workPackage.projectId === gate?.projectId &&
+      workPackage.phaseId === gate?.phaseId &&
+      workPackage.requiredArtifactType === requirement.requiredArtifactType,
+  );
+  return match?.id || null;
+}
+
 export function renderPostgresSeedSql(rows) {
   const lines = [
     "-- Generated from hardware-product-workflow JSON store.",
@@ -96,6 +115,10 @@ export function renderPostgresSeedSql(rows) {
 }
 
 export function mapStoreToPostgresRows(store) {
+  const gates = asArray(store.gates);
+  const workPackages = asArray(store.workPackages);
+  const gatesById = new Map(gates.map((gate) => [gate.id, gate]));
+
   return {
     projects: asArray(store.projects).map((project) => ({
       id: project.id,
@@ -108,8 +131,8 @@ export function mapStoreToPostgresRows(store) {
       archived_by_user_id: project.archivedByUserId || null,
       cloned_from_project_id: project.clonedFromProjectId || null,
       source_exported_at: project.sourceExportedAt || null,
-      created_at: project.createdAt || null,
-      updated_at: project.updatedAt || null,
+      created_at: timestamp(project.createdAt),
+      updated_at: timestamp(project.updatedAt || project.createdAt),
     })),
     phases: asArray(store.phases).map((phase) => ({
       id: phase.id,
@@ -121,7 +144,7 @@ export function mapStoreToPostgresRows(store) {
       starts_at: phase.startsAt || null,
       due_at: phase.dueAt || null,
     })),
-    gates: asArray(store.gates).map((gate) => ({
+    gates: gates.map((gate) => ({
       id: gate.id,
       project_id: gate.projectId,
       phase_id: gate.phaseId,
@@ -137,9 +160,9 @@ export function mapStoreToPostgresRows(store) {
       role_key: pair.roleKey,
       human_user_id: pair.humanUserId,
       agent_key: pair.agentKey,
-      agent_permission_level: pair.agentPermissionLevel,
+      agent_permission_level: pair.agentPermissionLevel || "L1_DRAFT",
     })),
-    work_packages: asArray(store.workPackages).map((workPackage) => ({
+    work_packages: workPackages.map((workPackage) => ({
       id: workPackage.id,
       project_id: workPackage.projectId,
       phase_id: workPackage.phaseId,
@@ -154,7 +177,7 @@ export function mapStoreToPostgresRows(store) {
     gate_requirements: asArray(store.gateRequirements).map((requirement) => ({
       id: requirement.id,
       gate_id: requirement.gateId,
-      work_package_id: requirement.workPackageId,
+      work_package_id: resolveRequirementWorkPackageId(requirement, gatesById, workPackages),
       required_artifact_type: requirement.requiredArtifactType,
     })),
     artifact_versions: asArray(store.artifactVersions).map((artifact) => ({
@@ -166,7 +189,7 @@ export function mapStoreToPostgresRows(store) {
       object_key: artifact.objectKey || null,
       content_json: json(artifact.content, {}),
       created_by_actor: artifact.createdByActor,
-      created_at: artifact.createdAt || null,
+      created_at: timestamp(artifact.createdAt),
     })),
     reviews: asArray(store.reviews).map((review) => ({
       id: review.id,
@@ -204,7 +227,7 @@ export function mapStoreToPostgresRows(store) {
       closed_at: risk.closedAt || null,
       closed_comment: risk.closedComment || "",
       created_by_user_id: risk.createdByUserId || null,
-      created_at: risk.createdAt || null,
+      created_at: timestamp(risk.createdAt),
     })),
     agent_runs: asArray(store.agentRuns).map((run) => ({
       id: run.id,

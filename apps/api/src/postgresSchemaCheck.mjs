@@ -40,6 +40,27 @@ export function parsePostgresSchemaTables(sql) {
   return tables;
 }
 
+export function parsePostgresSchemaColumns(sql) {
+  const tables = {};
+  const tablePattern = /create table ([a-z_]+) \(([\s\S]*?)\n\);/g;
+  for (const match of sql.matchAll(tablePattern)) {
+    const [, table, body] = match;
+    tables[table] = splitColumnDefinitions(body)
+      .map((definition) => {
+        const [name] = definition.split(/\s+/);
+        if (!name || ["constraint", "primary", "foreign", "unique", "check"].includes(name.toLowerCase())) {
+          return null;
+        }
+        return {
+          name,
+          notNull: /\bnot\s+null\b/i.test(definition) || /\bprimary\s+key\b/i.test(definition),
+        };
+      })
+      .filter(Boolean);
+  }
+  return tables;
+}
+
 export function validatePostgresRowCoverage(schemaTables, rows) {
   const errors = [];
   const schemaTableNames = Object.keys(schemaTables);
@@ -71,10 +92,27 @@ export function validatePostgresRowCoverage(schemaTables, rows) {
   return errors;
 }
 
+export function validatePostgresRequiredValues(schemaColumns, rows) {
+  const errors = [];
+  for (const [table, columns] of Object.entries(schemaColumns)) {
+    const requiredColumns = columns.filter((column) => column.notNull).map((column) => column.name);
+    for (const [index, row] of (rows[table] || []).entries()) {
+      for (const column of requiredColumns) {
+        if (row[column] === null || row[column] === undefined) {
+          errors.push(`${table}[${index}].${column} is required by schema`);
+        }
+      }
+    }
+  }
+  return errors;
+}
+
 export function checkPostgresRowCoverage(sql, store) {
-  const schemaTables = parsePostgresSchemaTables(sql);
   const rows = mapStoreToPostgresRows(store);
-  return validatePostgresRowCoverage(schemaTables, rows);
+  return [
+    ...validatePostgresRowCoverage(parsePostgresSchemaTables(sql), rows),
+    ...validatePostgresRequiredValues(parsePostgresSchemaColumns(sql), rows),
+  ];
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

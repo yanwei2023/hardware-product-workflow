@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   checkPostgresRowCoverage,
+  parsePostgresSchemaColumns,
   parsePostgresSchemaTables,
   validatePostgresRowCoverage,
+  validatePostgresRequiredValues,
 } from "./postgresSchemaCheck.mjs";
 import { postgresTableNames } from "./postgresMapper.mjs";
 
@@ -23,6 +25,22 @@ create table audit_events (
 
   assert.deepEqual(tables.projects, ["id", "name", "payload"]);
   assert.deepEqual(tables.audit_events, ["id", "project_id"]);
+});
+
+test("schema parser marks not-null and primary-key columns as required", () => {
+  const columns = parsePostgresSchemaColumns(`
+create table projects (
+  id text primary key,
+  name text not null,
+  product_line text
+);
+`);
+
+  assert.deepEqual(columns.projects, [
+    { name: "id", notNull: true },
+    { name: "name", notNull: true },
+    { name: "product_line", notNull: false },
+  ]);
 });
 
 test("schema coverage check accepts the current mapper", () => {
@@ -71,6 +89,22 @@ test("schema coverage check reports missing columns", () => {
   );
 
   assert.deepEqual(errors, ["mapper missing column projects.status"]);
+});
+
+test("schema required value check reports null required values", () => {
+  const errors = validatePostgresRequiredValues(
+    {
+      gate_requirements: [
+        { name: "id", notNull: true },
+        { name: "work_package_id", notNull: true },
+      ],
+    },
+    {
+      gate_requirements: [{ id: "req-1", work_package_id: null }],
+    },
+  );
+
+  assert.deepEqual(errors, ["gate_requirements[0].work_package_id is required by schema"]);
 });
 
 test("current database schema is covered by PostgreSQL row mapper", async () => {
