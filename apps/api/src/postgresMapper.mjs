@@ -24,6 +24,69 @@ export const postgresTableNames = [
   "audit_events",
 ];
 
+const jsonbColumns = new Set([
+  "content_json",
+  "conditions",
+  "input_refs",
+  "required_sections",
+  "required_review_roles",
+  "validation_json",
+  "evidence_refs",
+  "review_pack_json",
+  "payload",
+]);
+
+function escapeSqlString(value) {
+  return String(value).replaceAll("'", "''");
+}
+
+function sqlLiteral(column, value) {
+  if (value === null || value === undefined) {
+    return "NULL";
+  }
+  if (jsonbColumns.has(column)) {
+    return `'${escapeSqlString(JSON.stringify(value))}'::jsonb`;
+  }
+  if (typeof value === "boolean") {
+    return value ? "TRUE" : "FALSE";
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "NULL";
+  }
+  return `'${escapeSqlString(value)}'`;
+}
+
+export function renderPostgresSeedSql(rows) {
+  const lines = [
+    "-- Generated from hardware-product-workflow JSON store.",
+    "-- Safe to run against an empty schema created from schemas/database.sql.",
+    "BEGIN;",
+    "SET CONSTRAINTS ALL DEFERRED;",
+    "",
+  ];
+
+  for (const table of postgresTableNames) {
+    const tableRows = asArray(rows[table]);
+    if (tableRows.length === 0) {
+      lines.push(`-- ${table}: 0 rows`, "");
+      continue;
+    }
+
+    const columns = Object.keys(tableRows[0]);
+    lines.push(`-- ${table}: ${tableRows.length} rows`);
+    lines.push(`INSERT INTO ${table} (${columns.join(", ")}) VALUES`);
+    lines.push(
+      tableRows
+        .map((row) => `  (${columns.map((column) => sqlLiteral(column, row[column])).join(", ")})`)
+        .join(",\n") + ";",
+    );
+    lines.push("");
+  }
+
+  lines.push("COMMIT;", "");
+  return lines.join("\n");
+}
+
 export function mapStoreToPostgresRows(store) {
   return {
     projects: asArray(store.projects).map((project) => ({

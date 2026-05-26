@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { mapStoreToPostgresRows, postgresTableNames } from "./postgresMapper.mjs";
+import { mapStoreToPostgresRows, postgresTableNames, renderPostgresSeedSql } from "./postgresMapper.mjs";
 
 test("store mapper produces PostgreSQL-shaped rows for the demo store", () => {
   const store = createDemoStore();
@@ -76,4 +76,55 @@ test("store mapper carries workflow closure fields", () => {
   assert.equal(rows.risks[0].mitigation_status, "DONE");
   assert.equal(rows.work_package_evidence_refs[0].label, "低温测试记录");
   assert.equal(rows.notifications[0].read_at, "2026-05-26T04:05:00.000Z");
+});
+
+test("PostgreSQL seed SQL wraps rows in a deferred transaction", () => {
+  const rows = mapStoreToPostgresRows(createDemoStore());
+  const sql = renderPostgresSeedSql(rows);
+
+  assert.match(sql, /^-- Generated from hardware-product-workflow JSON store\./);
+  assert.match(sql, /BEGIN;\nSET CONSTRAINTS ALL DEFERRED;/);
+  assert.match(sql, /INSERT INTO projects /);
+  assert.match(sql, /INSERT INTO gate_requirements /);
+  assert.match(sql, /'阶段门阻塞'|GATE_BLOCKED/);
+  assert.match(sql, /'\{"title":"EVT 测试计划草稿"/);
+  assert.match(sql, /COMMIT;\n$/);
+});
+
+test("PostgreSQL seed SQL escapes strings and renders jsonb values", () => {
+  const sql = renderPostgresSeedSql({
+    ...Object.fromEntries(postgresTableNames.map((table) => [table, []])),
+    projects: [
+      {
+        id: "project-quote",
+        name: "Bob's Device",
+        product_line: "IoT",
+        owner_user_id: "user-project-manager",
+        current_phase_id: null,
+        status: "IN_PROGRESS",
+        archived_at: null,
+        archived_by_user_id: null,
+        cloned_from_project_id: null,
+        source_exported_at: null,
+        created_at: null,
+        updated_at: null,
+      },
+    ],
+    audit_events: [
+      {
+        id: "audit-quote",
+        project_id: "project-quote",
+        actor_type: "human",
+        actor_id: "user-project-manager",
+        event_type: "PROJECT_CREATED",
+        object_type: "project",
+        object_id: "project-quote",
+        payload: { note: "Bob's payload" },
+        created_at: "2026-05-26T00:00:00.000Z",
+      },
+    ],
+  });
+
+  assert.match(sql, /'Bob''s Device'/);
+  assert.match(sql, /'\{"note":"Bob''s payload"\}'::jsonb/);
 });
