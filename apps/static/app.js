@@ -360,6 +360,7 @@ function renderStorageStatus() {
     return "<p class='muted'>加载中。</p>";
   }
   const doctorErrors = doctor?.errors || [];
+  const backupErrors = doctor?.backupErrors || [];
 
   return `
     <table class="table">
@@ -370,7 +371,7 @@ function renderStorageStatus() {
         <tr><th>文件大小</th><td>${escapeHtml(status.sizeBytes)} bytes</td></tr>
         <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
         <tr><th>备份文件</th><td>${escapeHtml(status.backupPath || doctor?.backupPath || "-")}</td></tr>
-        <tr><th>备份状态</th><td>${status.backupExists ? `存在 · ${escapeHtml(status.backupSizeBytes)} bytes` : "暂无备份"}</td></tr>
+        <tr><th>备份状态</th><td>${status.backupExists ? `${doctor?.backupValid ? statusBadge("READY") : statusBadge("BLOCKED")} · ${escapeHtml(status.backupSizeBytes)} bytes` : "暂无备份"}</td></tr>
         <tr><th>备份时间</th><td>${escapeHtml(status.backupUpdatedAt || "-")}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
@@ -385,6 +386,12 @@ function renderStorageStatus() {
       <section class="subpanel">
         <h4>数据问题</h4>
         <ul>${doctorErrors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>
+      </section>
+    ` : ""}
+    ${backupErrors.length ? `
+      <section class="subpanel">
+        <h4>备份问题</h4>
+        <ul>${backupErrors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>
       </section>
     ` : ""}
   `;

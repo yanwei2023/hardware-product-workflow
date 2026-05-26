@@ -213,10 +213,13 @@ export function getStorageDoctorStatus() {
   const storePath = getStorePath();
   const backupPath = getBackupPath(storePath);
   const result = validateStoreFile(storePath);
+  const backupResult = validateStoreFile(backupPath);
   return {
     storePath,
     backupPath,
     backupExists: fs.existsSync(backupPath),
+    backupValid: backupResult.valid,
+    backupErrors: backupResult.errors,
     exists: result.exists,
     valid: result.valid,
     errors: result.errors,

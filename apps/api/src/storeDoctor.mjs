@@ -179,10 +179,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const filePath = process.argv[2] || getStorePath();
   const backupPath = getBackupPath(filePath);
   const result = validateStoreFile(filePath);
+  const backupResult = validateStoreFile(backupPath);
   const summary = {
     filePath,
     backupPath,
     backupExists: fs.existsSync(backupPath),
+    backupValid: backupResult.valid,
+    backupErrors: backupResult.errors,
     exists: result.exists,
     valid: result.valid,
     errors: result.errors,

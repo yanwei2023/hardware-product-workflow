@@ -113,8 +113,22 @@ test("storage doctor endpoint reports JSON store validity", async () => {
   assert.equal(result.body.exists, true);
   assert.equal(result.body.valid, true);
   assert.deepEqual(result.body.errors, []);
+  assert.equal(result.body.backupValid, true);
+  assert.deepEqual(result.body.backupErrors, []);
   assert.ok(result.body.storePath.endsWith("store.json"));
   assert.ok(result.body.backupPath.endsWith("store.json.bak"));
+});
+
+test("storage doctor endpoint reports invalid backup files", async () => {
+  writeFileSync(`${process.env.HARDWARE_FLOW_STORE_PATH}.bak`, "{");
+
+  const result = await dispatch("/storage/doctor");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.valid, true);
+  assert.equal(result.body.backupExists, true);
+  assert.equal(result.body.backupValid, false);
+  assert.match(result.body.backupErrors[0], /store JSON is invalid/);
 });
 
 test("storage backup restore endpoint requires explicit confirmation", async () => {
