@@ -30,6 +30,7 @@
 - 导入脚本必须先复用现有快照校验规则，避免破坏引用完整性。
 - 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
 - 当前已提供 `npm run db:export-seed`，可生成面向 PostgreSQL schema 的幂等 SQL 种子文件。该文件使用延迟外键事务和主键 upsert，适合验证 schema 与 JSON store 的字段映射。
+- 当前已提供 `npm run db:export-report`，可只输出 PostgreSQL 导出诊断报告，不写 rows 或 SQL 文件；适合在导入前快速确认 `valid: true`、表行数和错误列表。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
   - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
   - `not null` 和主键列是否会被导出为非空值；
