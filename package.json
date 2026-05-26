@@ -23,6 +23,7 @@
     "db:export-rows": "node apps/api/src/exportPostgresRows.mjs",
     "db:export-seed": "node apps/api/src/exportPostgresSeed.mjs",
     "db:export-report": "node apps/api/src/exportPostgresReport.mjs",
+    "db:prepare-import": "node apps/api/src/preparePostgresImport.mjs",
     "db:schema-check": "node apps/api/src/postgresSchemaCheck.mjs",
     "agent:sample": "python3 agents/worker/worker.py"
   }

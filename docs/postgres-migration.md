@@ -31,6 +31,7 @@
 - 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
 - 当前已提供 `npm run db:export-seed`，可生成面向 PostgreSQL schema 的幂等 SQL 种子文件。该文件使用延迟外键事务和主键 upsert，适合验证 schema 与 JSON store 的字段映射。
 - 当前已提供 `npm run db:export-report`，可只输出 PostgreSQL 导出诊断报告，不写 rows 或 SQL 文件；适合在导入前快速确认 `valid: true`、表行数和错误列表。
+- 当前已提供 `npm run db:prepare-import -- /tmp/hardware-flow-postgres-import`，可一次性生成 rows JSON、seed SQL、report JSON 和 manifest。manifest 中包含基于 `DATABASE_URL` 的 `psql` 建表与导入命令。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
   - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
   - `not null` 和主键列是否会被导出为非空值；
@@ -42,6 +43,17 @@
 - JSON 中没有显式 `workPackageId` 的阶段门条件，会按同项目、同阶段、同交付物类型解析到目标工作包，再写入 `gate_requirements.work_package_id`。
 - 旧 JSON 缺少 `createdAt/updatedAt` 时，PostgreSQL rows 会使用 `1970-01-01T00:00:00.000Z` 作为迁移占位时间，便于识别历史补齐字段。
 - 旧角色配对缺少 Agent 权限级别时，PostgreSQL rows 会使用 `L1_DRAFT`，与当前 Agent 只能生成草稿的产品约束一致。
+
+## 手工验证导入包
+
+```text
+npm run db:prepare-import -- /tmp/hardware-flow-postgres-import
+export DATABASE_URL=postgres://user:password@localhost:5432/hardware_flow
+psql "$DATABASE_URL" -f schemas/database.sql
+psql "$DATABASE_URL" -f /tmp/hardware-flow-postgres-import/postgres-seed.sql
+```
+
+导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。
 
 ## 第四阶段：运行约束
 
