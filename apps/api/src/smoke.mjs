@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createDemoStore } from "./server.mjs";
+import { mapStoreToPostgresRows, renderPostgresSeedSql } from "./postgresMapper.mjs";
 
 const port = Number(process.env.SMOKE_PORT || 3199);
 const storePath = path.join(os.tmpdir(), `hardware-flow-smoke-${Date.now()}.json`);
@@ -68,6 +69,10 @@ try {
   const riskRegister = await request("/projects/project-smart-controller/risk-register");
   assert.equal(riskRegister.status, 200);
   assert.equal(riskRegister.body.summary.totalRiskCount, 1);
+
+  const rows = mapStoreToPostgresRows(createDemoStore());
+  assert.equal(rows.gate_requirements.length, 22);
+  assert.match(renderPostgresSeedSql(rows), /INSERT INTO gate_requirements/);
 
   console.log("Smoke check passed");
 } finally {
