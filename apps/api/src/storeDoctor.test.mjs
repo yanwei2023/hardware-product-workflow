@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import { getBackupPath } from "./persistence.mjs";
-import { validateStoreFile, validateStoreObject } from "./storeDoctor.mjs";
+import { validateStoreFile, validateStoreObject, validateStoreReferences } from "./storeDoctor.mjs";
 
 test("store doctor accepts the demo store shape", () => {
   assert.deepEqual(validateStoreObject(createDemoStore()), []);
@@ -17,6 +17,32 @@ test("store doctor reports missing required arrays", () => {
     "gates must be an array",
     "rolePairs must be an array",
   ]);
+});
+
+test("store doctor reports broken internal references", () => {
+  const store = createDemoStore();
+  store.workPackages[0] = {
+    ...store.workPackages[0],
+    phaseId: "missing-phase",
+    rolePairId: "missing-role-pair",
+  };
+  store.gateRequirements[0] = {
+    ...store.gateRequirements[0],
+    gateId: "missing-gate",
+  };
+
+  const errors = validateStoreReferences(store);
+
+  assert.equal(errors.some((error) => error.includes("workPackage.phaseId does not reference a phase")), true);
+  assert.equal(errors.some((error) => error.includes("workPackage.rolePairId does not reference a rolePair")), true);
+  assert.equal(errors.some((error) => error.includes("gateRequirement.gateId does not reference a gate")), true);
+});
+
+test("store doctor reports duplicate ids", () => {
+  const store = createDemoStore();
+  store.projects.push({ ...store.projects[0] });
+
+  assert.equal(validateStoreReferences(store).some((error) => error === "projects has duplicate id project-smart-controller"), true);
 });
 
 test("store doctor validates JSON files", () => {

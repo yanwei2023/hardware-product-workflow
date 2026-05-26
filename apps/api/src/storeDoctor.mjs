@@ -32,6 +32,127 @@ export function validateStoreObject(store) {
       errors.push(`${key} must be an array`);
     }
   }
+  if (errors.length === 0) {
+    errors.push(...validateStoreReferences(store));
+  }
+  return errors;
+}
+
+function idSet(items) {
+  return new Set(items.map((item) => item?.id).filter(Boolean));
+}
+
+function validateUniqueIds(errors, items, collectionName) {
+  const seen = new Set();
+  for (const item of items) {
+    if (!item?.id) {
+      errors.push(`${collectionName} item is missing id`);
+    } else if (seen.has(item.id)) {
+      errors.push(`${collectionName} has duplicate id ${item.id}`);
+    }
+    seen.add(item?.id);
+  }
+}
+
+function requireReference(errors, condition, message, itemId, referencedId) {
+  if (!condition) {
+    errors.push(`${message}: ${itemId || "(missing id)"} -> ${referencedId || "(missing reference)"}`);
+  }
+}
+
+export function validateStoreReferences(store) {
+  const errors = [];
+  for (const key of requiredArrays) {
+    validateUniqueIds(errors, store[key], key);
+  }
+
+  const projectIds = idSet(store.projects);
+  const phaseIds = idSet(store.phases);
+  const gateIds = idSet(store.gates);
+  const rolePairIds = idSet(store.rolePairs);
+  const workPackageIds = idSet(store.workPackages);
+  const agentRunIds = idSet(store.agentRuns);
+
+  requireReference(errors, projectIds.has(store.activeProjectId), "activeProjectId does not reference a project", "activeProjectId", store.activeProjectId);
+
+  for (const project of store.projects) {
+    if (project.currentPhaseId) {
+      requireReference(errors, phaseIds.has(project.currentPhaseId), "project.currentPhaseId does not reference a phase", project.id, project.currentPhaseId);
+    }
+  }
+
+  for (const phase of store.phases) {
+    requireReference(errors, projectIds.has(phase.projectId), "phase.projectId does not reference a project", phase.id, phase.projectId);
+  }
+
+  for (const gate of store.gates) {
+    requireReference(errors, projectIds.has(gate.projectId), "gate.projectId does not reference a project", gate.id, gate.projectId);
+    requireReference(errors, phaseIds.has(gate.phaseId), "gate.phaseId does not reference a phase", gate.id, gate.phaseId);
+  }
+
+  for (const rolePair of store.rolePairs) {
+    requireReference(errors, projectIds.has(rolePair.projectId), "rolePair.projectId does not reference a project", rolePair.id, rolePair.projectId);
+  }
+
+  for (const workPackage of store.workPackages) {
+    requireReference(errors, projectIds.has(workPackage.projectId), "workPackage.projectId does not reference a project", workPackage.id, workPackage.projectId);
+    requireReference(errors, phaseIds.has(workPackage.phaseId), "workPackage.phaseId does not reference a phase", workPackage.id, workPackage.phaseId);
+    requireReference(errors, rolePairIds.has(workPackage.rolePairId), "workPackage.rolePairId does not reference a rolePair", workPackage.id, workPackage.rolePairId);
+  }
+
+  for (const requirement of store.gateRequirements) {
+    requireReference(errors, gateIds.has(requirement.gateId), "gateRequirement.gateId does not reference a gate", requirement.id, requirement.gateId);
+    if (requirement.workPackageId) {
+      requireReference(
+        errors,
+        workPackageIds.has(requirement.workPackageId),
+        "gateRequirement.workPackageId does not reference a workPackage",
+        requirement.id,
+        requirement.workPackageId,
+      );
+    }
+  }
+
+  for (const artifact of store.artifactVersions) {
+    requireReference(errors, workPackageIds.has(artifact.workPackageId), "artifactVersion.workPackageId does not reference a workPackage", artifact.id, artifact.workPackageId);
+  }
+
+  for (const review of store.reviews) {
+    requireReference(errors, workPackageIds.has(review.workPackageId), "review.workPackageId does not reference a workPackage", review.id, review.workPackageId);
+  }
+
+  for (const risk of store.risks) {
+    requireReference(errors, projectIds.has(risk.projectId), "risk.projectId does not reference a project", risk.id, risk.projectId);
+    requireReference(errors, phaseIds.has(risk.phaseId), "risk.phaseId does not reference a phase", risk.id, risk.phaseId);
+    if (risk.ownerRolePairId) {
+      requireReference(errors, rolePairIds.has(risk.ownerRolePairId), "risk.ownerRolePairId does not reference a rolePair", risk.id, risk.ownerRolePairId);
+    }
+  }
+
+  for (const run of store.agentRuns) {
+    requireReference(errors, workPackageIds.has(run.workPackageId), "agentRun.workPackageId does not reference a workPackage", run.id, run.workPackageId);
+  }
+
+  for (const finding of store.agentFindings) {
+    requireReference(errors, workPackageIds.has(finding.workPackageId), "agentFinding.workPackageId does not reference a workPackage", finding.id, finding.workPackageId);
+    requireReference(errors, agentRunIds.has(finding.agentRunId), "agentFinding.agentRunId does not reference an agentRun", finding.id, finding.agentRunId);
+  }
+
+  for (const evidenceRef of store.evidenceRefs) {
+    requireReference(errors, projectIds.has(evidenceRef.projectId), "evidenceRef.projectId does not reference a project", evidenceRef.id, evidenceRef.projectId);
+    requireReference(errors, workPackageIds.has(evidenceRef.workPackageId), "evidenceRef.workPackageId does not reference a workPackage", evidenceRef.id, evidenceRef.workPackageId);
+  }
+
+  for (const pack of store.gateApprovalPacks) {
+    requireReference(errors, projectIds.has(pack.projectId), "gateApprovalPack.projectId does not reference a project", pack.id, pack.projectId);
+    requireReference(errors, gateIds.has(pack.gateId), "gateApprovalPack.gateId does not reference a gate", pack.id, pack.gateId);
+    requireReference(errors, phaseIds.has(pack.phaseId), "gateApprovalPack.phaseId does not reference a phase", pack.id, pack.phaseId);
+  }
+
+  for (const notification of store.notifications) {
+    requireReference(errors, projectIds.has(notification.projectId), "notification.projectId does not reference a project", notification.id, notification.projectId);
+  }
+
   return errors;
 }
 
