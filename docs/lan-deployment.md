@@ -58,7 +58,7 @@ cd infra
 docker compose up --build
 ```
 
-当前应用容器仍使用 JSON 文件持久化，数据保存在 `app-data` volume 中。PostgreSQL 服务会按 `schemas/database.sql` 初始化，供后续迁移持久化层使用。
+当前应用容器仍使用 JSON 文件持久化，数据保存在 `app-data` volume 中。PostgreSQL 服务会按 `migrations/` 中的 SQL 初始化，供后续迁移持久化层使用。
 
 ## 端口调整
 

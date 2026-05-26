@@ -5,6 +5,7 @@
 ## 第一阶段：表结构落地
 
 - 以 `schemas/database.sql` 建库，先覆盖当前 JSON store 中已经出现的实体。
+- `migrations/001_initial_schema.sql` 是第一版可执行迁移文件，当前必须与 `schemas/database.sql` 保持一致。
 - 保留 `jsonb` 字段存储交付物内容、Agent 校验结果、阶段门审核包快照和审计 payload。
 - 所有正式状态流转仍由流程引擎负责，数据库只做持久化和查询索引。
 
@@ -30,6 +31,7 @@
 - 当前已提供 `npm run db:export-rows`，可先把 JSON store 导出为与 PostgreSQL 表名一致的 rows JSON，用于校验字段覆盖和后续批量导入。
 - 当前已提供 `npm run db:export-seed`，可生成面向空 PostgreSQL schema 的 SQL 种子文件。该文件使用延迟外键事务，适合验证 schema 与 JSON store 的字段映射。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验 `schemas/database.sql` 的表/列是否被 rows 映射覆盖。
+- 当前已提供 `npm run db:migration-check`，可校验第一版迁移文件没有和 `schemas/database.sql` 漂移。
 
 ## 第四阶段：运行约束
 
