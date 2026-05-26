@@ -94,4 +94,4 @@ docs/postgres-migration.md
 - `apps/web/src/App.tsx` 保留第一版 React 工作台草案。
 - `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
-- `apps/api/src/postgresMapper.mjs`、`exportPostgresRows.mjs`、`exportPostgresSeed.mjs` 提供 JSON store 到 PostgreSQL rows/seed SQL 的迁移准备工具。
+- `apps/api/src/postgresMapper.mjs`、`postgresExportReport.mjs`、`postgresImportBundle.mjs` 和相关 CLI 脚本提供 JSON store 到 PostgreSQL rows/seed SQL、导入包、导入包自检和数据库 preflight 的迁移准备工具。
