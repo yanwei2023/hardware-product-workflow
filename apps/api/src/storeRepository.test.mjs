@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { getProjectReadModel, getProjectUserNotifications } from "./storeRepository.mjs";
+import { getProjectReadModel, getProjectUserNotifications, getWorkPackageReadModel } from "./storeRepository.mjs";
 
 test("project read model scopes workflow records to one project", () => {
   const store = createDemoStore();
@@ -100,4 +100,52 @@ test("project user notifications are scoped, sorted, counted, and filtered", () 
     result.notifications.map((item) => item.id),
     ["notification-new"],
   );
+});
+
+test("work package read model includes related reviews, artifacts, evidence, runs, and audit events", () => {
+  const store = createDemoStore();
+  store.reviews.push({
+    id: "review-1",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE",
+    reviewedAt: "2026-05-26T01:00:00.000Z",
+  });
+  store.evidenceRefs.push({
+    id: "evidence-1",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    label: "测试记录",
+    ref: "file://test.pdf",
+  });
+  store.agentRuns.push({
+    id: "run-1",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    agentKey: "test_agent",
+    status: "COMPLETED",
+  });
+  store.auditEvents.push(
+    { id: "audit-work-package", objectType: "workPackage", objectId: "wp-evt_exit-evt_test_plan" },
+    { id: "audit-review", objectType: "review", objectId: "review-1" },
+    { id: "audit-other", objectType: "workPackage", objectId: "wp-evt_exit-evt_test_report" },
+  );
+
+  const detail = getWorkPackageReadModel(store, "wp-evt_exit-evt_test_plan", {
+    scheduleStatus: () => "ON_TRACK",
+  });
+
+  assert.equal(detail.workPackage.id, "wp-evt_exit-evt_test_plan");
+  assert.equal(detail.rolePair.humanUserId, "user-test-lead");
+  assert.equal(detail.artifacts.length, 1);
+  assert.equal(detail.reviews.length, 1);
+  assert.equal(detail.evidenceRefs.length, 1);
+  assert.equal(detail.agentRuns.length, 1);
+  assert.equal(detail.auditEvents.some((event) => event.id === "audit-work-package"), true);
+  assert.equal(detail.auditEvents.some((event) => event.id === "audit-review"), true);
+  assert.equal(detail.auditEvents.some((event) => event.id === "audit-other"), false);
+  assert.equal(detail.scheduleStatus, "ON_TRACK");
+});
+
+test("work package read model returns null for unknown work packages", () => {
+  assert.equal(getWorkPackageReadModel(createDemoStore(), "missing-work-package"), null);
 });

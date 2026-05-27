@@ -78,3 +78,28 @@ export function getProjectUserNotifications(store, projectId, userId, filters = 
     notifications,
   };
 }
+
+export function getWorkPackageReadModel(store, workPackageId, { scheduleStatus = () => null } = {}) {
+  const workPackage = store.workPackages.find((item) => item.id === workPackageId);
+  if (!workPackage) {
+    return null;
+  }
+
+  const reviews = store.reviews.filter((item) => item.workPackageId === workPackageId);
+  const reviewIds = new Set(reviews.map((review) => review.id));
+
+  return {
+    workPackage,
+    rolePair: store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null,
+    artifacts: store.artifactVersions.filter((item) => item.workPackageId === workPackageId),
+    reviews,
+    evidenceRefs: (store.evidenceRefs || []).filter((item) => item.workPackageId === workPackageId),
+    agentRuns: store.agentRuns.filter((item) => item.workPackageId === workPackageId),
+    auditEvents: store.auditEvents.filter(
+      (event) =>
+        (event.objectType === "workPackage" && event.objectId === workPackageId) ||
+        (event.objectType === "review" && reviewIds.has(event.objectId)),
+    ),
+    scheduleStatus: scheduleStatus(workPackage),
+  };
+}
