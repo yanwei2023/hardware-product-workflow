@@ -19,6 +19,7 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
+import { getProjectReadModel } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
 const port = Number(process.env.PORT || 3001);
@@ -807,29 +808,32 @@ export function getDemoProject() {
 }
 
 export function getProjectSnapshot(projectId) {
-  const project = store.projects.find((item) => item.id === projectId);
-  if (!project) {
+  const projectModel = getProjectReadModel(store, projectId);
+  if (!projectModel) {
     return null;
   }
-
-  const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
-  const phases = store.phases.filter((item) => item.projectId === project.id).sort((a, b) => a.sequence - b.sequence);
-  const gates = store.gates.filter((item) => item.projectId === project.id);
-  const gateIds = new Set(gates.map((item) => item.id));
-  const rolePairs = store.rolePairs.filter((item) => item.projectId === project.id);
-  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
-  const workPackageIds = new Set(workPackages.map((item) => item.id));
-  const evidenceRefs = (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId));
-  const gateApprovalPacks = (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id);
-  const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
-  const reviews = store.reviews.filter((item) => workPackageIds.has(item.workPackageId));
+  const {
+    project,
+    phases,
+    gates,
+    rolePairs,
+    workPackages,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    reviews,
+    currentPhase,
+    currentGate,
+    auditEvents,
+    notifications,
+    gateRequirements,
+    artifactVersions,
+    agentRuns,
+    agentFindings,
+  } = projectModel;
   const conditionalApprovalReviews = reviews.filter(
     (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
   );
-  const currentPhase = phases.find((item) => item.id === project.currentPhaseId) || null;
-  const currentGate = currentPhase ? gates.find((item) => item.phaseId === currentPhase.id) || null : null;
-  const auditEvents = store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id);
-  const notifications = (store.notifications || []).filter((item) => item.projectId === project.id);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -860,7 +864,7 @@ export function getProjectSnapshot(projectId) {
     },
     phases,
     gates,
-    gateRequirements: store.gateRequirements.filter((item) => gateIds.has(item.gateId)),
+    gateRequirements,
     rolePairs,
     workPackages: workPackages.map((workPackage) => {
       const rolePair = rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
@@ -872,7 +876,7 @@ export function getProjectSnapshot(projectId) {
         scheduleStatus: workPackageScheduleStatus(workPackage),
       };
     }),
-    artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
+    artifactVersions,
     reviews,
     evidenceRefs,
     gateApprovalPacks,
@@ -880,23 +884,21 @@ export function getProjectSnapshot(projectId) {
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
     })),
-    agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
-    agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
+    agentRuns,
+    agentFindings,
     notifications,
     auditEvents,
   };
 }
 
 export function getProjectRiskRegister(projectId) {
-  const project = store.projects.find((item) => item.id === projectId);
-  if (!project) {
+  const projectModel = getProjectReadModel(store, projectId);
+  if (!projectModel) {
     return null;
   }
 
-  const phases = store.phases.filter((item) => item.projectId === project.id);
-  const phaseIds = new Set(phases.map((item) => item.id));
-  const risks = store.risks
-    .filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId))
+  const { project, phases } = projectModel;
+  const risks = projectModel.risks
     .map((risk) => ({
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
