@@ -759,12 +759,22 @@ export function checkGate(gateId) {
 
 export function getActiveProjectView() {
   const project = currentProject();
+  const projectModel = getProjectReadModel(store, project.id);
   const gate = currentGate();
-  const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
-  const workPackageIds = new Set(store.workPackages.filter((item) => item.projectId === project.id).map((item) => item.id));
-  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
-  const risks = store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId));
-  const reviews = store.reviews.filter((item) => workPackageIds.has(item.workPackageId));
+  const {
+    phases,
+    gates,
+    rolePairs,
+    workPackages,
+    artifactVersions,
+    reviews,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    agentRuns,
+    agentFindings,
+    auditEvents,
+  } = projectModel;
   const conditionalApprovalReviews = reviews.filter(
     (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
   );
@@ -773,21 +783,21 @@ export function getActiveProjectView() {
     projects: store.projects,
     projectSummaries: store.projects.map(summarizeProjectListItem),
     activeProjectId: store.activeProjectId,
-    phases: store.phases.filter((item) => item.projectId === project.id),
-    gates: store.gates.filter((item) => item.projectId === project.id),
-    rolePairs: store.rolePairs.filter((item) => item.projectId === project.id),
+    phases,
+    gates,
+    rolePairs,
     workPackages: workPackages.map((item) => ({
       ...item,
       scheduleStatus: workPackageScheduleStatus(item),
     })),
-    artifactVersions: store.artifactVersions.filter((item) => workPackageIds.has(item.workPackageId)),
+    artifactVersions,
     reviews,
-    evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
-    gateApprovalPacks: (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id),
+    evidenceRefs,
+    gateApprovalPacks,
     risks,
-    agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
-    agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
-    auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
+    agentRuns,
+    agentFindings,
+    auditEvents,
     latestGateCheck: gate ? checkGate(gate.id) : null,
     scheduleSummary: {
       overdueWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE").length,
