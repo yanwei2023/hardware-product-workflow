@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { getProjectReadModel } from "./storeRepository.mjs";
+import { getProjectReadModel, getProjectUserNotifications } from "./storeRepository.mjs";
 
 test("project read model scopes workflow records to one project", () => {
   const store = createDemoStore();
@@ -45,4 +45,59 @@ test("project read model scopes workflow records to one project", () => {
 
 test("project read model returns null for unknown projects", () => {
   assert.equal(getProjectReadModel(createDemoStore(), "missing-project"), null);
+});
+
+test("project user notifications are scoped, sorted, counted, and filtered", () => {
+  const store = createDemoStore();
+  store.notifications.push(
+    {
+      id: "notification-old",
+      projectId: "project-smart-controller",
+      userId: "user-project-manager",
+      title: "旧通知",
+      message: "",
+      type: "INFO",
+      status: "READ",
+      createdAt: "2026-05-26T01:00:00.000Z",
+    },
+    {
+      id: "notification-new",
+      projectId: "project-smart-controller",
+      userId: "user-project-manager",
+      title: "新动作",
+      message: "",
+      type: "ACTION",
+      status: "UNREAD",
+      createdAt: "2026-05-26T02:00:00.000Z",
+    },
+    {
+      id: "notification-other-project",
+      projectId: "project-other",
+      userId: "user-project-manager",
+      title: "其他项目",
+      message: "",
+      type: "ACTION",
+      status: "UNREAD",
+      createdAt: "2026-05-26T03:00:00.000Z",
+    },
+  );
+
+  const result = getProjectUserNotifications(store, "project-smart-controller", "user-project-manager", {
+    type: "ACTION",
+  });
+
+  assert.equal(result.total, 2);
+  assert.equal(result.filteredCount, 1);
+  assert.equal(result.unreadCount, 1);
+  assert.deepEqual(result.counts, {
+    unread: 1,
+    read: 1,
+    action: 1,
+    warning: 0,
+    info: 1,
+  });
+  assert.deepEqual(
+    result.notifications.map((item) => item.id),
+    ["notification-new"],
+  );
 });

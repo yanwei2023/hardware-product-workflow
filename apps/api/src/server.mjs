@@ -19,7 +19,7 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
-import { getProjectReadModel } from "./storeRepository.mjs";
+import { getProjectReadModel, getProjectUserNotifications } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
 const port = Number(process.env.PORT || 3001);
@@ -1930,40 +1930,7 @@ export function getUserActionItems(userId) {
 
 export function getUserNotifications(userId, filters = {}) {
   const project = currentProject();
-  const allNotifications = (store.notifications || [])
-    .filter((item) => item.userId === userId && item.projectId === project.id)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const statusFilter = String(filters.status || "").toUpperCase();
-  const typeFilter = String(filters.type || "").toUpperCase();
-  const notifications = allNotifications.filter((item) => {
-    if (statusFilter && item.status !== statusFilter) {
-      return false;
-    }
-    if (typeFilter && item.type !== typeFilter) {
-      return false;
-    }
-    return true;
-  });
-
-  return {
-    userId,
-    projectId: project.id,
-    unreadCount: allNotifications.filter((item) => item.status === "UNREAD").length,
-    total: allNotifications.length,
-    filteredCount: notifications.length,
-    filters: {
-      status: statusFilter || null,
-      type: typeFilter || null,
-    },
-    counts: {
-      unread: allNotifications.filter((item) => item.status === "UNREAD").length,
-      read: allNotifications.filter((item) => item.status === "READ").length,
-      action: allNotifications.filter((item) => item.type === "ACTION").length,
-      warning: allNotifications.filter((item) => item.type === "WARNING").length,
-      info: allNotifications.filter((item) => item.type === "INFO").length,
-    },
-    notifications,
-  };
+  return getProjectUserNotifications(store, project.id, userId, filters);
 }
 
 export function markNotificationRead(notificationId, body = {}) {

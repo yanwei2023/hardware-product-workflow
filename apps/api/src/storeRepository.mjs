@@ -41,3 +41,40 @@ export function getProjectReadModel(store, projectId) {
     auditEvents: store.auditEvents.filter((event) => !event.projectId || event.projectId === project.id),
   };
 }
+
+export function getProjectUserNotifications(store, projectId, userId, filters = {}) {
+  const statusFilter = String(filters.status || "").toUpperCase();
+  const typeFilter = String(filters.type || "").toUpperCase();
+  const allNotifications = (store.notifications || [])
+    .filter((item) => item.userId === userId && item.projectId === projectId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const notifications = allNotifications.filter((item) => {
+    if (statusFilter && item.status !== statusFilter) {
+      return false;
+    }
+    if (typeFilter && item.type !== typeFilter) {
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    userId,
+    projectId,
+    unreadCount: allNotifications.filter((item) => item.status === "UNREAD").length,
+    total: allNotifications.length,
+    filteredCount: notifications.length,
+    filters: {
+      status: statusFilter || null,
+      type: typeFilter || null,
+    },
+    counts: {
+      unread: allNotifications.filter((item) => item.status === "UNREAD").length,
+      read: allNotifications.filter((item) => item.status === "READ").length,
+      action: allNotifications.filter((item) => item.type === "ACTION").length,
+      warning: allNotifications.filter((item) => item.type === "WARNING").length,
+      info: allNotifications.filter((item) => item.type === "INFO").length,
+    },
+    notifications,
+  };
+}
