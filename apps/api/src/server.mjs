@@ -22,8 +22,7 @@ import {
 import {
   getGateReviewPackReadModel,
   getLatestGateApprovalPack,
-  getProjectListReadModel,
-  getProjectReadModel,
+  getActiveProjectReadModel,
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
@@ -737,61 +736,12 @@ export function checkGate(gateId) {
 
 export function getActiveProjectView() {
   const project = currentProject();
-  const projectModel = getProjectReadModel(store, project.id);
   const gate = currentGate();
-  const {
-    phases,
-    gates,
-    rolePairs,
-    workPackages,
-    artifactVersions,
-    reviews,
-    evidenceRefs,
-    gateApprovalPacks,
-    risks,
-    agentRuns,
-    agentFindings,
-    auditEvents,
-  } = projectModel;
-  const conditionalApprovalReviews = reviews.filter(
-    (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
-  );
-  return {
-    project,
-    projects: store.projects,
-    projectSummaries: getProjectListReadModel(store, {
-      scheduleStatus: workPackageScheduleStatus,
-      summarizeRiskMitigations,
-    }),
-    activeProjectId: store.activeProjectId,
-    phases,
-    gates,
-    rolePairs,
-    workPackages: workPackages.map((item) => ({
-      ...item,
-      scheduleStatus: workPackageScheduleStatus(item),
-    })),
-    artifactVersions,
-    reviews,
-    evidenceRefs,
-    gateApprovalPacks,
-    risks,
-    agentRuns,
-    agentFindings,
-    auditEvents,
+  return getActiveProjectReadModel(store, project.id, {
     latestGateCheck: gate ? checkGate(gate.id) : null,
-    scheduleSummary: {
-      overdueWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE").length,
-      dueSoonWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "DUE_SOON").length,
-      unscheduledWorkPackageCount: workPackages.filter((item) => workPackageScheduleStatus(item) === "UNSCHEDULED").length,
-    },
-    conditionalApprovalSummary: {
-      conditionalApprovalCount: conditionalApprovalReviews.length,
-      openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
-      completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
-    },
-    riskMitigationSummary: summarizeRiskMitigations(risks),
-  };
+    scheduleStatus: workPackageScheduleStatus,
+    summarizeRiskMitigations,
+  });
 }
 
 export function getDemoProject() {

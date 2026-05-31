@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  getActiveProjectReadModel,
   getGateReviewPackReadModel,
   getLatestGateApprovalPack,
   getProjectListItemReadModel,
@@ -145,6 +146,103 @@ test("project list read model returns summaries for every project", () => {
     ["project-smart-controller", "project-other"],
   );
   assert.equal(summaries[1].currentPhaseName, "Other Phase");
+});
+
+test("active project read model summarizes current workflow view", () => {
+  const store = createDemoStore();
+  store.activeProjectId = "project-smart-controller";
+  store.workPackages.push(
+    {
+      id: "wp-active-overdue",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      rolePairId: "pair-system_agent",
+      title: "当前视图逾期工作包",
+      status: "OPEN",
+      dueAt: "2026-05-20",
+    },
+    {
+      id: "wp-active-due-soon",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      rolePairId: "pair-quality_agent",
+      title: "当前视图临近工作包",
+      status: "OPEN",
+      dueAt: "2026-06-01",
+    },
+    {
+      id: "wp-active-unscheduled",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      rolePairId: "pair-quality_agent",
+      title: "当前视图未排期工作包",
+      status: "OPEN",
+    },
+  );
+  store.reviews.push(
+    {
+      id: "review-active-open-condition",
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补齐记录"],
+      reviewedAt: "2026-05-25T01:00:00.000Z",
+    },
+    {
+      id: "review-active-closed-condition",
+      workPackageId: "wp-evt_exit-evt_test_report",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补充附件"],
+      conditionsCompletedAt: "2026-05-26T01:00:00.000Z",
+      reviewedAt: "2026-05-25T02:00:00.000Z",
+    },
+  );
+
+  const view = getActiveProjectReadModel(store, "project-smart-controller", {
+    latestGateCheck: {
+      gateId: "gate-evt_exit",
+      status: "BLOCKED",
+      blockers: [{ type: "RISK", riskId: "risk-thermal-margin" }],
+    },
+    scheduleStatus: (workPackage) => {
+      if (workPackage.id === "wp-active-overdue") {
+        return "OVERDUE";
+      }
+      if (workPackage.id === "wp-active-due-soon") {
+        return "DUE_SOON";
+      }
+      if (workPackage.id === "wp-active-unscheduled") {
+        return "UNSCHEDULED";
+      }
+      return "ON_TRACK";
+    },
+    summarizeRiskMitigations: (risks) => ({ mitigationPlanCount: risks.length }),
+  });
+
+  assert.equal(view.project.id, "project-smart-controller");
+  assert.equal(view.activeProjectId, "project-smart-controller");
+  assert.equal(view.projects.length, 1);
+  assert.equal(view.projectSummaries.length, 1);
+  assert.equal(view.workPackages.length, 25);
+  assert.equal(view.workPackages.find((item) => item.id === "wp-active-overdue").scheduleStatus, "OVERDUE");
+  assert.deepEqual(view.latestGateCheck.blockers, [{ type: "RISK", riskId: "risk-thermal-margin" }]);
+  assert.deepEqual(view.scheduleSummary, {
+    overdueWorkPackageCount: 1,
+    dueSoonWorkPackageCount: 1,
+    unscheduledWorkPackageCount: 1,
+  });
+  assert.deepEqual(view.conditionalApprovalSummary, {
+    conditionalApprovalCount: 2,
+    openConditionalApprovalCount: 1,
+    completedConditionalApprovalCount: 1,
+  });
+  assert.equal(view.riskMitigationSummary.mitigationPlanCount, 1);
+  assert.equal(view.projectSummaries[0].mitigationPlanCount, 1);
+});
+
+test("active project read model returns null for unknown projects", () => {
+  assert.equal(getActiveProjectReadModel(createDemoStore(), "missing-project"), null);
 });
 
 test("project risk register read model enriches, sorts, and summarizes risks", () => {

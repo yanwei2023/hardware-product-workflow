@@ -116,6 +116,77 @@ export function getProjectListReadModel(store, options = {}) {
   return store.projects.map((project) => getProjectListItemReadModel(store, project.id, options)).filter(Boolean);
 }
 
+export function getActiveProjectReadModel(
+  store,
+  projectId,
+  {
+    latestGateCheck = null,
+    scheduleStatus = () => null,
+    summarizeRiskMitigations = () => ({}),
+  } = {},
+) {
+  const model = getProjectReadModel(store, projectId);
+  if (!model) {
+    return null;
+  }
+
+  const {
+    project,
+    phases,
+    gates,
+    rolePairs,
+    workPackages,
+    artifactVersions,
+    reviews,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    agentRuns,
+    agentFindings,
+    auditEvents,
+  } = model;
+  const conditionalApprovalReviews = reviews.filter(
+    (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
+  );
+
+  return {
+    project,
+    projects: store.projects,
+    projectSummaries: getProjectListReadModel(store, {
+      scheduleStatus,
+      summarizeRiskMitigations,
+    }),
+    activeProjectId: store.activeProjectId,
+    phases,
+    gates,
+    rolePairs,
+    workPackages: workPackages.map((item) => ({
+      ...item,
+      scheduleStatus: scheduleStatus(item),
+    })),
+    artifactVersions,
+    reviews,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    agentRuns,
+    agentFindings,
+    auditEvents,
+    latestGateCheck,
+    scheduleSummary: {
+      overdueWorkPackageCount: workPackages.filter((item) => scheduleStatus(item) === "OVERDUE").length,
+      dueSoonWorkPackageCount: workPackages.filter((item) => scheduleStatus(item) === "DUE_SOON").length,
+      unscheduledWorkPackageCount: workPackages.filter((item) => scheduleStatus(item) === "UNSCHEDULED").length,
+    },
+    conditionalApprovalSummary: {
+      conditionalApprovalCount: conditionalApprovalReviews.length,
+      openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
+      completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
+    },
+    riskMitigationSummary: summarizeRiskMitigations(risks),
+  };
+}
+
 export function getProjectRiskRegisterReadModel(
   store,
   projectId,
