@@ -6,6 +6,7 @@ import {
   getProjectListReadModel,
   getProjectReadModel,
   getProjectRiskRegisterReadModel,
+  getProjectSnapshotReadModel,
   getProjectUserNotifications,
   getWorkPackageReadModel,
 } from "./storeRepository.mjs";
@@ -202,6 +203,121 @@ test("project risk register read model enriches, sorts, and summarizes risks", (
 
 test("project risk register read model returns null for unknown projects", () => {
   assert.equal(getProjectRiskRegisterReadModel(createDemoStore(), "missing-project"), null);
+});
+
+test("project snapshot read model exports enriched project state", () => {
+  const store = createDemoStore();
+  store.workPackages.push(
+    {
+      id: "wp-overdue-snapshot",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      rolePairId: "pair-system_agent",
+      title: "逾期快照工作包",
+      status: "OPEN",
+      dueAt: "2026-05-20",
+    },
+    {
+      id: "wp-due-soon-snapshot",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      rolePairId: "pair-quality_agent",
+      title: "临近快照工作包",
+      status: "HUMAN_APPROVED",
+      dueAt: "2026-06-01",
+    },
+  );
+  store.reviews.push(
+    {
+      id: "review-snapshot-open-condition",
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补齐附件"],
+      reviewedAt: "2026-05-25T01:00:00.000Z",
+    },
+    {
+      id: "review-snapshot-closed-condition",
+      workPackageId: "wp-evt_exit-evt_test_report",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补充照片"],
+      conditionsCompletedAt: "2026-05-26T01:00:00.000Z",
+      reviewedAt: "2026-05-25T02:00:00.000Z",
+    },
+  );
+  store.evidenceRefs.push({
+    id: "evidence-snapshot",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    label: "测试附件",
+    ref: "file://evt.pdf",
+  });
+  store.gateApprovalPacks.push({
+    id: "pack-snapshot",
+    projectId: "project-smart-controller",
+    gateId: "gate-evt_exit",
+    createdAt: "2026-05-26T01:00:00.000Z",
+    createdByUserId: "user-project-manager",
+    status: "READY",
+    snapshot: {},
+  });
+  store.notifications.push({
+    id: "notification-snapshot",
+    projectId: "project-smart-controller",
+    userId: "user-project-manager",
+    title: "快照通知",
+    message: "",
+    type: "INFO",
+    status: "UNREAD",
+    createdAt: "2026-05-26T01:00:00.000Z",
+  });
+  store.auditEvents.push({
+    id: "audit-snapshot",
+    projectId: "project-smart-controller",
+    eventType: "SNAPSHOT",
+    actorType: "human",
+    actorId: "user-project-manager",
+    objectType: "project",
+    objectId: "project-smart-controller",
+  });
+
+  const snapshot = getProjectSnapshotReadModel(store, "project-smart-controller", {
+    exportedAt: () => "2026-05-31T00:00:00.000Z",
+    scheduleStatus: (workPackage) => {
+      if (workPackage.id === "wp-overdue-snapshot") {
+        return "OVERDUE";
+      }
+      if (workPackage.id === "wp-due-soon-snapshot") {
+        return "DUE_SOON";
+      }
+      return "ON_TRACK";
+    },
+    summarizeRiskMitigations: (risks) => ({ mitigationPlanCount: risks.length }),
+  });
+
+  assert.equal(snapshot.exportedAt, "2026-05-31T00:00:00.000Z");
+  assert.equal(snapshot.summary.phaseCount, 7);
+  assert.equal(snapshot.summary.workPackageCount, 24);
+  assert.equal(snapshot.summary.approvedWorkPackageCount, 1);
+  assert.equal(snapshot.summary.overdueWorkPackageCount, 1);
+  assert.equal(snapshot.summary.dueSoonWorkPackageCount, 1);
+  assert.equal(snapshot.summary.conditionalApprovalCount, 2);
+  assert.equal(snapshot.summary.openConditionalApprovalCount, 1);
+  assert.equal(snapshot.summary.completedConditionalApprovalCount, 1);
+  assert.equal(snapshot.summary.evidenceRefCount, 1);
+  assert.equal(snapshot.summary.gateApprovalPackCount, 1);
+  assert.equal(snapshot.summary.notificationCount, 1);
+  assert.equal(snapshot.summary.auditEventCount, 1);
+  assert.equal(snapshot.summary.mitigationPlanCount, 1);
+  assert.equal(snapshot.workPackages.find((item) => item.id === "wp-overdue-snapshot").phaseName, "EVT Exit");
+  assert.equal(snapshot.workPackages.find((item) => item.id === "wp-overdue-snapshot").ownerUserId, "user-system-lead");
+  assert.equal(snapshot.workPackages.find((item) => item.id === "wp-due-soon-snapshot").agentKey, "quality_agent");
+  assert.equal(snapshot.risks[0].phaseName, "EVT Exit");
+});
+
+test("project snapshot read model returns null for unknown projects", () => {
+  assert.equal(getProjectSnapshotReadModel(createDemoStore(), "missing-project"), null);
 });
 
 test("project user notifications are scoped, sorted, counted, and filtered", () => {

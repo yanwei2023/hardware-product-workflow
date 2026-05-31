@@ -159,6 +159,99 @@ export function getProjectRiskRegisterReadModel(
   };
 }
 
+export function getProjectSnapshotReadModel(
+  store,
+  projectId,
+  {
+    exportedAt = () => new Date().toISOString(),
+    scheduleStatus = () => null,
+    summarizeRiskMitigations = () => ({}),
+  } = {},
+) {
+  const model = getProjectReadModel(store, projectId);
+  if (!model) {
+    return null;
+  }
+
+  const {
+    project,
+    phases,
+    gates,
+    rolePairs,
+    workPackages,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    reviews,
+    currentPhase,
+    currentGate,
+    auditEvents,
+    notifications,
+    gateRequirements,
+    artifactVersions,
+    agentRuns,
+    agentFindings,
+  } = model;
+  const conditionalApprovalReviews = reviews.filter(
+    (item) => item.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(item.conditions) && item.conditions.length > 0,
+  );
+
+  return {
+    exportedAt: exportedAt(),
+    project,
+    currentPhase,
+    currentGate,
+    summary: {
+      phaseCount: phases.length,
+      workPackageCount: workPackages.length,
+      approvedWorkPackageCount: workPackages.filter((item) => item.status === "HUMAN_APPROVED" || item.status === "LOCKED").length,
+      overdueWorkPackageCount: workPackages.filter((item) => scheduleStatus(item) === "OVERDUE").length,
+      dueSoonWorkPackageCount: workPackages.filter((item) => scheduleStatus(item) === "DUE_SOON").length,
+      riskCount: risks.length,
+      openHighRiskCount: risks.filter(
+        (risk) =>
+          (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+          risk.status !== "CLOSED" &&
+          risk.status !== "ACCEPTED",
+      ).length,
+      ...summarizeRiskMitigations(risks),
+      evidenceRefCount: evidenceRefs.length,
+      gateApprovalPackCount: gateApprovalPacks.length,
+      conditionalApprovalCount: conditionalApprovalReviews.length,
+      openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
+      completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
+      notificationCount: notifications.length,
+      auditEventCount: auditEvents.length,
+    },
+    phases,
+    gates,
+    gateRequirements,
+    rolePairs,
+    workPackages: workPackages.map((workPackage) => {
+      const rolePair = rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+      return {
+        ...workPackage,
+        phaseName: phases.find((phase) => phase.id === workPackage.phaseId)?.name || workPackage.phaseId,
+        ownerUserId: rolePair?.humanUserId || null,
+        agentKey: rolePair?.agentKey || null,
+        scheduleStatus: scheduleStatus(workPackage),
+      };
+    }),
+    artifactVersions,
+    reviews,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks: risks.map((risk) => ({
+      ...risk,
+      phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
+    })),
+    agentRuns,
+    agentFindings,
+    notifications,
+    auditEvents,
+  };
+}
+
 export function getWorkPackageReadModel(store, workPackageId, { scheduleStatus = () => null } = {}) {
   const workPackage = store.workPackages.find((item) => item.id === workPackageId);
   if (!workPackage) {
