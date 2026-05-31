@@ -5,6 +5,7 @@ import {
   getProjectListItemReadModel,
   getProjectListReadModel,
   getProjectReadModel,
+  getProjectRiskRegisterReadModel,
   getProjectUserNotifications,
   getWorkPackageReadModel,
 } from "./storeRepository.mjs";
@@ -141,6 +142,66 @@ test("project list read model returns summaries for every project", () => {
     ["project-smart-controller", "project-other"],
   );
   assert.equal(summaries[1].currentPhaseName, "Other Phase");
+});
+
+test("project risk register read model enriches, sorts, and summarizes risks", () => {
+  const store = createDemoStore();
+  store.risks.push(
+    {
+      id: "risk-dvt-closed",
+      projectId: "project-smart-controller",
+      phaseId: "phase-dvt_exit",
+      title: "DVT closed risk",
+      severity: "HIGH",
+      status: "CLOSED",
+      closedByUserId: "user-project-manager",
+      closedComment: "已关闭",
+    },
+    {
+      id: "risk-evt-accepted",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      title: "Accepted EVT risk",
+      severity: "CRITICAL",
+      status: "ACCEPTED",
+      acceptedByUserId: "user-project-manager",
+      acceptedComment: "接受残余风险",
+    },
+    {
+      id: "risk-other-project",
+      projectId: "project-other",
+      phaseId: "phase-evt_exit",
+      title: "Other project risk",
+      severity: "CRITICAL",
+      status: "OPEN",
+    },
+  );
+
+  const register = getProjectRiskRegisterReadModel(store, "project-smart-controller", {
+    exportedAt: () => "2026-05-31T00:00:00.000Z",
+    summarizeRiskMitigations: (risks) => ({ mitigationPlanCount: risks.filter((risk) => risk.mitigationOwnerUserId).length }),
+  });
+
+  assert.equal(register.exportedAt, "2026-05-31T00:00:00.000Z");
+  assert.equal(register.summary.totalRiskCount, 3);
+  assert.equal(register.summary.openRiskCount, 1);
+  assert.equal(register.summary.openBlockingRiskCount, 1);
+  assert.equal(register.summary.acceptedRiskCount, 1);
+  assert.equal(register.summary.closedRiskCount, 1);
+  assert.equal(register.summary.mitigationPlanCount, 0);
+  assert.deepEqual(
+    register.risks.map((risk) => risk.id),
+    ["risk-evt-accepted", "risk-thermal-margin", "risk-dvt-closed"],
+  );
+  assert.equal(register.risks[0].phaseName, "EVT Exit");
+  assert.equal(register.risks[0].decisionUserId, "user-project-manager");
+  assert.equal(register.risks[0].decisionComment, "接受残余风险");
+  assert.equal(register.risks[1].blocksGate, true);
+  assert.equal(register.risks[2].blocksGate, false);
+});
+
+test("project risk register read model returns null for unknown projects", () => {
+  assert.equal(getProjectRiskRegisterReadModel(createDemoStore(), "missing-project"), null);
 });
 
 test("project user notifications are scoped, sorted, counted, and filtered", () => {

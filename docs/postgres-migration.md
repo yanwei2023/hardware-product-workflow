@@ -13,7 +13,7 @@
 
 将 `apps/api/src/server.mjs` 中直接读写 `store.*` 的代码逐步替换为 Repository：
 
-- 当前已建立 `apps/api/src/storeRepository.mjs` 作为只读 Repository 起点，已覆盖项目聚合 read model、项目列表摘要、通知列表和工作包详情，不改变现有 JSON 持久化行为。
+- 当前已建立 `apps/api/src/storeRepository.mjs` 作为只读 Repository 起点，已覆盖项目聚合 read model、项目列表摘要、风险台账、通知列表和工作包详情，不改变现有 JSON 持久化行为。
 - `ProjectRepository`
 - `WorkPackageRepository`
 - `ReviewRepository`

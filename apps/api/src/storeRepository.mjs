@@ -116,6 +116,49 @@ export function getProjectListReadModel(store, options = {}) {
   return store.projects.map((project) => getProjectListItemReadModel(store, project.id, options)).filter(Boolean);
 }
 
+export function getProjectRiskRegisterReadModel(
+  store,
+  projectId,
+  { exportedAt = () => new Date().toISOString(), summarizeRiskMitigations = () => ({}) } = {},
+) {
+  const model = getProjectReadModel(store, projectId);
+  if (!model) {
+    return null;
+  }
+
+  const { project, phases } = model;
+  const risks = model.risks
+    .map((risk) => ({
+      ...risk,
+      phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
+      decisionUserId: risk.closedByUserId || risk.acceptedByUserId || null,
+      decisionComment: risk.closedComment || risk.acceptedComment || "",
+      blocksGate:
+        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+        risk.status !== "CLOSED" &&
+        risk.status !== "ACCEPTED",
+    }))
+    .sort((a, b) => {
+      const phaseA = phases.find((phase) => phase.id === a.phaseId)?.sequence || 0;
+      const phaseB = phases.find((phase) => phase.id === b.phaseId)?.sequence || 0;
+      return phaseA - phaseB || a.title.localeCompare(b.title);
+    });
+
+  return {
+    exportedAt: exportedAt(),
+    project,
+    summary: {
+      totalRiskCount: risks.length,
+      openRiskCount: risks.filter((risk) => risk.status === "OPEN").length,
+      openBlockingRiskCount: risks.filter((risk) => risk.blocksGate).length,
+      acceptedRiskCount: risks.filter((risk) => risk.status === "ACCEPTED").length,
+      closedRiskCount: risks.filter((risk) => risk.status === "CLOSED").length,
+      ...summarizeRiskMitigations(risks),
+    },
+    risks,
+  };
+}
+
 export function getWorkPackageReadModel(store, workPackageId, { scheduleStatus = () => null } = {}) {
   const workPackage = store.workPackages.find((item) => item.id === workPackageId);
   if (!workPackage) {

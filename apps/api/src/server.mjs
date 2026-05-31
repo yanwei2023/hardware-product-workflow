@@ -19,7 +19,13 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
-import { getProjectListReadModel, getProjectReadModel, getProjectUserNotifications, getWorkPackageReadModel } from "./storeRepository.mjs";
+import {
+  getProjectListReadModel,
+  getProjectReadModel,
+  getProjectRiskRegisterReadModel,
+  getProjectUserNotifications,
+  getWorkPackageReadModel,
+} from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
 const port = Number(process.env.PORT || 3001);
@@ -874,42 +880,9 @@ export function getProjectSnapshot(projectId) {
 }
 
 export function getProjectRiskRegister(projectId) {
-  const projectModel = getProjectReadModel(store, projectId);
-  if (!projectModel) {
-    return null;
-  }
-
-  const { project, phases } = projectModel;
-  const risks = projectModel.risks
-    .map((risk) => ({
-      ...risk,
-      phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
-      decisionUserId: risk.closedByUserId || risk.acceptedByUserId || null,
-      decisionComment: risk.closedComment || risk.acceptedComment || "",
-      blocksGate:
-        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
-        risk.status !== "CLOSED" &&
-        risk.status !== "ACCEPTED",
-    }))
-    .sort((a, b) => {
-      const phaseA = phases.find((phase) => phase.id === a.phaseId)?.sequence || 0;
-      const phaseB = phases.find((phase) => phase.id === b.phaseId)?.sequence || 0;
-      return phaseA - phaseB || a.title.localeCompare(b.title);
-    });
-
-  return {
-    exportedAt: new Date().toISOString(),
-    project,
-    summary: {
-      totalRiskCount: risks.length,
-      openRiskCount: risks.filter((risk) => risk.status === "OPEN").length,
-      openBlockingRiskCount: risks.filter((risk) => risk.blocksGate).length,
-      acceptedRiskCount: risks.filter((risk) => risk.status === "ACCEPTED").length,
-      closedRiskCount: risks.filter((risk) => risk.status === "CLOSED").length,
-      ...summarizeRiskMitigations(risks),
-    },
-    risks,
-  };
+  return getProjectRiskRegisterReadModel(store, projectId, {
+    summarizeRiskMitigations,
+  });
 }
 
 function asArray(value) {
