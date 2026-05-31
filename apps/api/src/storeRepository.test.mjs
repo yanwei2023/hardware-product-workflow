@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  getGateReviewPackReadModel,
+  getLatestGateApprovalPack,
   getProjectListItemReadModel,
   getProjectListReadModel,
   getProjectReadModel,
@@ -318,6 +320,99 @@ test("project snapshot read model exports enriched project state", () => {
 
 test("project snapshot read model returns null for unknown projects", () => {
   assert.equal(getProjectSnapshotReadModel(createDemoStore(), "missing-project"), null);
+});
+
+test("gate review pack read model summarizes evidence, conditions, and blocking risks", () => {
+  const store = createDemoStore();
+  const workPackage = store.workPackages.find((item) => item.id === "wp-evt_exit-evt_test_plan");
+  workPackage.status = "HUMAN_APPROVED";
+  store.artifactVersions.push(
+    {
+      id: "artifact-old",
+      workPackageId: workPackage.id,
+      artifactType: workPackage.requiredArtifactType,
+      status: "DRAFT",
+      version: 1,
+    },
+    {
+      id: "artifact-approved",
+      workPackageId: workPackage.id,
+      artifactType: workPackage.requiredArtifactType,
+      status: "APPROVED",
+      version: 2,
+    },
+  );
+  store.reviews.push({
+    id: "review-approved-with-conditions",
+    workPackageId: workPackage.id,
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "有条件通过",
+    conditions: ["补充边界条件"],
+    reviewedAt: "2026-05-25T01:00:00.000Z",
+  });
+  store.evidenceRefs.push({
+    id: "evidence-review-pack",
+    projectId: "project-smart-controller",
+    workPackageId: workPackage.id,
+    label: "测试照片",
+    ref: "file://photo.jpg",
+  });
+
+  const pack = getGateReviewPackReadModel(store, "gate-evt_exit", {
+    readiness: {
+      gateId: "gate-evt_exit",
+      status: "BLOCKED",
+      blockers: [{ type: "RISK", riskId: "risk-thermal-margin" }],
+    },
+  });
+  const evidence = pack.evidence.find((item) => item.workPackageId === workPackage.id);
+
+  assert.equal(pack.project.id, "project-smart-controller");
+  assert.equal(pack.phase.name, "EVT Exit");
+  assert.equal(pack.gate.id, "gate-evt_exit");
+  assert.equal(pack.summary.requiredEvidenceCount, 3);
+  assert.equal(pack.summary.readyEvidenceCount, 1);
+  assert.equal(pack.summary.manualEvidenceRefCount, 1);
+  assert.equal(pack.summary.conditionalApprovalCount, 1);
+  assert.equal(pack.summary.openConditionalApprovalCount, 1);
+  assert.equal(pack.summary.openBlockingRiskCount, 1);
+  assert.equal(pack.summary.blockerCount, 1);
+  assert.equal(pack.summary.readyForApproval, false);
+  assert.equal(evidence.latestArtifactId, "artifact-approved");
+  assert.equal(evidence.approvedArtifactId, "artifact-approved");
+  assert.equal(evidence.approvedReviewId, "review-approved-with-conditions");
+  assert.deepEqual(evidence.approvedReviewConditions, ["补充边界条件"]);
+  assert.equal(evidence.manualEvidenceRefs[0].id, "evidence-review-pack");
+  assert.equal(pack.risks[0].blocksGate, true);
+});
+
+test("gate review pack read model returns null for unknown gates", () => {
+  assert.equal(getGateReviewPackReadModel(createDemoStore(), "missing-gate"), null);
+});
+
+test("latest gate approval pack read model returns the newest approval", () => {
+  const store = createDemoStore();
+  store.gateApprovalPacks.push(
+    {
+      id: "pack-old",
+      gateId: "gate-evt_exit",
+      approvedAt: "2026-05-25T01:00:00.000Z",
+    },
+    {
+      id: "pack-new",
+      gateId: "gate-evt_exit",
+      approvedAt: "2026-05-26T01:00:00.000Z",
+    },
+    {
+      id: "pack-other",
+      gateId: "gate-dvt_exit",
+      approvedAt: "2026-05-27T01:00:00.000Z",
+    },
+  );
+
+  assert.equal(getLatestGateApprovalPack(store, "gate-evt_exit").id, "pack-new");
+  assert.equal(getLatestGateApprovalPack(store, "missing-gate"), null);
 });
 
 test("project user notifications are scoped, sorted, counted, and filtered", () => {

@@ -20,6 +20,8 @@ import {
   getDemoUsers,
 } from "./permissionStore.mjs";
 import {
+  getGateReviewPackReadModel,
+  getLatestGateApprovalPack,
   getProjectListReadModel,
   getProjectReadModel,
   getProjectRiskRegisterReadModel,
@@ -1843,113 +1845,12 @@ export function getGateReviewPack(gateId) {
     return null;
   }
 
-  const project = store.projects.find((item) => item.id === gate.projectId) || null;
-  const phase = store.phases.find((item) => item.id === gate.phaseId) || null;
   const readiness = checkGate(gate.id);
-  const requirements = store.gateRequirements.filter((item) => item.gateId === gate.id);
-  const evidence = requirements.map((requirement) => {
-    const workPackage = store.workPackages.find(
-      (item) =>
-        item.phaseId === gate.phaseId &&
-        item.title === requirement.requiredWorkPackageTitle &&
-        item.requiredArtifactType === requirement.requiredArtifactType,
-    );
-    const artifacts = workPackage
-      ? store.artifactVersions.filter((item) => item.workPackageId === workPackage.id && item.artifactType === requirement.requiredArtifactType)
-      : [];
-    const latestArtifact = artifacts.at(-1) || null;
-    const manualEvidenceRefs = workPackage
-      ? (store.evidenceRefs || []).filter((item) => item.workPackageId === workPackage.id)
-      : [];
-    const approvedArtifact =
-      artifacts.find((item) => item.status === "APPROVED" || item.status === "LOCKED") || null;
-    const approvedReview = workPackage
-      ? store.reviews.find(
-          (item) =>
-            item.workPackageId === workPackage.id &&
-            (item.decision === "APPROVE" || item.decision === "APPROVE_WITH_CONDITIONS"),
-        ) || null
-      : null;
-
-    return {
-      requirementId: requirement.id,
-      requiredWorkPackageTitle: requirement.requiredWorkPackageTitle,
-      requiredArtifactType: requirement.requiredArtifactType,
-      requiredRoleKey: requirement.requiredRoleKey,
-      workPackageId: workPackage?.id || null,
-      workPackageStatus: workPackage?.status || "MISSING",
-      latestArtifactId: latestArtifact?.id || null,
-      latestArtifactStatus: latestArtifact?.status || "MISSING",
-      approvedArtifactId: approvedArtifact?.id || null,
-      approvedReviewId: approvedReview?.id || null,
-      reviewerUserId: approvedReview?.reviewerUserId || null,
-      approvedReviewDecision: approvedReview?.decision || null,
-      approvedReviewComment: approvedReview?.comment || "",
-      approvedReviewConditions: approvedReview?.conditions || [],
-      approvedReviewConditionsCompletedAt: approvedReview?.conditionsCompletedAt || null,
-      approvedReviewConditionsCompletedByUserId: approvedReview?.conditionsCompletedByUserId || null,
-      approvedReviewConditionsCompletionComment: approvedReview?.conditionsCompletionComment || "",
-      approvedReviewedAt: approvedReview?.reviewedAt || null,
-      manualEvidenceCount: manualEvidenceRefs.length,
-      manualEvidenceRefs,
-      ready: Boolean(approvedArtifact && approvedReview),
-    };
-  });
-  const risks = store.risks
-    .filter((risk) => risk.projectId === gate.projectId && risk.phaseId === gate.phaseId)
-    .map((risk) => ({
-      id: risk.id,
-      title: risk.title,
-      severity: risk.severity,
-      status: risk.status,
-      mitigationStatus: risk.mitigationStatus || null,
-      mitigationOwnerUserId: risk.mitigationOwnerUserId || null,
-      mitigationDueAt: risk.mitigationDueAt || null,
-      mitigation: risk.mitigation || "",
-      mitigationCompletedAt: risk.mitigationCompletedAt || null,
-      mitigationCompletedByUserId: risk.mitigationCompletedByUserId || null,
-      mitigationCompletionComment: risk.mitigationCompletionComment || "",
-      blocksGate:
-        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
-        risk.status !== "CLOSED" &&
-        risk.status !== "ACCEPTED",
-    }));
-
-  return {
-    project: project ? { id: project.id, name: project.name, status: project.status } : null,
-    phase: phase ? { id: phase.id, name: phase.name, status: phase.status } : null,
-    gate: {
-      id: gate.id,
-      name: gate.name,
-      status: gate.status,
-      approvedByUserId: gate.approvedByUserId || null,
-      approvedAt: gate.approvedAt || null,
-      approvalComment: gate.approvalComment || "",
-    },
-    readiness,
-    evidence,
-    risks,
-    blockers: readiness.blockers,
-    summary: {
-      requiredEvidenceCount: evidence.length,
-      readyEvidenceCount: evidence.filter((item) => item.ready).length,
-      manualEvidenceRefCount: evidence.reduce((total, item) => total + item.manualEvidenceCount, 0),
-      conditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length).length,
-      openConditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length && !item.approvedReviewConditionsCompletedAt).length,
-      completedConditionalApprovalCount: evidence.filter((item) => item.approvedReviewConditions?.length && item.approvedReviewConditionsCompletedAt).length,
-      openBlockingRiskCount: risks.filter((item) => item.blocksGate).length,
-      blockerCount: readiness.blockers.length,
-      readyForApproval: readiness.status === "READY",
-    },
-  };
+  return getGateReviewPackReadModel(store, gateId, { readiness });
 }
 
 export function getGateApprovalPack(gateId) {
-  return (
-    (store.gateApprovalPacks || [])
-      .filter((item) => item.gateId === gateId)
-      .sort((a, b) => String(b.approvedAt).localeCompare(String(a.approvedAt)))[0] || null
-  );
+  return getLatestGateApprovalPack(store, gateId);
 }
 
 function createGateApprovalPack(gate, reviewPack, approval) {
