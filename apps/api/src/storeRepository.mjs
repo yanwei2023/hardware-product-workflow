@@ -79,6 +79,43 @@ export function getProjectUserNotifications(store, projectId, userId, filters = 
   };
 }
 
+export function getProjectListItemReadModel(
+  store,
+  projectId,
+  { scheduleStatus = () => null, summarizeRiskMitigations = () => ({}) } = {},
+) {
+  const model = getProjectReadModel(store, projectId);
+  if (!model) {
+    return null;
+  }
+
+  const { project, currentPhase, currentGate, workPackages, reviews, risks } = model;
+  const conditionalApprovalReviews = reviews.filter(
+    (review) => review.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(review.conditions) && review.conditions.length > 0,
+  );
+
+  return {
+    ...project,
+    currentPhaseName: currentPhase?.name || project.currentPhaseId,
+    currentGateName: currentGate?.name || null,
+    currentGateStatus: currentGate?.status || null,
+    workPackageCount: workPackages.length,
+    overdueWorkPackageCount: workPackages.filter((workPackage) => scheduleStatus(workPackage) === "OVERDUE").length,
+    openHighRiskCount: risks.filter(
+      (risk) =>
+        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+        risk.status !== "CLOSED" &&
+        risk.status !== "ACCEPTED",
+    ).length,
+    openConditionalApprovalCount: conditionalApprovalReviews.filter((review) => !review.conditionsCompletedAt).length,
+    ...summarizeRiskMitigations(risks),
+  };
+}
+
+export function getProjectListReadModel(store, options = {}) {
+  return store.projects.map((project) => getProjectListItemReadModel(store, project.id, options)).filter(Boolean);
+}
+
 export function getWorkPackageReadModel(store, workPackageId, { scheduleStatus = () => null } = {}) {
   const workPackage = store.workPackages.find((item) => item.id === workPackageId);
   if (!workPackage) {

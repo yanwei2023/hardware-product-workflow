@@ -19,7 +19,7 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
-import { getProjectReadModel, getProjectUserNotifications, getWorkPackageReadModel } from "./storeRepository.mjs";
+import { getProjectListReadModel, getProjectReadModel, getProjectUserNotifications, getWorkPackageReadModel } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
 const port = Number(process.env.PORT || 3001);
@@ -80,37 +80,6 @@ function summarizeRiskMitigations(risks) {
     openMitigationCount: openRisks.length,
     overdueMitigationCount: openRisks.filter((risk) => workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: "OPEN" }) === "OVERDUE").length,
     completedMitigationCount: plannedRisks.filter((risk) => risk.mitigationStatus === "DONE").length,
-  };
-}
-
-function summarizeProjectListItem(project) {
-  const phases = store.phases.filter((phase) => phase.projectId === project.id);
-  const phaseIds = new Set(phases.map((phase) => phase.id));
-  const currentPhase = phases.find((phase) => phase.id === project.currentPhaseId) || null;
-  const currentGate = currentPhase ? store.gates.find((gate) => gate.phaseId === currentPhase.id) || null : null;
-  const workPackages = store.workPackages.filter((workPackage) => workPackage.projectId === project.id);
-  const workPackageIds = new Set(workPackages.map((workPackage) => workPackage.id));
-  const reviews = store.reviews.filter((review) => workPackageIds.has(review.workPackageId));
-  const risks = store.risks.filter((risk) => risk.projectId === project.id && phaseIds.has(risk.phaseId));
-  const conditionalApprovalReviews = reviews.filter(
-    (review) => review.decision === "APPROVE_WITH_CONDITIONS" && Array.isArray(review.conditions) && review.conditions.length > 0,
-  );
-
-  return {
-    ...project,
-    currentPhaseName: currentPhase?.name || project.currentPhaseId,
-    currentGateName: currentGate?.name || null,
-    currentGateStatus: currentGate?.status || null,
-    workPackageCount: workPackages.length,
-    overdueWorkPackageCount: workPackages.filter((workPackage) => workPackageScheduleStatus(workPackage) === "OVERDUE").length,
-    openHighRiskCount: risks.filter(
-      (risk) =>
-        (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
-        risk.status !== "CLOSED" &&
-        risk.status !== "ACCEPTED",
-    ).length,
-    openConditionalApprovalCount: conditionalApprovalReviews.filter((review) => !review.conditionsCompletedAt).length,
-    ...summarizeRiskMitigations(risks),
   };
 }
 
@@ -781,7 +750,10 @@ export function getActiveProjectView() {
   return {
     project,
     projects: store.projects,
-    projectSummaries: store.projects.map(summarizeProjectListItem),
+    projectSummaries: getProjectListReadModel(store, {
+      scheduleStatus: workPackageScheduleStatus,
+      summarizeRiskMitigations,
+    }),
     activeProjectId: store.activeProjectId,
     phases,
     gates,

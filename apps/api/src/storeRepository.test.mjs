@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { getProjectReadModel, getProjectUserNotifications, getWorkPackageReadModel } from "./storeRepository.mjs";
+import {
+  getProjectListItemReadModel,
+  getProjectListReadModel,
+  getProjectReadModel,
+  getProjectUserNotifications,
+  getWorkPackageReadModel,
+} from "./storeRepository.mjs";
 
 test("project read model scopes workflow records to one project", () => {
   const store = createDemoStore();
@@ -45,6 +51,96 @@ test("project read model scopes workflow records to one project", () => {
 
 test("project read model returns null for unknown projects", () => {
   assert.equal(getProjectReadModel(createDemoStore(), "missing-project"), null);
+});
+
+test("project list read model summarizes workflow health", () => {
+  const store = createDemoStore();
+  store.workPackages.push({
+    id: "wp-overdue-summary",
+    projectId: "project-smart-controller",
+    rolePairId: "role-systems",
+    title: "逾期摘要工作包",
+    status: "OPEN",
+    dueAt: "2026-05-20",
+  });
+  store.reviews.push(
+    {
+      id: "review-conditions-open",
+      workPackageId: "wp-evt_exit-evt_test_plan",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补齐测试覆盖矩阵"],
+      reviewedAt: "2026-05-25T01:00:00.000Z",
+    },
+    {
+      id: "review-conditions-closed",
+      workPackageId: "wp-evt_exit-evt_test_report",
+      reviewerUserId: "user-quality-lead",
+      decision: "APPROVE_WITH_CONDITIONS",
+      conditions: ["补充样机编号"],
+      conditionsCompletedAt: "2026-05-26T01:00:00.000Z",
+      reviewedAt: "2026-05-25T02:00:00.000Z",
+    },
+  );
+  store.risks.push(
+    {
+      id: "risk-high-open",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      severity: "HIGH",
+      status: "OPEN",
+      mitigationOwnerUserId: "user-project-manager",
+    },
+    {
+      id: "risk-critical-accepted",
+      projectId: "project-smart-controller",
+      phaseId: "phase-evt_exit",
+      severity: "CRITICAL",
+      status: "ACCEPTED",
+      mitigationOwnerUserId: "user-project-manager",
+    },
+  );
+
+  const summary = getProjectListItemReadModel(store, "project-smart-controller", {
+    scheduleStatus: (workPackage) => (workPackage.id === "wp-overdue-summary" ? "OVERDUE" : "ON_TRACK"),
+    summarizeRiskMitigations: (risks) => ({ mitigationPlanCount: risks.length }),
+  });
+
+  assert.equal(summary.id, "project-smart-controller");
+  assert.equal(summary.currentPhaseName, "EVT Exit");
+  assert.equal(summary.currentGateName, "EVT Exit 阶段门");
+  assert.equal(summary.workPackageCount, 23);
+  assert.equal(summary.overdueWorkPackageCount, 1);
+  assert.equal(summary.openHighRiskCount, 2);
+  assert.equal(summary.openConditionalApprovalCount, 1);
+  assert.equal(summary.mitigationPlanCount, 3);
+});
+
+test("project list read model returns summaries for every project", () => {
+  const store = createDemoStore();
+  store.projects.push({
+    id: "project-other",
+    name: "Other",
+    currentPhaseId: "project-other-phase",
+    status: "PLANNED",
+  });
+  store.phases.push({
+    id: "project-other-phase",
+    projectId: "project-other",
+    name: "Other Phase",
+    sequence: 1,
+    status: "IN_PROGRESS",
+  });
+
+  const summaries = getProjectListReadModel(store, {
+    scheduleStatus: () => "ON_TRACK",
+  });
+
+  assert.deepEqual(
+    summaries.map((item) => item.id),
+    ["project-smart-controller", "project-other"],
+  );
+  assert.equal(summaries[1].currentPhaseName, "Other Phase");
 });
 
 test("project user notifications are scoped, sorted, counted, and filtered", () => {
