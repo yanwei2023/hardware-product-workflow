@@ -79,6 +79,161 @@ export function getProjectUserNotifications(store, projectId, userId, filters = 
   };
 }
 
+export function getUserActionItemsReadModel(
+  store,
+  projectId,
+  userId,
+  {
+    scheduleStatus = () => null,
+    loadArtifactTemplate = () => null,
+    canReviewWorkPackage = () => ({ allowed: false }),
+    canApproveWorkPackage = () => ({ allowed: false }),
+    canAcceptRisk = () => ({ allowed: false }),
+    canApproveGate = () => ({ allowed: false }),
+    currentGateReadiness = null,
+  } = {},
+) {
+  const model = getProjectReadModel(store, projectId);
+  if (!model) {
+    return null;
+  }
+
+  const { project, phaseIds, rolePairs, workPackages, artifactVersions, reviews, risks, currentGate } = model;
+  const pendingReviews = [];
+  const scheduleAlerts = [];
+  const conditionalApprovals = [];
+
+  for (const workPackage of workPackages) {
+    const rolePair = rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+    const workPackageScheduleStatus = scheduleStatus(workPackage);
+    if (rolePair?.humanUserId === userId && (workPackageScheduleStatus === "OVERDUE" || workPackageScheduleStatus === "DUE_SOON")) {
+      scheduleAlerts.push({
+        type: "WORK_PACKAGE_SCHEDULE",
+        workPackageId: workPackage.id,
+        title: workPackage.title,
+        phaseId: workPackage.phaseId,
+        dueAt: workPackage.dueAt,
+        scheduleStatus: workPackageScheduleStatus,
+      });
+    }
+
+    if (rolePair?.humanUserId === userId) {
+      const latestConditionalReview = [...reviews]
+        .reverse()
+        .find(
+          (item) =>
+            item.workPackageId === workPackage.id &&
+            item.decision === "APPROVE_WITH_CONDITIONS" &&
+            Array.isArray(item.conditions) &&
+            item.conditions.length > 0 &&
+            !item.conditionsCompletedAt,
+        );
+      if (latestConditionalReview) {
+        conditionalApprovals.push({
+          type: "CONDITIONAL_APPROVAL",
+          workPackageId: workPackage.id,
+          reviewId: latestConditionalReview.id,
+          title: workPackage.title,
+          phaseId: workPackage.phaseId,
+          reviewerUserId: latestConditionalReview.reviewerUserId,
+          reviewedAt: latestConditionalReview.reviewedAt,
+          comment: latestConditionalReview.comment || "",
+          conditions: latestConditionalReview.conditions,
+          conditionsCompletedAt: latestConditionalReview.conditionsCompletedAt || null,
+        });
+      }
+    }
+
+    const pendingArtifact = [...artifactVersions]
+      .reverse()
+      .find((item) => item.workPackageId === workPackage.id && item.status === "PENDING_REVIEW");
+    if (!pendingArtifact) {
+      continue;
+    }
+
+    const artifactTemplate = loadArtifactTemplate(workPackage);
+    const reviewPermission = canReviewWorkPackage(userId, workPackage, rolePair, artifactTemplate);
+    if (!reviewPermission.allowed) {
+      continue;
+    }
+
+    pendingReviews.push({
+      type: "WORK_PACKAGE_REVIEW",
+      workPackageId: workPackage.id,
+      title: workPackage.title,
+      phaseId: workPackage.phaseId,
+      artifactType: workPackage.requiredArtifactType,
+      canApprove: canApproveWorkPackage(userId, rolePair).allowed,
+    });
+  }
+
+  const riskPermission = canAcceptRisk(userId);
+  const riskDecisions = riskPermission.allowed
+    ? risks
+        .filter(
+          (risk) =>
+            phaseIds.has(risk.phaseId) &&
+            (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
+            risk.status === "OPEN",
+        )
+        .map((risk) => ({
+          type: "RISK_DECISION",
+          riskId: risk.id,
+          title: risk.title,
+          phaseId: risk.phaseId,
+          severity: risk.severity,
+        }))
+    : [];
+  const riskMitigations = risks
+    .filter(
+      (risk) =>
+        phaseIds.has(risk.phaseId) &&
+        risk.mitigationOwnerUserId === userId &&
+        risk.status !== "CLOSED" &&
+        risk.mitigationStatus !== "DONE",
+    )
+    .map((risk) => ({
+      type: "RISK_MITIGATION",
+      riskId: risk.id,
+      title: risk.title,
+      phaseId: risk.phaseId,
+      severity: risk.severity,
+      riskStatus: risk.status,
+      dueAt: risk.mitigationDueAt || null,
+      scheduleStatus: scheduleStatus({ dueAt: risk.mitigationDueAt, status: "OPEN" }),
+      mitigation: risk.mitigation || "",
+    }));
+
+  const gateApprovals = [];
+  const gateApprovalPermission = canApproveGate(userId);
+  if (currentGate && gateApprovalPermission.allowed && currentGateReadiness?.status === "READY") {
+    gateApprovals.push({
+      type: "GATE_APPROVAL",
+      gateId: currentGate.id,
+      title: currentGate.name,
+      phaseId: currentGate.phaseId,
+    });
+  }
+
+  return {
+    userId,
+    projectId: project.id,
+    pendingReviews,
+    scheduleAlerts,
+    conditionalApprovals,
+    riskDecisions,
+    riskMitigations,
+    gateApprovals,
+    total:
+      pendingReviews.length +
+      scheduleAlerts.length +
+      conditionalApprovals.length +
+      riskDecisions.length +
+      riskMitigations.length +
+      gateApprovals.length,
+  };
+}
+
 export function getProjectListItemReadModel(
   store,
   projectId,

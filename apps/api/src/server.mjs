@@ -26,6 +26,7 @@ import {
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
+  getUserActionItemsReadModel,
   getWorkPackageReadModel,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
@@ -1586,149 +1587,19 @@ export function getWorkPackageMarkdown(workPackageId) {
 
 export function getUserActionItems(userId) {
   const project = currentProject();
-  const phaseIds = new Set(store.phases.filter((item) => item.projectId === project.id).map((item) => item.id));
-  const workPackages = store.workPackages.filter((item) => item.projectId === project.id);
-  const pendingReviews = [];
-  const scheduleAlerts = [];
-  const conditionalApprovals = [];
-
-  for (const workPackage of workPackages) {
-    const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
-    const scheduleStatus = workPackageScheduleStatus(workPackage);
-    if (rolePair?.humanUserId === userId && (scheduleStatus === "OVERDUE" || scheduleStatus === "DUE_SOON")) {
-      scheduleAlerts.push({
-        type: "WORK_PACKAGE_SCHEDULE",
-        workPackageId: workPackage.id,
-        title: workPackage.title,
-        phaseId: workPackage.phaseId,
-        dueAt: workPackage.dueAt,
-        scheduleStatus,
-      });
-    }
-
-    if (rolePair?.humanUserId === userId) {
-      const latestConditionalReview = [...store.reviews]
-        .reverse()
-        .find(
-          (item) =>
-            item.workPackageId === workPackage.id &&
-            item.decision === "APPROVE_WITH_CONDITIONS" &&
-            Array.isArray(item.conditions) &&
-            item.conditions.length > 0 &&
-            !item.conditionsCompletedAt,
-        );
-      if (latestConditionalReview) {
-        conditionalApprovals.push({
-          type: "CONDITIONAL_APPROVAL",
-          workPackageId: workPackage.id,
-          reviewId: latestConditionalReview.id,
-          title: workPackage.title,
-          phaseId: workPackage.phaseId,
-          reviewerUserId: latestConditionalReview.reviewerUserId,
-          reviewedAt: latestConditionalReview.reviewedAt,
-          comment: latestConditionalReview.comment || "",
-          conditions: latestConditionalReview.conditions,
-          conditionsCompletedAt: latestConditionalReview.conditionsCompletedAt || null,
-        });
-      }
-    }
-
-    const pendingArtifact = [...store.artifactVersions]
-      .reverse()
-      .find((item) => item.workPackageId === workPackage.id && item.status === "PENDING_REVIEW");
-    if (!pendingArtifact) {
-      continue;
-    }
-
-    const artifactTemplate =
-      (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
-      loadArtifactTemplateByType(workPackage.requiredArtifactType);
-    const reviewPermission = canReviewWorkPackage(userId, workPackage, rolePair, artifactTemplate);
-    if (!reviewPermission.allowed) {
-      continue;
-    }
-
-    pendingReviews.push({
-      type: "WORK_PACKAGE_REVIEW",
-      workPackageId: workPackage.id,
-      title: workPackage.title,
-      phaseId: workPackage.phaseId,
-      artifactType: workPackage.requiredArtifactType,
-      canApprove: canApproveWorkPackage(userId, rolePair).allowed,
-    });
-  }
-
-  const riskPermission = canAcceptRisk(userId);
-  const riskDecisions = riskPermission.allowed
-    ? store.risks
-        .filter(
-          (risk) =>
-            risk.projectId === project.id &&
-            phaseIds.has(risk.phaseId) &&
-            (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
-            risk.status === "OPEN",
-        )
-        .map((risk) => ({
-          type: "RISK_DECISION",
-          riskId: risk.id,
-          title: risk.title,
-          phaseId: risk.phaseId,
-          severity: risk.severity,
-        }))
-    : [];
-  const riskMitigations = store.risks
-    .filter(
-      (risk) =>
-        risk.projectId === project.id &&
-        phaseIds.has(risk.phaseId) &&
-        risk.mitigationOwnerUserId === userId &&
-        risk.status !== "CLOSED" &&
-        risk.mitigationStatus !== "DONE",
-    )
-    .map((risk) => ({
-      type: "RISK_MITIGATION",
-      riskId: risk.id,
-      title: risk.title,
-      phaseId: risk.phaseId,
-      severity: risk.severity,
-      riskStatus: risk.status,
-      dueAt: risk.mitigationDueAt || null,
-      scheduleStatus: workPackageScheduleStatus({ dueAt: risk.mitigationDueAt, status: "OPEN" }),
-      mitigation: risk.mitigation || "",
-    }));
-
-  const gateApprovalPermission = canApproveGate(userId);
-  const gateApprovals = [];
   const gate = currentGate();
-  if (gate && gateApprovalPermission.allowed) {
-    const readiness = checkGate(gate.id);
-    if (readiness.status === "READY") {
-      gateApprovals.push({
-        type: "GATE_APPROVAL",
-        gateId: gate.id,
-        title: gate.name,
-        phaseId: gate.phaseId,
-      });
-    }
-  }
-
-  return {
-    userId,
-    projectId: project.id,
-    pendingReviews,
-    scheduleAlerts,
-    conditionalApprovals,
-    riskDecisions,
-    riskMitigations,
-    gateApprovals,
-    total:
-      pendingReviews.length +
-      scheduleAlerts.length +
-      conditionalApprovals.length +
-      riskDecisions.length +
-      riskMitigations.length +
-      gateApprovals.length,
-  };
+  const gateApprovalPermission = canApproveGate(userId);
+  return getUserActionItemsReadModel(store, project.id, userId, {
+    scheduleStatus: workPackageScheduleStatus,
+    loadArtifactTemplate: (workPackage) =>
+      (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
+      loadArtifactTemplateByType(workPackage.requiredArtifactType),
+    canReviewWorkPackage,
+    canApproveWorkPackage,
+    canAcceptRisk,
+    canApproveGate: () => gateApprovalPermission,
+    currentGateReadiness: gate && gateApprovalPermission.allowed ? checkGate(gate.id) : null,
+  });
 }
 
 export function getUserNotifications(userId, filters = {}) {

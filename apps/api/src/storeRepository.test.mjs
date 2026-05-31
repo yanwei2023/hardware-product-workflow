@@ -11,6 +11,7 @@ import {
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
+  getUserActionItemsReadModel,
   getWorkPackageReadModel,
 } from "./storeRepository.mjs";
 
@@ -243,6 +244,85 @@ test("active project read model summarizes current workflow view", () => {
 
 test("active project read model returns null for unknown projects", () => {
   assert.equal(getActiveProjectReadModel(createDemoStore(), "missing-project"), null);
+});
+
+test("user action items read model aggregates review, schedule, risk, and gate work", () => {
+  const store = createDemoStore();
+  const workPackage = store.workPackages.find((item) => item.id === "wp-evt_exit-evt_test_plan");
+  store.artifactVersions.push({
+    id: "artifact-pending-action",
+    workPackageId: workPackage.id,
+    artifactType: workPackage.requiredArtifactType,
+    status: "PENDING_REVIEW",
+    version: 1,
+  });
+  store.reviews.push({
+    id: "review-open-action-condition",
+    workPackageId: workPackage.id,
+    reviewerUserId: "user-quality-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    comment: "补齐记录后通过",
+    conditions: ["补齐记录"],
+    reviewedAt: "2026-05-25T01:00:00.000Z",
+  });
+  store.risks.push({
+    id: "risk-action-mitigation",
+    projectId: "project-smart-controller",
+    phaseId: "phase-evt_exit",
+    title: "缓解动作",
+    severity: "MEDIUM",
+    status: "OPEN",
+    mitigationOwnerUserId: "user-test-lead",
+    mitigationDueAt: "2026-06-01",
+    mitigationStatus: "OPEN",
+    mitigation: "补充测试记录",
+  });
+
+  const result = getUserActionItemsReadModel(store, "project-smart-controller", "user-test-lead", {
+    scheduleStatus: (item) => {
+      if (item.id === workPackage.id) {
+        return "OVERDUE";
+      }
+      if (item.dueAt === "2026-06-01") {
+        return "DUE_SOON";
+      }
+      return "ON_TRACK";
+    },
+    loadArtifactTemplate: () => ({ requiredReviewerRole: "test" }),
+    canReviewWorkPackage: () => ({ allowed: true }),
+    canApproveWorkPackage: () => ({ allowed: true }),
+    canAcceptRisk: () => ({ allowed: true }),
+    canApproveGate: () => ({ allowed: true }),
+    currentGateReadiness: {
+      gateId: "gate-evt_exit",
+      status: "READY",
+      blockers: [],
+    },
+  });
+
+  assert.equal(result.userId, "user-test-lead");
+  assert.equal(result.projectId, "project-smart-controller");
+  assert.equal(result.pendingReviews.length, 1);
+  assert.equal(result.pendingReviews[0].workPackageId, workPackage.id);
+  assert.equal(result.pendingReviews[0].canApprove, true);
+  assert.equal(result.scheduleAlerts.length, 1);
+  assert.equal(result.scheduleAlerts[0].scheduleStatus, "OVERDUE");
+  assert.equal(result.conditionalApprovals.length, 1);
+  assert.equal(result.conditionalApprovals[0].reviewId, "review-open-action-condition");
+  assert.deepEqual(
+    result.riskDecisions.map((item) => item.riskId),
+    ["risk-thermal-margin"],
+  );
+  assert.equal(result.riskMitigations.length, 1);
+  assert.equal(result.riskMitigations[0].riskId, "risk-action-mitigation");
+  assert.equal(result.riskMitigations[0].scheduleStatus, "DUE_SOON");
+  assert.equal(result.gateApprovals.length, 1);
+  assert.equal(result.gateApprovals[0].gateId, "gate-evt_exit");
+  assert.equal(result.total, 6);
+});
+
+test("user action items read model returns null for unknown projects", () => {
+  assert.equal(getUserActionItemsReadModel(createDemoStore(), "missing-project", "user-test-lead"), null);
 });
 
 test("project risk register read model enriches, sorts, and summarizes risks", () => {
