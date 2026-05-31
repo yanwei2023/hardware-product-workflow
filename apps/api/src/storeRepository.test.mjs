@@ -22,6 +22,8 @@ import {
   getProjectUserNotifications,
   getUserActionItemsReadModel,
   getWorkPackageReadModel,
+  markNotificationReadInStore,
+  markProjectUserNotificationsReadInStore,
 } from "./storeRepository.mjs";
 
 test("store lookup helpers resolve current and individual records", () => {
@@ -60,6 +62,57 @@ test("current project helper falls back to the first project", () => {
 
   assert.equal(getCurrentProject(store).id, "project-smart-controller");
   assert.equal(getCurrentGate({ ...store, projects: [] }), null);
+});
+
+test("notification write helpers mark one or many notifications read", () => {
+  const store = createDemoStore();
+  store.notifications.push(
+    {
+      id: "notification-read-one",
+      projectId: "project-smart-controller",
+      userId: "user-project-manager",
+      title: "one",
+      message: "",
+      type: "INFO",
+      status: "UNREAD",
+      createdAt: "2026-05-26T01:00:00.000Z",
+    },
+    {
+      id: "notification-read-bulk",
+      projectId: "project-smart-controller",
+      userId: "user-project-manager",
+      title: "bulk",
+      message: "",
+      type: "ACTION",
+      status: "UNREAD",
+      createdAt: "2026-05-26T02:00:00.000Z",
+    },
+    {
+      id: "notification-other-user",
+      projectId: "project-smart-controller",
+      userId: "user-test-lead",
+      title: "other user",
+      message: "",
+      type: "ACTION",
+      status: "UNREAD",
+      createdAt: "2026-05-26T03:00:00.000Z",
+    },
+  );
+
+  const readOne = markNotificationReadInStore(store, "notification-read-one", {
+    readAt: "2026-05-31T01:00:00.000Z",
+  });
+  const updatedCount = markProjectUserNotificationsReadInStore(store, "project-smart-controller", "user-project-manager", {
+    readAt: "2026-05-31T02:00:00.000Z",
+  });
+
+  assert.equal(readOne.status, "READ");
+  assert.equal(readOne.readAt, "2026-05-31T01:00:00.000Z");
+  assert.equal(updatedCount, 1);
+  assert.equal(findNotification(store, "notification-read-bulk").status, "READ");
+  assert.equal(findNotification(store, "notification-read-bulk").readAt, "2026-05-31T02:00:00.000Z");
+  assert.equal(findNotification(store, "notification-other-user").status, "UNREAD");
+  assert.equal(markNotificationReadInStore(store, "missing-notification"), null);
 });
 
 test("project read model scopes workflow records to one project", () => {

@@ -37,6 +37,8 @@ import {
   getProjectUserNotifications,
   getUserActionItemsReadModel,
   getWorkPackageReadModel,
+  markNotificationReadInStore,
+  markProjectUserNotificationsReadInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
@@ -1632,8 +1634,7 @@ export function markNotificationRead(notificationId, body = {}) {
     };
   }
 
-  notification.status = "READ";
-  notification.readAt = new Date().toISOString();
+  markNotificationReadInStore(store, notification.id);
   persistStore();
 
   return {
@@ -1647,16 +1648,7 @@ export function markNotificationRead(notificationId, body = {}) {
 
 export function markUserNotificationsRead(userId) {
   const project = currentProject();
-  const now = new Date().toISOString();
-  let updatedCount = 0;
-
-  for (const notification of store.notifications || []) {
-    if (notification.userId === userId && notification.projectId === project.id && notification.status === "UNREAD") {
-      notification.status = "READ";
-      notification.readAt = now;
-      updatedCount += 1;
-    }
-  }
+  const updatedCount = markProjectUserNotificationsReadInStore(store, project.id, userId);
 
   persistStore();
 

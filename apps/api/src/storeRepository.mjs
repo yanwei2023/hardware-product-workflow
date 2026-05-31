@@ -39,6 +39,34 @@ export function findRisk(store, riskId) {
   return store.risks.find((item) => item.id === riskId) || null;
 }
 
+export function markNotificationReadInStore(store, notificationId, { readAt = new Date().toISOString() } = {}) {
+  const notification = findNotification(store, notificationId);
+  if (!notification) {
+    return null;
+  }
+
+  notification.status = "READ";
+  notification.readAt = readAt;
+  return notification;
+}
+
+export function markProjectUserNotificationsReadInStore(
+  store,
+  projectId,
+  userId,
+  { readAt = new Date().toISOString() } = {},
+) {
+  let updatedCount = 0;
+  for (const notification of store.notifications || []) {
+    if (notification.userId === userId && notification.projectId === projectId && notification.status === "UNREAD") {
+      notification.status = "READ";
+      notification.readAt = readAt;
+      updatedCount += 1;
+    }
+  }
+  return updatedCount;
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {
