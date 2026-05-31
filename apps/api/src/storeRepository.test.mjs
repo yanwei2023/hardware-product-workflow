@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  findGate,
+  findNotification,
+  findProject,
+  findReview,
+  findRolePair,
+  findRisk,
+  findWorkPackage,
   getActiveProjectReadModel,
+  getCurrentGate,
+  getCurrentProject,
   getGateReviewPackReadModel,
   getLatestGateApprovalPack,
   getProjectListItemReadModel,
@@ -14,6 +23,44 @@ import {
   getUserActionItemsReadModel,
   getWorkPackageReadModel,
 } from "./storeRepository.mjs";
+
+test("store lookup helpers resolve current and individual records", () => {
+  const store = createDemoStore();
+  store.notifications.push({
+    id: "notification-helper",
+    projectId: "project-smart-controller",
+    userId: "user-project-manager",
+    title: "helper",
+    message: "",
+    type: "INFO",
+    status: "UNREAD",
+    createdAt: "2026-05-26T01:00:00.000Z",
+  });
+
+  assert.equal(getCurrentProject(store).id, "project-smart-controller");
+  assert.equal(getCurrentGate(store).id, "gate-evt_exit");
+  assert.equal(findProject(store, "project-smart-controller").name, "智能控制器项目");
+  assert.equal(findRolePair(store, "pair-test_agent").humanUserId, "user-test-lead");
+  assert.equal(findWorkPackage(store, "wp-evt_exit-evt_test_plan").title, "EVT 测试计划");
+  assert.equal(findNotification(store, "notification-helper").title, "helper");
+  assert.equal(findGate(store, "gate-evt_exit").name, "EVT Exit 阶段门");
+  assert.equal(findRisk(store, "risk-thermal-margin").title, "热设计裕量不足");
+  assert.equal(findProject(store, "missing-project"), null);
+  assert.equal(findRolePair(store, "missing-role-pair"), null);
+  assert.equal(findWorkPackage(store, "missing-work-package"), null);
+  assert.equal(findNotification(store, "missing-notification"), null);
+  assert.equal(findGate(store, "missing-gate"), null);
+  assert.equal(findReview(store, "missing-review"), null);
+  assert.equal(findRisk(store, "missing-risk"), null);
+});
+
+test("current project helper falls back to the first project", () => {
+  const store = createDemoStore();
+  store.activeProjectId = "missing-project";
+
+  assert.equal(getCurrentProject(store).id, "project-smart-controller");
+  assert.equal(getCurrentGate({ ...store, projects: [] }), null);
+});
 
 test("project read model scopes workflow records to one project", () => {
   const store = createDemoStore();

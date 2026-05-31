@@ -2,6 +2,43 @@ function bySequence(a, b) {
   return (a.sequence || 0) - (b.sequence || 0);
 }
 
+export function getCurrentProject(store) {
+  return store.projects.find((project) => project.id === store.activeProjectId) || store.projects[0] || null;
+}
+
+export function getCurrentGate(store) {
+  const project = getCurrentProject(store);
+  return project ? store.gates.find((gate) => gate.phaseId === project.currentPhaseId) || null : null;
+}
+
+export function findProject(store, projectId) {
+  return store.projects.find((item) => item.id === projectId) || null;
+}
+
+export function findRolePair(store, rolePairId) {
+  return store.rolePairs.find((item) => item.id === rolePairId) || null;
+}
+
+export function findWorkPackage(store, workPackageId) {
+  return store.workPackages.find((item) => item.id === workPackageId) || null;
+}
+
+export function findNotification(store, notificationId) {
+  return (store.notifications || []).find((item) => item.id === notificationId) || null;
+}
+
+export function findGate(store, gateId) {
+  return store.gates.find((item) => item.id === gateId) || null;
+}
+
+export function findReview(store, reviewId) {
+  return store.reviews.find((item) => item.id === reviewId) || null;
+}
+
+export function findRisk(store, riskId) {
+  return store.risks.find((item) => item.id === riskId) || null;
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {

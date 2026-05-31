@@ -20,9 +20,18 @@ import {
   getDemoUsers,
 } from "./permissionStore.mjs";
 import {
+  findGate,
+  findNotification,
+  findProject,
+  findReview,
+  findRolePair,
+  findRisk,
+  findWorkPackage,
   getGateReviewPackReadModel,
   getLatestGateApprovalPack,
   getActiveProjectReadModel,
+  getCurrentGate,
+  getCurrentProject,
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
@@ -613,11 +622,11 @@ function notifyRole(roleName, notification) {
 }
 
 function currentProject() {
-  return store.projects.find((project) => project.id === store.activeProjectId) || store.projects[0];
+  return getCurrentProject(store);
 }
 
 function currentGate() {
-  return store.gates.find((gate) => gate.phaseId === currentProject().currentPhaseId) || null;
+  return getCurrentGate(store);
 }
 
 function currentGateCheck() {
@@ -1328,7 +1337,7 @@ export function createProject(body = {}) {
 }
 
 export function selectProject(projectId) {
-  const project = store.projects.find((item) => item.id === projectId);
+  const project = findProject(store, projectId);
   if (!project) {
     return {
       statusCode: 404,
@@ -1344,7 +1353,7 @@ export function selectProject(projectId) {
 }
 
 export function archiveProject(projectId, body = {}) {
-  const project = store.projects.find((item) => item.id === projectId);
+  const project = findProject(store, projectId);
   if (!project) {
     return {
       statusCode: 404,
@@ -1382,7 +1391,7 @@ export function archiveProject(projectId, body = {}) {
 }
 
 export function restoreProject(projectId, body = {}) {
-  const project = store.projects.find((item) => item.id === projectId);
+  const project = findProject(store, projectId);
   if (!project) {
     return {
       statusCode: 404,
@@ -1415,7 +1424,7 @@ export function restoreProject(projectId, body = {}) {
 }
 
 export function updateRolePair(rolePairId, body = {}) {
-  const rolePair = store.rolePairs.find((item) => item.id === rolePairId);
+  const rolePair = findRolePair(store, rolePairId);
   if (!rolePair) {
     return {
       statusCode: 404,
@@ -1492,7 +1501,7 @@ export function updateRolePair(rolePairId, body = {}) {
 }
 
 export function updateWorkPackageSchedule(workPackageId, body = {}) {
-  const workPackage = store.workPackages.find((item) => item.id === workPackageId);
+  const workPackage = findWorkPackage(store, workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
@@ -1510,7 +1519,7 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
     scheduleStatus: workPackageScheduleStatus(workPackage),
   });
 
-  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const rolePair = findRolePair(store, workPackage.rolePairId);
   notifyUser(rolePair?.humanUserId, {
     title: "工作包截止日期已更新",
     message: `${workPackage.title} 的截止日期更新为 ${workPackage.dueAt || "未设置"}。`,
@@ -1533,7 +1542,7 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
 }
 
 export function addWorkPackageEvidenceRef(workPackageId, body = {}) {
-  const workPackage = store.workPackages.find((item) => item.id === workPackageId);
+  const workPackage = findWorkPackage(store, workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
@@ -1608,7 +1617,7 @@ export function getUserNotifications(userId, filters = {}) {
 }
 
 export function markNotificationRead(notificationId, body = {}) {
-  const notification = (store.notifications || []).find((item) => item.id === notificationId);
+  const notification = findNotification(store, notificationId);
   if (!notification) {
     return { statusCode: 404, body: { error: "通知不存在" } };
   }
@@ -1661,7 +1670,7 @@ export function markUserNotificationsRead(userId) {
 }
 
 export function getGateReviewPack(gateId) {
-  const gate = store.gates.find((item) => item.id === gateId);
+  const gate = findGate(store, gateId);
   if (!gate) {
     return null;
   }
@@ -1711,7 +1720,7 @@ function createGateApprovalPack(gate, reviewPack, approval) {
 }
 
 export function runAgentWorkPackage(body) {
-  const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
+  const workPackage = findWorkPackage(store, body.workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
@@ -1720,7 +1729,7 @@ export function runAgentWorkPackage(body) {
     return validationError("inputRefs 必须是数组");
   }
 
-  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const rolePair = findRolePair(store, workPackage.rolePairId);
   const agentKey = body.agentKey || rolePair?.agentKey;
   if (!agentKey) {
     return {
@@ -1845,7 +1854,7 @@ export function runAgentWorkPackage(body) {
 }
 
 export function submitHumanReview(body) {
-  const workPackage = store.workPackages.find((item) => item.id === body.workPackageId);
+  const workPackage = findWorkPackage(store, body.workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
@@ -1858,7 +1867,7 @@ export function submitHumanReview(body) {
   }
 
   const reviewerUserId = body.reviewerUserId || "";
-  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const rolePair = findRolePair(store, workPackage.rolePairId);
   const artifactTemplate =
     (workPackage.artifactTemplateKey && loadArtifactTemplateByKey(workPackage.artifactTemplateKey)) ||
     loadArtifactTemplateByType(workPackage.requiredArtifactType);
@@ -1980,7 +1989,7 @@ export function submitHumanReview(body) {
 }
 
 export function completeConditionalApproval(reviewId, body = {}) {
-  const review = store.reviews.find((item) => item.id === reviewId);
+  const review = findReview(store, reviewId);
   if (!review) {
     return { statusCode: 404, body: { error: "审核记录不存在" } };
   }
@@ -1988,12 +1997,12 @@ export function completeConditionalApproval(reviewId, body = {}) {
     return validationError("审核记录不是有条件批准", { reviewId });
   }
 
-  const workPackage = store.workPackages.find((item) => item.id === review.workPackageId);
+  const workPackage = findWorkPackage(store, review.workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
   }
 
-  const rolePair = store.rolePairs.find((item) => item.id === workPackage.rolePairId) || null;
+  const rolePair = findRolePair(store, workPackage.rolePairId);
   const actorUserId = body.userId || body.actorUserId || "";
   const isOwner = rolePair?.humanUserId === actorUserId;
   const canApprove = canApproveWorkPackage(actorUserId, rolePair).allowed;
@@ -2037,7 +2046,7 @@ export function completeConditionalApproval(reviewId, body = {}) {
 }
 
 export function updateRiskStatus(riskId, status, body = {}) {
-  const risk = store.risks.find((item) => item.id === riskId);
+  const risk = findRisk(store, riskId);
   if (!risk) {
     return { statusCode: 404, body: { error: "风险不存在" } };
   }
@@ -2121,7 +2130,7 @@ export function updateRiskStatus(riskId, status, body = {}) {
 }
 
 export function updateRiskMitigation(riskId, body = {}) {
-  const risk = store.risks.find((item) => item.id === riskId);
+  const risk = findRisk(store, riskId);
   if (!risk) {
     return { statusCode: 404, body: { error: "风险不存在" } };
   }
@@ -2170,7 +2179,7 @@ export function updateRiskMitigation(riskId, body = {}) {
 }
 
 export function completeRiskMitigation(riskId, body = {}) {
-  const risk = store.risks.find((item) => item.id === riskId);
+  const risk = findRisk(store, riskId);
   if (!risk) {
     return { statusCode: 404, body: { error: "风险不存在" } };
   }
@@ -2309,7 +2318,7 @@ export function createDemoRiskForCurrentPhase(body = {}) {
 }
 
 export function approveGate(gateId, body = {}) {
-  const gate = store.gates.find((item) => item.id === gateId);
+  const gate = findGate(store, gateId);
   if (!gate) {
     return { statusCode: 404, body: { error: "阶段门不存在" } };
   }

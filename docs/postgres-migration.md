@@ -14,6 +14,7 @@
 将 `apps/api/src/server.mjs` 中直接读写 `store.*` 的代码逐步替换为 Repository：
 
 - 当前已建立 `apps/api/src/storeRepository.mjs` 作为只读 Repository 起点，已覆盖当前项目视图、用户待办视图、项目聚合 read model、项目列表摘要、项目快照、风险台账、阶段门评审包、阶段门批准包、通知列表和工作包详情，不改变现有 JSON 持久化行为。
+- 当前已补充项目、阶段门、角色配对、工作包、审核、风险和通知的基础定位 helper，后续写入 Repository 可复用这些入口，减少服务层直接扫描 JSON store。
 - `ProjectRepository`
 - `WorkPackageRepository`
 - `ReviewRepository`
