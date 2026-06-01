@@ -5,6 +5,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
@@ -265,6 +266,26 @@ test("gate approval pack write helper appends frozen packs", () => {
     reviewPack,
   });
   assert.equal(store.gateApprovalPacks.at(-1).id, "gate-pack-helper");
+});
+
+test("risk write helper appends project risks", () => {
+  const store = createDemoStore();
+  const risk = {
+    id: "risk-helper-created",
+    projectId: "project-smart-controller",
+    phaseId: "phase-evt_exit",
+    title: "新增供应风险",
+    severity: "MEDIUM",
+    status: "OPEN",
+    createdByUserId: "user-project-manager",
+    createdAt: "2026-06-01T10:00:00.000Z",
+  };
+
+  const created = addRiskInStore(store, risk);
+
+  assert.equal(created, risk);
+  assert.equal(store.risks.at(-1).id, "risk-helper-created");
+  assert.equal(findRisk(store, "risk-helper-created").title, "新增供应风险");
 });
 
 test("risk mitigation write helper updates plan fields and resets completion", () => {

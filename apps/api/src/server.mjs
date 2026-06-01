@@ -23,6 +23,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
@@ -2246,7 +2247,7 @@ function createRiskForCurrentPhase(body = {}, options = {}) {
     createdAt: new Date().toISOString(),
   };
 
-  store.risks.push(risk);
+  addRiskInStore(store, risk);
   audit("RISK_CREATED", options.actorType || "system", risk.createdByUserId, "risk", risk.id, {
     phaseId: phase.id,
     severity: risk.severity,

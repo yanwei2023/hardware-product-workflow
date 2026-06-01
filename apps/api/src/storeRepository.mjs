@@ -210,6 +210,11 @@ export function addGateApprovalPackInStore(
   return approvalPack;
 }
 
+export function addRiskInStore(store, risk) {
+  store.risks.push(risk);
+  return risk;
+}
+
 export function updateRiskMitigationInStore(
   store,
   riskId,
