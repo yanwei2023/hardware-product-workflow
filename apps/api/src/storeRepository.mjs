@@ -15,6 +15,10 @@ export function findProject(store, projectId) {
   return store.projects.find((item) => item.id === projectId) || null;
 }
 
+export function findPhase(store, phaseId) {
+  return store.phases.find((item) => item.id === phaseId) || null;
+}
+
 export function findRolePair(store, rolePairId) {
   return store.rolePairs.find((item) => item.id === rolePairId) || null;
 }
@@ -97,6 +101,25 @@ export function addNotificationInStore(
   };
   store.notifications.push(notification);
   return notification;
+}
+
+export function updateGateReadinessInStore(store, gateId, readinessStatus) {
+  const gate = findGate(store, gateId);
+  if (!gate) {
+    return null;
+  }
+
+  const gateStatus = readinessStatus === "READY" ? "GATE_READY" : "GATE_BLOCKED";
+  gate.status = gateStatus;
+  const phase = findPhase(store, gate.phaseId);
+  if (phase) {
+    phase.status = gateStatus;
+  }
+
+  return {
+    gate,
+    phase,
+  };
 }
 
 export function markNotificationReadInStore(store, notificationId, { readAt = new Date().toISOString() } = {}) {

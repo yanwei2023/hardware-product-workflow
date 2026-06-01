@@ -9,6 +9,7 @@ import {
   completeRiskMitigationInStore,
   findGate,
   findNotification,
+  findPhase,
   findProject,
   findReview,
   findRolePair,
@@ -31,6 +32,7 @@ import {
   markProjectUserNotificationsReadInStore,
   restoreProjectInStore,
   selectProjectInStore,
+  updateGateReadinessInStore,
   updateRolePairOwnerInStore,
   updateRiskMitigationInStore,
   updateRiskStatusInStore,
@@ -57,12 +59,14 @@ test("store lookup helpers resolve current and individual records", () => {
   assert.equal(findWorkPackage(store, "wp-evt_exit-evt_test_plan").title, "EVT 测试计划");
   assert.equal(findNotification(store, "notification-helper").title, "helper");
   assert.equal(findGate(store, "gate-evt_exit").name, "EVT Exit 阶段门");
+  assert.equal(findPhase(store, "phase-evt_exit").name, "EVT Exit");
   assert.equal(findRisk(store, "risk-thermal-margin").title, "热设计裕量不足");
   assert.equal(findProject(store, "missing-project"), null);
   assert.equal(findRolePair(store, "missing-role-pair"), null);
   assert.equal(findWorkPackage(store, "missing-work-package"), null);
   assert.equal(findNotification(store, "missing-notification"), null);
   assert.equal(findGate(store, "missing-gate"), null);
+  assert.equal(findPhase(store, "missing-phase"), null);
   assert.equal(findReview(store, "missing-review"), null);
   assert.equal(findRisk(store, "missing-risk"), null);
 });
@@ -122,6 +126,23 @@ test("audit and notification write helpers append records with defaults", () => 
     createdAt: "2026-06-01T07:00:00.000Z",
   });
   assert.equal(store.notifications.at(-1).id, "notification-helper-defaults");
+});
+
+test("gate readiness write helper synchronizes gate and phase status", () => {
+  const store = createDemoStore();
+
+  const blocked = updateGateReadinessInStore(store, "gate-evt_exit", "BLOCKED");
+
+  assert.equal(blocked.gate.status, "GATE_BLOCKED");
+  assert.equal(blocked.phase.status, "GATE_BLOCKED");
+  assert.equal(findGate(store, "gate-evt_exit").status, "GATE_BLOCKED");
+  assert.equal(findPhase(store, "phase-evt_exit").status, "GATE_BLOCKED");
+
+  const ready = updateGateReadinessInStore(store, "gate-evt_exit", "READY");
+
+  assert.equal(ready.gate.status, "GATE_READY");
+  assert.equal(ready.phase.status, "GATE_READY");
+  assert.equal(updateGateReadinessInStore(store, "missing-gate", "READY"), null);
 });
 
 test("notification write helpers mark one or many notifications read", () => {

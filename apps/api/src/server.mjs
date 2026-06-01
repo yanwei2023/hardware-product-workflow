@@ -27,6 +27,7 @@ import {
   completeRiskMitigationInStore,
   findGate,
   findNotification,
+  findPhase,
   findProject,
   findReview,
   findRolePair,
@@ -47,6 +48,7 @@ import {
   restoreProjectInStore,
   selectProjectInStore,
   updateRolePairOwnerInStore,
+  updateGateReadinessInStore,
   updateRiskMitigationInStore,
   updateRiskStatusInStore,
   updateWorkPackageScheduleInStore,
@@ -741,11 +743,7 @@ export function checkGate(gateId) {
   }
 
   const status = blockers.length > 0 ? "BLOCKED" : "READY";
-  gate.status = status === "READY" ? "GATE_READY" : "GATE_BLOCKED";
-  const phase = store.phases.find((item) => item.id === gate.phaseId);
-  if (phase) {
-    phase.status = gate.status;
-  }
+  updateGateReadinessInStore(store, gate.id, status);
   persistStore();
 
   return {
@@ -2218,7 +2216,7 @@ function createRiskForCurrentPhase(body = {}, options = {}) {
     };
   }
 
-  const phase = store.phases.find((item) => item.id === project.currentPhaseId);
+  const phase = findPhase(store, project.currentPhaseId);
   if (!phase) {
     return { statusCode: 404, body: { error: "当前阶段不存在" } };
   }
