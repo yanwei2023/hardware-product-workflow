@@ -215,6 +215,36 @@ export function addRiskInStore(store, risk) {
   return risk;
 }
 
+export function recordInvalidAgentOutputInStore(store, workPackageId, agentRun) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  if (!workPackage) {
+    return null;
+  }
+
+  workPackage.status = "NEEDS_AGENT_REVISION";
+  store.agentRuns.push(agentRun);
+  return {
+    workPackage,
+    agentRun,
+  };
+}
+
+export function recordReadyAgentOutputInStore(store, workPackageId, agentRun, artifact) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  if (!workPackage) {
+    return null;
+  }
+
+  workPackage.status = "AGENT_DRAFT_READY";
+  store.agentRuns.push(agentRun);
+  store.artifactVersions.push(artifact);
+  return {
+    workPackage,
+    agentRun,
+    artifact,
+  };
+}
+
 export function updateRiskMitigationInStore(
   store,
   riskId,

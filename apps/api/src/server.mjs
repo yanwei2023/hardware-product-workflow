@@ -48,6 +48,8 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  recordInvalidAgentOutputInStore,
+  recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
   updateRolePairOwnerInStore,
@@ -1769,8 +1771,7 @@ export function runAgentWorkPackage(body) {
       status: "OUTPUT_INVALID",
       validation,
     };
-    workPackage.status = "NEEDS_AGENT_REVISION";
-    store.agentRuns.push(failedRun);
+    recordInvalidAgentOutputInStore(store, workPackage.id, failedRun);
     audit("AGENT_OUTPUT_INVALID", "agent", failedRun.agentKey, "workPackage", workPackage.id, {
       artifactTemplateKey: artifactTemplate.templateKey,
       validation,
@@ -1820,9 +1821,7 @@ export function runAgentWorkPackage(body) {
     },
   };
 
-  workPackage.status = "AGENT_DRAFT_READY";
-  store.agentRuns.push(agentRun);
-  store.artifactVersions.push(artifact);
+  recordReadyAgentOutputInStore(store, workPackage.id, agentRun, artifact);
   audit("AGENT_OUTPUT_READY", "agent", agentRun.agentKey, "workPackage", workPackage.id, {
     artifactId: artifact.id,
   });

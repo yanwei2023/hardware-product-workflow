@@ -33,6 +33,8 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  recordInvalidAgentOutputInStore,
+  recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
   updateGateReadinessInStore,
@@ -235,6 +237,51 @@ test("work package evidence write helper creates scoped refs", () => {
   });
   assert.equal(store.evidenceRefs.at(-1).id, "evidence-helper");
   assert.equal(addWorkPackageEvidenceRefInStore(store, "missing-work-package", { id: "missing" }), null);
+});
+
+test("agent output write helpers record invalid and ready outputs", () => {
+  const store = createDemoStore();
+  const workPackageId = "wp-evt_exit-evt_test_plan";
+  const invalidRun = {
+    id: "agent-run-invalid-helper",
+    workPackageId,
+    agentKey: "test_agent",
+    status: "OUTPUT_INVALID",
+    createdAt: "2026-06-01T11:00:00.000Z",
+    completedAt: "2026-06-01T11:00:00.000Z",
+    validation: { status: "FAILED" },
+  };
+
+  const invalid = recordInvalidAgentOutputInStore(store, workPackageId, invalidRun);
+
+  assert.equal(invalid.workPackage.status, "NEEDS_AGENT_REVISION");
+  assert.equal(store.agentRuns.at(-1).id, "agent-run-invalid-helper");
+
+  const readyRun = {
+    id: "agent-run-ready-helper",
+    workPackageId,
+    agentKey: "test_agent",
+    status: "OUTPUT_READY",
+    createdAt: "2026-06-01T12:00:00.000Z",
+    completedAt: "2026-06-01T12:00:00.000Z",
+  };
+  const artifact = {
+    id: "artifact-ready-helper",
+    workPackageId,
+    artifactType: "TEST_PLAN",
+    status: "PENDING_REVIEW",
+    version: "0.1",
+    createdByActor: "agent:test_agent",
+    content: {},
+  };
+  const ready = recordReadyAgentOutputInStore(store, workPackageId, readyRun, artifact);
+
+  assert.equal(ready.workPackage.status, "AGENT_DRAFT_READY");
+  assert.equal(store.agentRuns.at(-1).id, "agent-run-ready-helper");
+  assert.equal(store.artifactVersions.at(-1).id, "artifact-ready-helper");
+  assert.equal(findWorkPackage(store, workPackageId).status, "AGENT_DRAFT_READY");
+  assert.equal(recordInvalidAgentOutputInStore(store, "missing-work-package", invalidRun), null);
+  assert.equal(recordReadyAgentOutputInStore(store, "missing-work-package", readyRun, artifact), null);
 });
 
 test("gate approval pack write helper appends frozen packs", () => {
