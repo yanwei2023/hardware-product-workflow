@@ -39,6 +39,66 @@ export function findRisk(store, riskId) {
   return store.risks.find((item) => item.id === riskId) || null;
 }
 
+export function addAuditEventInStore(
+  store,
+  {
+    id,
+    projectId = null,
+    eventType,
+    actorType,
+    actorId,
+    objectType,
+    objectId,
+    payload = {},
+    createdAt = new Date().toISOString(),
+  } = {},
+) {
+  const auditEvent = {
+    id,
+    projectId,
+    eventType,
+    actorType,
+    actorId,
+    objectType,
+    objectId,
+    payload,
+    createdAt,
+  };
+  store.auditEvents.push(auditEvent);
+  return auditEvent;
+}
+
+export function addNotificationInStore(
+  store,
+  {
+    id,
+    projectId = null,
+    userId,
+    title,
+    message = "",
+    type = "INFO",
+    status = "UNREAD",
+    objectType = null,
+    objectId = null,
+    createdAt = new Date().toISOString(),
+  } = {},
+) {
+  const notification = {
+    id,
+    projectId,
+    userId,
+    title,
+    message,
+    type,
+    status,
+    objectType,
+    objectId,
+    createdAt,
+  };
+  store.notifications.push(notification);
+  return notification;
+}
+
 export function markNotificationReadInStore(store, notificationId, { readAt = new Date().toISOString() } = {}) {
   const notification = findNotification(store, notificationId);
   if (!notification) {

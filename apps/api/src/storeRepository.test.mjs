@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  addAuditEventInStore,
+  addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
   completeRiskMitigationInStore,
@@ -71,6 +73,55 @@ test("current project helper falls back to the first project", () => {
 
   assert.equal(getCurrentProject(store).id, "project-smart-controller");
   assert.equal(getCurrentGate({ ...store, projects: [] }), null);
+});
+
+test("audit and notification write helpers append records with defaults", () => {
+  const store = createDemoStore();
+
+  const auditEvent = addAuditEventInStore(store, {
+    id: "audit-helper",
+    projectId: "project-smart-controller",
+    eventType: "HELPER_EVENT",
+    actorType: "human",
+    actorId: "user-project-manager",
+    objectType: "project",
+    objectId: "project-smart-controller",
+    payload: { ok: true },
+    createdAt: "2026-06-01T06:00:00.000Z",
+  });
+  const notification = addNotificationInStore(store, {
+    id: "notification-helper-defaults",
+    projectId: "project-smart-controller",
+    userId: "user-project-manager",
+    title: "helper notification",
+    createdAt: "2026-06-01T07:00:00.000Z",
+  });
+
+  assert.deepEqual(auditEvent, {
+    id: "audit-helper",
+    projectId: "project-smart-controller",
+    eventType: "HELPER_EVENT",
+    actorType: "human",
+    actorId: "user-project-manager",
+    objectType: "project",
+    objectId: "project-smart-controller",
+    payload: { ok: true },
+    createdAt: "2026-06-01T06:00:00.000Z",
+  });
+  assert.equal(store.auditEvents.at(-1).id, "audit-helper");
+  assert.deepEqual(notification, {
+    id: "notification-helper-defaults",
+    projectId: "project-smart-controller",
+    userId: "user-project-manager",
+    title: "helper notification",
+    message: "",
+    type: "INFO",
+    status: "UNREAD",
+    objectType: null,
+    objectId: null,
+    createdAt: "2026-06-01T07:00:00.000Z",
+  });
+  assert.equal(store.notifications.at(-1).id, "notification-helper-defaults");
 });
 
 test("notification write helpers mark one or many notifications read", () => {

@@ -20,6 +20,8 @@ import {
   getDemoUsers,
 } from "./permissionStore.mjs";
 import {
+  addAuditEventInStore,
+  addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
   completeRiskMitigationInStore,
@@ -591,7 +593,7 @@ async function readJson(req) {
 }
 
 function audit(eventType, actorType, actorId, objectType, objectId, payload = {}) {
-  store.auditEvents.push({
+  addAuditEventInStore(store, {
     id: randomUUID(),
     projectId: currentProject()?.id || null,
     eventType,
@@ -609,7 +611,7 @@ function notifyUser(userId, notification) {
     return null;
   }
 
-  const item = {
+  return addNotificationInStore(store, {
     id: randomUUID(),
     projectId: notification.projectId || currentProject()?.id || null,
     userId,
@@ -620,9 +622,7 @@ function notifyUser(userId, notification) {
     objectType: notification.objectType || null,
     objectId: notification.objectId || null,
     createdAt: new Date().toISOString(),
-  };
-  store.notifications.push(item);
-  return item;
+  });
 }
 
 function notifyRole(roleName, notification) {
