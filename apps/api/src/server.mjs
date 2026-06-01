@@ -21,6 +21,7 @@ import {
 } from "./permissionStore.mjs";
 import {
   addAuditEventInStore,
+  addGateApprovalPackInStore,
   addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
@@ -1690,7 +1691,7 @@ function createGateApprovalPack(gate, reviewPack, approval) {
       readyForApproval: true,
     },
   });
-  const approvalPack = {
+  return addGateApprovalPackInStore(store, {
     id: `gate-pack-${randomUUID()}`,
     projectId: gate.projectId,
     gateId: gate.id,
@@ -1699,9 +1700,7 @@ function createGateApprovalPack(gate, reviewPack, approval) {
     approvedAt: approval.approvedAt,
     approvalComment: approval.approvalComment,
     reviewPack: frozenPack,
-  };
-  store.gateApprovalPacks.push(approvalPack);
-  return approvalPack;
+  });
 }
 
 export function runAgentWorkPackage(body) {

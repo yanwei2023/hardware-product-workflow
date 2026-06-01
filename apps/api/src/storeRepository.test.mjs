@@ -3,6 +3,7 @@ import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
   addAuditEventInStore,
+  addGateApprovalPackInStore,
   addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
@@ -233,6 +234,37 @@ test("work package evidence write helper creates scoped refs", () => {
   });
   assert.equal(store.evidenceRefs.at(-1).id, "evidence-helper");
   assert.equal(addWorkPackageEvidenceRefInStore(store, "missing-work-package", { id: "missing" }), null);
+});
+
+test("gate approval pack write helper appends frozen packs", () => {
+  const store = createDemoStore();
+  const reviewPack = {
+    gate: { id: "gate-evt_exit", status: "APPROVED" },
+    readiness: { status: "READY", blockers: [] },
+  };
+
+  const approvalPack = addGateApprovalPackInStore(store, {
+    id: "gate-pack-helper",
+    projectId: "project-smart-controller",
+    gateId: "gate-evt_exit",
+    phaseId: "phase-evt_exit",
+    approvedByUserId: "user-project-manager",
+    approvedAt: "2026-06-01T09:00:00.000Z",
+    approvalComment: "批准进入下一阶段",
+    reviewPack,
+  });
+
+  assert.deepEqual(approvalPack, {
+    id: "gate-pack-helper",
+    projectId: "project-smart-controller",
+    gateId: "gate-evt_exit",
+    phaseId: "phase-evt_exit",
+    approvedByUserId: "user-project-manager",
+    approvedAt: "2026-06-01T09:00:00.000Z",
+    approvalComment: "批准进入下一阶段",
+    reviewPack,
+  });
+  assert.equal(store.gateApprovalPacks.at(-1).id, "gate-pack-helper");
 });
 
 test("risk mitigation write helper updates plan fields and resets completion", () => {

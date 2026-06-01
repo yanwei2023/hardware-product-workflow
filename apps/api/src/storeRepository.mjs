@@ -183,6 +183,33 @@ export function addWorkPackageEvidenceRefInStore(
   return evidenceRef;
 }
 
+export function addGateApprovalPackInStore(
+  store,
+  {
+    id,
+    projectId,
+    gateId,
+    phaseId,
+    approvedByUserId,
+    approvedAt,
+    approvalComment = "",
+    reviewPack,
+  } = {},
+) {
+  const approvalPack = {
+    id,
+    projectId,
+    gateId,
+    phaseId,
+    approvedByUserId,
+    approvedAt,
+    approvalComment,
+    reviewPack,
+  };
+  store.gateApprovalPacks.push(approvalPack);
+  return approvalPack;
+}
+
 export function updateRiskMitigationInStore(
   store,
   riskId,
