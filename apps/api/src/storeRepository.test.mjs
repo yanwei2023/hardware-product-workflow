@@ -3,6 +3,7 @@ import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
   addWorkPackageEvidenceRefInStore,
+  archiveProjectInStore,
   findGate,
   findNotification,
   findProject,
@@ -25,6 +26,8 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  restoreProjectInStore,
+  selectProjectInStore,
   updateRolePairOwnerInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
@@ -170,6 +173,41 @@ test("role pair owner write helper tracks previous owner", () => {
   assert.equal(unchanged.changed, false);
   assert.equal(findRolePair(store, "pair-test_agent").humanUserId, "user-quality-lead");
   assert.equal(updateRolePairOwnerInStore(store, "missing-role-pair", "user-quality-lead"), null);
+});
+
+test("project lifecycle write helpers select, archive, and restore projects", () => {
+  const store = createDemoStore();
+  store.projects.push({
+    id: "project-other",
+    name: "Other",
+    currentPhaseId: "project-other-phase",
+    status: "PLANNED",
+  });
+
+  const selected = selectProjectInStore(store, "project-other");
+  const archived = archiveProjectInStore(store, "project-other", {
+    archivedAt: "2026-05-31T04:00:00.000Z",
+    archivedByUserId: "user-project-manager",
+  });
+  const archivedStatus = archived.project.status;
+  const archivedAt = archived.project.archivedAt;
+  const restored = restoreProjectInStore(store, "project-other", {
+    restoredAt: "2026-05-31T05:00:00.000Z",
+    restoredByUserId: "user-project-manager",
+  });
+
+  assert.equal(selected.id, "project-other");
+  assert.equal(archived.previousStatus, "PLANNED");
+  assert.equal(archivedStatus, "ARCHIVED");
+  assert.equal(archivedAt, "2026-05-31T04:00:00.000Z");
+  assert.equal(archived.replacementProject.id, "project-smart-controller");
+  assert.equal(restored.restoredStatus, "PLANNED");
+  assert.equal(restored.project.status, "PLANNED");
+  assert.equal(restored.project.restoredAt, "2026-05-31T05:00:00.000Z");
+  assert.equal(store.activeProjectId, "project-other");
+  assert.equal(selectProjectInStore(store, "missing-project"), null);
+  assert.equal(archiveProjectInStore(store, "missing-project"), null);
+  assert.equal(restoreProjectInStore(store, "missing-project"), null);
 });
 
 test("project read model scopes workflow records to one project", () => {

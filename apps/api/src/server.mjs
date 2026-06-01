@@ -21,6 +21,7 @@ import {
 } from "./permissionStore.mjs";
 import {
   addWorkPackageEvidenceRefInStore,
+  archiveProjectInStore,
   findGate,
   findNotification,
   findProject,
@@ -40,6 +41,8 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  restoreProjectInStore,
+  selectProjectInStore,
   updateRolePairOwnerInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
@@ -1349,7 +1352,7 @@ export function selectProject(projectId) {
       body: { error: "项目不存在" },
     };
   }
-  store.activeProjectId = project.id;
+  selectProjectInStore(store, project.id);
   persistStore();
   return {
     statusCode: 200,
@@ -1372,17 +1375,9 @@ export function archiveProject(projectId, body = {}) {
     };
   }
 
-  project.previousStatus = project.status;
-  project.status = "ARCHIVED";
-  project.archivedAt = new Date().toISOString();
-  project.archivedByUserId = body.userId || body.actorUserId || "user-project-manager";
-
-  if (store.activeProjectId === project.id) {
-    const replacement = store.projects.find((item) => item.id !== project.id && item.status !== "ARCHIVED");
-    if (replacement) {
-      store.activeProjectId = replacement.id;
-    }
-  }
+  archiveProjectInStore(store, project.id, {
+    archivedByUserId: body.userId || body.actorUserId || "user-project-manager",
+  });
 
   audit("PROJECT_ARCHIVED", "human", project.archivedByUserId, "project", project.id, {
     previousStatus: project.previousStatus,
@@ -1410,15 +1405,12 @@ export function restoreProject(projectId, body = {}) {
     };
   }
 
-  const restoredStatus = project.previousStatus || "IN_PROGRESS";
-  project.status = restoredStatus;
-  project.restoredAt = new Date().toISOString();
-  project.restoredByUserId = body.userId || body.actorUserId || "user-project-manager";
-  delete project.previousStatus;
-  store.activeProjectId = project.id;
+  const restoreResult = restoreProjectInStore(store, project.id, {
+    restoredByUserId: body.userId || body.actorUserId || "user-project-manager",
+  });
 
   audit("PROJECT_RESTORED", "human", project.restoredByUserId, "project", project.id, {
-    restoredStatus,
+    restoredStatus: restoreResult.restoredStatus,
   });
   persistStore();
 

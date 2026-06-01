@@ -115,6 +115,63 @@ export function updateRolePairOwnerInStore(store, rolePairId, humanUserId) {
   };
 }
 
+export function selectProjectInStore(store, projectId) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return null;
+  }
+
+  store.activeProjectId = project.id;
+  return project;
+}
+
+export function archiveProjectInStore(
+  store,
+  projectId,
+  { archivedAt = new Date().toISOString(), archivedByUserId = "user-project-manager" } = {},
+) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return null;
+  }
+
+  const previousStatus = project.status;
+  project.previousStatus = previousStatus;
+  project.status = "ARCHIVED";
+  project.archivedAt = archivedAt;
+  project.archivedByUserId = archivedByUserId;
+
+  let replacementProject = null;
+  if (store.activeProjectId === project.id) {
+    replacementProject = store.projects.find((item) => item.id !== project.id && item.status !== "ARCHIVED") || null;
+    if (replacementProject) {
+      store.activeProjectId = replacementProject.id;
+    }
+  }
+
+  return { project, previousStatus, replacementProject };
+}
+
+export function restoreProjectInStore(
+  store,
+  projectId,
+  { restoredAt = new Date().toISOString(), restoredByUserId = "user-project-manager" } = {},
+) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return null;
+  }
+
+  const restoredStatus = project.previousStatus || "IN_PROGRESS";
+  project.status = restoredStatus;
+  project.restoredAt = restoredAt;
+  project.restoredByUserId = restoredByUserId;
+  delete project.previousStatus;
+  store.activeProjectId = project.id;
+
+  return { project, restoredStatus };
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {
