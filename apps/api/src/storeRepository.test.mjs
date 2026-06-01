@@ -31,6 +31,7 @@ import {
   selectProjectInStore,
   updateRolePairOwnerInStore,
   updateRiskMitigationInStore,
+  updateRiskStatusInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 
@@ -218,6 +219,37 @@ test("risk mitigation completion write helper marks plan done", () => {
   assert.equal(completed.mitigationCompletionComment, "验证完成");
   assert.equal(findRisk(store, riskId).mitigationStatus, "DONE");
   assert.equal(completeRiskMitigationInStore(store, "missing-risk"), null);
+});
+
+test("risk status write helper records acceptance and closure metadata", () => {
+  const store = createDemoStore();
+  const riskId = "risk-thermal-margin";
+
+  const accepted = updateRiskStatusInStore(store, riskId, {
+    status: "ACCEPTED",
+    actorUserId: "user-project-manager",
+    comment: "业务接受",
+    changedAt: "2026-06-01T04:00:00.000Z",
+  });
+
+  assert.equal(accepted.status, "ACCEPTED");
+  assert.equal(accepted.acceptedByUserId, "user-project-manager");
+  assert.equal(accepted.acceptedAt, "2026-06-01T04:00:00.000Z");
+  assert.equal(accepted.acceptedComment, "业务接受");
+
+  const closed = updateRiskStatusInStore(store, riskId, {
+    status: "CLOSED",
+    actorUserId: "user-quality-lead",
+    comment: "措施关闭",
+    changedAt: "2026-06-01T05:00:00.000Z",
+  });
+
+  assert.equal(closed.status, "CLOSED");
+  assert.equal(closed.closedByUserId, "user-quality-lead");
+  assert.equal(closed.closedAt, "2026-06-01T05:00:00.000Z");
+  assert.equal(closed.closedComment, "措施关闭");
+  assert.equal(findRisk(store, riskId).status, "CLOSED");
+  assert.equal(updateRiskStatusInStore(store, "missing-risk", { status: "OPEN" }), null);
 });
 
 test("role pair owner write helper tracks previous owner", () => {

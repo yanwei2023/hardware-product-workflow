@@ -149,6 +149,37 @@ export function completeRiskMitigationInStore(
   return risk;
 }
 
+export function updateRiskStatusInStore(
+  store,
+  riskId,
+  {
+    status,
+    actorUserId = "",
+    comment = "",
+    changedAt = new Date().toISOString(),
+  } = {},
+) {
+  const risk = findRisk(store, riskId);
+  if (!risk) {
+    return null;
+  }
+
+  risk.status = status;
+  if (status === "ACCEPTED") {
+    risk.acceptedByUserId = actorUserId;
+    risk.acceptedAt = changedAt;
+    risk.acceptedComment = comment;
+  }
+
+  if (status === "CLOSED") {
+    risk.closedByUserId = actorUserId;
+    risk.closedAt = changedAt;
+    risk.closedComment = comment;
+  }
+
+  return risk;
+}
+
 export function updateRolePairOwnerInStore(store, rolePairId, humanUserId) {
   const rolePair = findRolePair(store, rolePairId);
   if (!rolePair) {

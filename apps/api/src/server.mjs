@@ -46,6 +46,7 @@ import {
   selectProjectInStore,
   updateRolePairOwnerInStore,
   updateRiskMitigationInStore,
+  updateRiskStatusInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
@@ -2080,18 +2081,11 @@ export function updateRiskStatus(riskId, status, body = {}) {
     }
   }
 
-  risk.status = status;
-  if (status === "ACCEPTED") {
-    risk.acceptedByUserId = actorUserId;
-    risk.acceptedAt = new Date().toISOString();
-    risk.acceptedComment = body.comment || "";
-  }
-
-  if (status === "CLOSED") {
-    risk.closedByUserId = actorUserId;
-    risk.closedAt = new Date().toISOString();
-    risk.closedComment = body.comment || "";
-  }
+  updateRiskStatusInStore(store, risk.id, {
+    status,
+    actorUserId,
+    comment: body.comment || "",
+  });
 
   audit(`RISK_${status}`, "human", actorUserId, "risk", risk.id, {
     comment: body.comment || "",
