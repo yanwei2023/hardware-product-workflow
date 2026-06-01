@@ -22,6 +22,7 @@ import {
 import {
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
+  completeRiskMitigationInStore,
   findGate,
   findNotification,
   findProject,
@@ -44,6 +45,7 @@ import {
   restoreProjectInStore,
   selectProjectInStore,
   updateRolePairOwnerInStore,
+  updateRiskMitigationInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
@@ -2130,15 +2132,12 @@ export function updateRiskMitigation(riskId, body = {}) {
     return validationError("缓解负责人用户不存在", { mitigationOwnerUserId });
   }
 
-  risk.mitigation = mitigation;
-  risk.mitigationDueAt = mitigationDueAt || null;
-  risk.mitigationOwnerUserId = mitigationOwnerUserId || null;
-  risk.mitigationStatus = mitigation || mitigationDueAt || mitigationOwnerUserId ? "OPEN" : null;
-  risk.mitigationCompletedAt = null;
-  risk.mitigationCompletedByUserId = null;
-  risk.mitigationCompletionComment = "";
-  risk.mitigationUpdatedAt = new Date().toISOString();
-  risk.mitigationUpdatedByUserId = actorUserId;
+  updateRiskMitigationInStore(store, risk.id, {
+    mitigation,
+    mitigationDueAt,
+    mitigationOwnerUserId,
+    updatedByUserId: actorUserId,
+  });
 
   audit("RISK_MITIGATION_UPDATED", "human", actorUserId, "risk", risk.id, {
     mitigationOwnerUserId: risk.mitigationOwnerUserId,
@@ -2185,10 +2184,10 @@ export function completeRiskMitigation(riskId, body = {}) {
     };
   }
 
-  risk.mitigationStatus = "DONE";
-  risk.mitigationCompletedAt = new Date().toISOString();
-  risk.mitigationCompletedByUserId = actorUserId;
-  risk.mitigationCompletionComment = body.comment || "";
+  completeRiskMitigationInStore(store, risk.id, {
+    completedByUserId: actorUserId,
+    completionComment: body.comment || "",
+  });
 
   audit("RISK_MITIGATION_DONE", "human", actorUserId, "risk", risk.id, {
     mitigationOwnerUserId: risk.mitigationOwnerUserId,

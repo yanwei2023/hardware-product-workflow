@@ -100,6 +100,55 @@ export function addWorkPackageEvidenceRefInStore(
   return evidenceRef;
 }
 
+export function updateRiskMitigationInStore(
+  store,
+  riskId,
+  {
+    mitigation = "",
+    mitigationDueAt = null,
+    mitigationOwnerUserId = null,
+    updatedAt = new Date().toISOString(),
+    updatedByUserId = "user-project-manager",
+  } = {},
+) {
+  const risk = findRisk(store, riskId);
+  if (!risk) {
+    return null;
+  }
+
+  risk.mitigation = mitigation;
+  risk.mitigationDueAt = mitigationDueAt || null;
+  risk.mitigationOwnerUserId = mitigationOwnerUserId || null;
+  risk.mitigationStatus = mitigation || mitigationDueAt || mitigationOwnerUserId ? "OPEN" : null;
+  risk.mitigationCompletedAt = null;
+  risk.mitigationCompletedByUserId = null;
+  risk.mitigationCompletionComment = "";
+  risk.mitigationUpdatedAt = updatedAt;
+  risk.mitigationUpdatedByUserId = updatedByUserId;
+  return risk;
+}
+
+export function completeRiskMitigationInStore(
+  store,
+  riskId,
+  {
+    completedAt = new Date().toISOString(),
+    completedByUserId = "user-project-manager",
+    completionComment = "",
+  } = {},
+) {
+  const risk = findRisk(store, riskId);
+  if (!risk) {
+    return null;
+  }
+
+  risk.mitigationStatus = "DONE";
+  risk.mitigationCompletedAt = completedAt;
+  risk.mitigationCompletedByUserId = completedByUserId;
+  risk.mitigationCompletionComment = completionComment;
+  return risk;
+}
+
 export function updateRolePairOwnerInStore(store, rolePairId, humanUserId) {
   const rolePair = findRolePair(store, rolePairId);
   if (!rolePair) {

@@ -4,6 +4,7 @@ import { createDemoStore } from "./server.mjs";
 import {
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
+  completeRiskMitigationInStore,
   findGate,
   findNotification,
   findProject,
@@ -29,6 +30,7 @@ import {
   restoreProjectInStore,
   selectProjectInStore,
   updateRolePairOwnerInStore,
+  updateRiskMitigationInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 
@@ -157,6 +159,65 @@ test("work package evidence write helper creates scoped refs", () => {
   });
   assert.equal(store.evidenceRefs.at(-1).id, "evidence-helper");
   assert.equal(addWorkPackageEvidenceRefInStore(store, "missing-work-package", { id: "missing" }), null);
+});
+
+test("risk mitigation write helper updates plan fields and resets completion", () => {
+  const store = createDemoStore();
+  const riskId = "risk-thermal-margin";
+
+  const updated = updateRiskMitigationInStore(store, riskId, {
+    mitigation: "增加散热片验证",
+    mitigationDueAt: "2026-06-20",
+    mitigationOwnerUserId: "user-quality-lead",
+    updatedAt: "2026-06-01T01:00:00.000Z",
+    updatedByUserId: "user-project-manager",
+  });
+
+  assert.equal(updated.id, riskId);
+  assert.equal(updated.mitigation, "增加散热片验证");
+  assert.equal(updated.mitigationDueAt, "2026-06-20");
+  assert.equal(updated.mitigationOwnerUserId, "user-quality-lead");
+  assert.equal(updated.mitigationStatus, "OPEN");
+  assert.equal(updated.mitigationCompletedAt, null);
+  assert.equal(updated.mitigationCompletedByUserId, null);
+  assert.equal(updated.mitigationCompletionComment, "");
+  assert.equal(updated.mitigationUpdatedAt, "2026-06-01T01:00:00.000Z");
+  assert.equal(updated.mitigationUpdatedByUserId, "user-project-manager");
+
+  const cleared = updateRiskMitigationInStore(store, riskId, {
+    updatedAt: "2026-06-01T02:00:00.000Z",
+    updatedByUserId: "user-quality-lead",
+  });
+
+  assert.equal(cleared.mitigation, "");
+  assert.equal(cleared.mitigationDueAt, null);
+  assert.equal(cleared.mitigationOwnerUserId, null);
+  assert.equal(cleared.mitigationStatus, null);
+  assert.equal(cleared.mitigationUpdatedByUserId, "user-quality-lead");
+  assert.equal(updateRiskMitigationInStore(store, "missing-risk", { mitigation: "noop" }), null);
+});
+
+test("risk mitigation completion write helper marks plan done", () => {
+  const store = createDemoStore();
+  const riskId = "risk-thermal-margin";
+
+  updateRiskMitigationInStore(store, riskId, {
+    mitigation: "增加散热片验证",
+    mitigationOwnerUserId: "user-quality-lead",
+  });
+  const completed = completeRiskMitigationInStore(store, riskId, {
+    completedAt: "2026-06-01T03:00:00.000Z",
+    completedByUserId: "user-quality-lead",
+    completionComment: "验证完成",
+  });
+
+  assert.equal(completed.id, riskId);
+  assert.equal(completed.mitigationStatus, "DONE");
+  assert.equal(completed.mitigationCompletedAt, "2026-06-01T03:00:00.000Z");
+  assert.equal(completed.mitigationCompletedByUserId, "user-quality-lead");
+  assert.equal(completed.mitigationCompletionComment, "验证完成");
+  assert.equal(findRisk(store, riskId).mitigationStatus, "DONE");
+  assert.equal(completeRiskMitigationInStore(store, "missing-risk"), null);
 });
 
 test("role pair owner write helper tracks previous owner", () => {
