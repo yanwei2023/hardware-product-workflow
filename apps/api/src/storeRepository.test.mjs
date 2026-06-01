@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  addWorkPackageEvidenceRefInStore,
   findGate,
   findNotification,
   findProject,
@@ -128,6 +129,30 @@ test("work package schedule write helper updates and clears due dates", () => {
   assert.equal(cleared.dueAt, null);
   assert.equal(findWorkPackage(store, "wp-evt_exit-evt_test_plan").dueAt, null);
   assert.equal(updateWorkPackageScheduleInStore(store, "missing-work-package", "2026-06-15"), null);
+});
+
+test("work package evidence write helper creates scoped refs", () => {
+  const store = createDemoStore();
+
+  const evidenceRef = addWorkPackageEvidenceRefInStore(store, "wp-evt_exit-evt_test_plan", {
+    id: "evidence-helper",
+    label: "测试照片",
+    ref: "file://photo.jpg",
+    createdByUserId: "user-test-lead",
+    createdAt: "2026-05-31T03:00:00.000Z",
+  });
+
+  assert.deepEqual(evidenceRef, {
+    id: "evidence-helper",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    label: "测试照片",
+    ref: "file://photo.jpg",
+    createdByUserId: "user-test-lead",
+    createdAt: "2026-05-31T03:00:00.000Z",
+  });
+  assert.equal(store.evidenceRefs.at(-1).id, "evidence-helper");
+  assert.equal(addWorkPackageEvidenceRefInStore(store, "missing-work-package", { id: "missing" }), null);
 });
 
 test("project read model scopes workflow records to one project", () => {

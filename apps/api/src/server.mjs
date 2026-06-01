@@ -20,6 +20,7 @@ import {
   getDemoUsers,
 } from "./permissionStore.mjs";
 import {
+  addWorkPackageEvidenceRefInStore,
   findGate,
   findNotification,
   findProject,
@@ -1559,16 +1560,12 @@ export function addWorkPackageEvidenceRef(workPackageId, body = {}) {
     return validationError("证据引用不能为空");
   }
 
-  const evidenceRef = {
+  const evidenceRef = addWorkPackageEvidenceRefInStore(store, workPackage.id, {
     id: `evidence-${randomUUID()}`,
-    projectId: workPackage.projectId,
-    workPackageId: workPackage.id,
     label,
     ref,
     createdByUserId: body.actorUserId || body.userId || "user-project-manager",
-    createdAt: new Date().toISOString(),
-  };
-  store.evidenceRefs.push(evidenceRef);
+  });
   audit("WORK_PACKAGE_EVIDENCE_ADDED", "human", evidenceRef.createdByUserId, "workPackage", workPackage.id, {
     evidenceRefId: evidenceRef.id,
     label: evidenceRef.label,

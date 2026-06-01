@@ -77,6 +77,29 @@ export function updateWorkPackageScheduleInStore(store, workPackageId, dueAt) {
   return workPackage;
 }
 
+export function addWorkPackageEvidenceRefInStore(
+  store,
+  workPackageId,
+  { id, label, ref, createdByUserId, createdAt = new Date().toISOString() } = {},
+) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  if (!workPackage) {
+    return null;
+  }
+
+  const evidenceRef = {
+    id,
+    projectId: workPackage.projectId,
+    workPackageId: workPackage.id,
+    label,
+    ref,
+    createdByUserId,
+    createdAt,
+  };
+  store.evidenceRefs.push(evidenceRef);
+  return evidenceRef;
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {
