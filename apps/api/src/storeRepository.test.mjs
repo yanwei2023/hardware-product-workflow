@@ -7,6 +7,7 @@ import {
   addNotificationInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
+  approveGateInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
@@ -378,6 +379,48 @@ test("gate approval pack write helper appends frozen packs", () => {
     reviewPack,
   });
   assert.equal(store.gateApprovalPacks.at(-1).id, "gate-pack-helper");
+});
+
+test("gate approval write helper locks current phase and advances project", () => {
+  const store = createDemoStore();
+
+  const approval = approveGateInStore(store, "gate-evt_exit", {
+    approvedByUserId: "user-project-manager",
+    approvedAt: "2026-06-01T16:00:00.000Z",
+    approvalComment: "批准 EVT",
+  });
+
+  assert.equal(approval.gate.status, "APPROVED");
+  assert.equal(approval.gate.approvedByUserId, "user-project-manager");
+  assert.equal(approval.gate.approvedAt, "2026-06-01T16:00:00.000Z");
+  assert.equal(approval.gate.approvalComment, "批准 EVT");
+  assert.equal(approval.phase.status, "LOCKED");
+  assert.equal(approval.nextPhase.status, "IN_PROGRESS");
+  assert.equal(approval.project.currentPhaseId, approval.nextPhase.id);
+  assert.equal(approval.nextGate.status, "GATE_BLOCKED");
+});
+
+test("gate approval write helper completes project at the final phase", () => {
+  const store = createDemoStore();
+  const project = findProject(store, "project-smart-controller");
+  const finalPhase = store.phases
+    .filter((item) => item.projectId === project.id)
+    .sort((a, b) => b.sequence - a.sequence)[0];
+  const finalGate = findGate(store, `gate-${finalPhase.phaseKey}`);
+  project.currentPhaseId = finalPhase.id;
+
+  const approval = approveGateInStore(store, finalGate.id, {
+    approvedByUserId: "user-project-manager",
+    approvedAt: "2026-06-01T17:00:00.000Z",
+    approvalComment: "项目完成",
+  });
+
+  assert.equal(approval.gate.status, "APPROVED");
+  assert.equal(approval.phase.status, "LOCKED");
+  assert.equal(approval.nextPhase, null);
+  assert.equal(approval.nextGate, null);
+  assert.equal(approval.project.status, "COMPLETED");
+  assert.equal(approveGateInStore(store, "missing-gate"), null);
 });
 
 test("risk write helper appends project risks", () => {

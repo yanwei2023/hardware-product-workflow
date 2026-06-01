@@ -273,6 +273,56 @@ export function submitHumanReviewInStore(store, workPackageId, pendingArtifactId
   };
 }
 
+export function approveGateInStore(
+  store,
+  gateId,
+  {
+    approvedByUserId = "",
+    approvedAt = new Date().toISOString(),
+    approvalComment = "",
+  } = {},
+) {
+  const gate = findGate(store, gateId);
+  if (!gate) {
+    return null;
+  }
+
+  const phase = findPhase(store, gate.phaseId);
+  const project = findProject(store, gate.projectId);
+  if (!phase || !project) {
+    return null;
+  }
+
+  gate.status = "APPROVED";
+  gate.approvedByUserId = approvedByUserId;
+  gate.approvedAt = approvedAt;
+  gate.approvalComment = approvalComment;
+  phase.status = "LOCKED";
+
+  const nextPhase = store.phases
+    .filter((item) => item.projectId === project.id && item.sequence > phase.sequence)
+    .sort(bySequence)[0] || null;
+  let nextGate = null;
+  if (nextPhase) {
+    nextPhase.status = "IN_PROGRESS";
+    project.currentPhaseId = nextPhase.id;
+    nextGate = store.gates.find((item) => item.phaseId === nextPhase.id) || null;
+    if (nextGate && nextGate.status === "NOT_STARTED") {
+      nextGate.status = "GATE_BLOCKED";
+    }
+  } else {
+    project.status = "COMPLETED";
+  }
+
+  return {
+    gate,
+    phase,
+    nextPhase,
+    nextGate,
+    project,
+  };
+}
+
 export function updateRiskMitigationInStore(
   store,
   riskId,

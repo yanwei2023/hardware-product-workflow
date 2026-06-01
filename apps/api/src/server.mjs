@@ -25,6 +25,7 @@ import {
   addNotificationInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
+  approveGateInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
@@ -2327,34 +2328,17 @@ export function approveGate(gateId, body = {}) {
   }
   const reviewPack = getGateReviewPack(gateId);
 
-  const phase = store.phases.find((item) => item.id === gate.phaseId);
-  const project = store.projects.find((item) => item.id === gate.projectId) || currentProject();
-  gate.status = "APPROVED";
-  gate.approvedByUserId = actorUserId;
-  gate.approvedAt = new Date().toISOString();
-  gate.approvalComment = body.comment || "";
+  const approval = approveGateInStore(store, gate.id, {
+    approvedByUserId: actorUserId,
+    approvalComment: body.comment || "",
+  });
+  const phase = approval.phase;
+  const project = approval.project;
   const approvalPack = createGateApprovalPack(gate, reviewPack, {
     approvedByUserId: actorUserId,
     approvedAt: gate.approvedAt,
     approvalComment: gate.approvalComment,
   });
-
-  if (phase) {
-    phase.status = "LOCKED";
-    const nextPhase = store.phases
-      .filter((item) => item.projectId === project.id && item.sequence > phase.sequence)
-      .sort((a, b) => a.sequence - b.sequence)[0];
-    if (nextPhase) {
-      nextPhase.status = "IN_PROGRESS";
-      project.currentPhaseId = nextPhase.id;
-      const nextGate = store.gates.find((item) => item.phaseId === nextPhase.id);
-      if (nextGate && nextGate.status === "NOT_STARTED") {
-        nextGate.status = "GATE_BLOCKED";
-      }
-    } else {
-      project.status = "COMPLETED";
-    }
-  }
 
   audit("GATE_APPROVED", "human", actorUserId, "gate", gate.id, {
     nextPhaseId: project.currentPhaseId,
