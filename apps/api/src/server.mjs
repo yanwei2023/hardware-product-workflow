@@ -52,6 +52,7 @@ import {
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
+  submitHumanReviewInStore,
   updateRolePairOwnerInStore,
   updateGateReadinessInStore,
   updateRiskMitigationInStore,
@@ -1932,19 +1933,7 @@ export function submitHumanReview(body) {
     };
   }
 
-  store.reviews.push(review);
-
-  if (body.decision === "APPROVE" || body.decision === "APPROVE_WITH_CONDITIONS") {
-    workPackage.status = "HUMAN_APPROVED";
-    pendingArtifact.status = "APPROVED";
-    pendingArtifact.version = "1.0";
-  } else if (body.decision === "REQUEST_REVISION") {
-    workPackage.status = "NEEDS_AGENT_REVISION";
-    pendingArtifact.status = "NEEDS_REVISION";
-  } else {
-    workPackage.status = "REJECTED";
-    pendingArtifact.status = "REJECTED";
-  }
+  submitHumanReviewInStore(store, workPackage.id, pendingArtifact.id, review);
 
   audit("HUMAN_REVIEW_SUBMITTED", "human", review.reviewerUserId, "workPackage", workPackage.id, {
     decision: review.decision,

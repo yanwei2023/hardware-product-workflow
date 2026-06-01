@@ -245,6 +245,34 @@ export function recordReadyAgentOutputInStore(store, workPackageId, agentRun, ar
   };
 }
 
+export function submitHumanReviewInStore(store, workPackageId, pendingArtifactId, review) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  const pendingArtifact = store.artifactVersions.find((item) => item.id === pendingArtifactId) || null;
+  if (!workPackage || !pendingArtifact) {
+    return null;
+  }
+
+  store.reviews.push(review);
+
+  if (review.decision === "APPROVE" || review.decision === "APPROVE_WITH_CONDITIONS") {
+    workPackage.status = "HUMAN_APPROVED";
+    pendingArtifact.status = "APPROVED";
+    pendingArtifact.version = "1.0";
+  } else if (review.decision === "REQUEST_REVISION") {
+    workPackage.status = "NEEDS_AGENT_REVISION";
+    pendingArtifact.status = "NEEDS_REVISION";
+  } else {
+    workPackage.status = "REJECTED";
+    pendingArtifact.status = "REJECTED";
+  }
+
+  return {
+    review,
+    workPackage,
+    artifact: pendingArtifact,
+  };
+}
+
 export function updateRiskMitigationInStore(
   store,
   riskId,

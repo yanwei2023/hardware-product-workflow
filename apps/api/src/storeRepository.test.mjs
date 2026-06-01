@@ -37,6 +37,7 @@ import {
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
+  submitHumanReviewInStore,
   updateGateReadinessInStore,
   updateRolePairOwnerInStore,
   updateRiskMitigationInStore,
@@ -282,6 +283,70 @@ test("agent output write helpers record invalid and ready outputs", () => {
   assert.equal(findWorkPackage(store, workPackageId).status, "AGENT_DRAFT_READY");
   assert.equal(recordInvalidAgentOutputInStore(store, "missing-work-package", invalidRun), null);
   assert.equal(recordReadyAgentOutputInStore(store, "missing-work-package", readyRun, artifact), null);
+});
+
+test("human review write helper records review decisions and artifact status", () => {
+  const store = createDemoStore();
+  const workPackageId = "wp-evt_exit-evt_test_plan";
+  const pendingArtifact = store.artifactVersions.find((item) => item.id === "artifact-evt-test-plan-draft");
+
+  const approved = submitHumanReviewInStore(store, workPackageId, pendingArtifact.id, {
+    id: "review-helper-approved",
+    workPackageId,
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE",
+    comment: "批准",
+    conditions: [],
+    reviewedAt: "2026-06-01T13:00:00.000Z",
+  });
+
+  assert.equal(approved.review.id, "review-helper-approved");
+  assert.equal(approved.workPackage.status, "HUMAN_APPROVED");
+  assert.equal(approved.artifact.status, "APPROVED");
+  assert.equal(approved.artifact.version, "1.0");
+  assert.equal(store.reviews.at(-1).id, "review-helper-approved");
+
+  const revisionArtifact = {
+    ...pendingArtifact,
+    id: "artifact-review-revision-helper",
+    status: "PENDING_REVIEW",
+    version: "0.2",
+  };
+  store.artifactVersions.push(revisionArtifact);
+  const revision = submitHumanReviewInStore(store, workPackageId, revisionArtifact.id, {
+    id: "review-helper-revision",
+    workPackageId,
+    reviewerUserId: "user-test-lead",
+    decision: "REQUEST_REVISION",
+    comment: "需要修改",
+    conditions: [],
+    reviewedAt: "2026-06-01T14:00:00.000Z",
+  });
+
+  assert.equal(revision.workPackage.status, "NEEDS_AGENT_REVISION");
+  assert.equal(revision.artifact.status, "NEEDS_REVISION");
+
+  const rejectedArtifact = {
+    ...pendingArtifact,
+    id: "artifact-review-rejected-helper",
+    status: "PENDING_REVIEW",
+    version: "0.3",
+  };
+  store.artifactVersions.push(rejectedArtifact);
+  const rejected = submitHumanReviewInStore(store, workPackageId, rejectedArtifact.id, {
+    id: "review-helper-rejected",
+    workPackageId,
+    reviewerUserId: "user-test-lead",
+    decision: "REJECT",
+    comment: "驳回",
+    conditions: [],
+    reviewedAt: "2026-06-01T15:00:00.000Z",
+  });
+
+  assert.equal(rejected.workPackage.status, "REJECTED");
+  assert.equal(rejected.artifact.status, "REJECTED");
+  assert.equal(submitHumanReviewInStore(store, "missing-work-package", rejectedArtifact.id, rejected.review), null);
+  assert.equal(submitHumanReviewInStore(store, workPackageId, "missing-artifact", rejected.review), null);
 });
 
 test("gate approval pack write helper appends frozen packs", () => {
