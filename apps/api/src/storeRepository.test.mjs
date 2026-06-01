@@ -25,6 +25,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  updateRolePairOwnerInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 
@@ -153,6 +154,22 @@ test("work package evidence write helper creates scoped refs", () => {
   });
   assert.equal(store.evidenceRefs.at(-1).id, "evidence-helper");
   assert.equal(addWorkPackageEvidenceRefInStore(store, "missing-work-package", { id: "missing" }), null);
+});
+
+test("role pair owner write helper tracks previous owner", () => {
+  const store = createDemoStore();
+
+  const changed = updateRolePairOwnerInStore(store, "pair-test_agent", "user-quality-lead");
+  const unchanged = updateRolePairOwnerInStore(store, "pair-test_agent", "user-quality-lead");
+
+  assert.equal(changed.rolePair.id, "pair-test_agent");
+  assert.equal(changed.previousHumanUserId, "user-test-lead");
+  assert.equal(changed.rolePair.humanUserId, "user-quality-lead");
+  assert.equal(changed.changed, true);
+  assert.equal(unchanged.previousHumanUserId, "user-quality-lead");
+  assert.equal(unchanged.changed, false);
+  assert.equal(findRolePair(store, "pair-test_agent").humanUserId, "user-quality-lead");
+  assert.equal(updateRolePairOwnerInStore(store, "missing-role-pair", "user-quality-lead"), null);
 });
 
 test("project read model scopes workflow records to one project", () => {

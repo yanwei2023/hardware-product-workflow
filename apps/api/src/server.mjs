@@ -40,6 +40,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  updateRolePairOwnerInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
@@ -1461,7 +1462,7 @@ export function updateRolePair(rolePairId, body = {}) {
     };
   }
 
-  rolePair.humanUserId = body.humanUserId;
+  updateRolePairOwnerInStore(store, rolePair.id, body.humanUserId);
   const actorUserId = body.actorUserId || "user-project-manager";
   const affectedWorkPackageCount = store.workPackages.filter((item) => item.rolePairId === rolePair.id).length;
   audit("ROLE_PAIR_UPDATED", "human", actorUserId, "rolePair", rolePair.id, {

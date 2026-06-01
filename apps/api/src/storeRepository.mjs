@@ -100,6 +100,21 @@ export function addWorkPackageEvidenceRefInStore(
   return evidenceRef;
 }
 
+export function updateRolePairOwnerInStore(store, rolePairId, humanUserId) {
+  const rolePair = findRolePair(store, rolePairId);
+  if (!rolePair) {
+    return null;
+  }
+
+  const previousHumanUserId = rolePair.humanUserId;
+  rolePair.humanUserId = humanUserId;
+  return {
+    rolePair,
+    previousHumanUserId,
+    changed: previousHumanUserId !== humanUserId,
+  };
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {
