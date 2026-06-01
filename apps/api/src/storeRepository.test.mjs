@@ -34,6 +34,7 @@ import {
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
+  getStoreRuntimeSummary,
   getUserActionItemsReadModel,
   getWorkPackageReadModel,
   markNotificationReadInStore,
@@ -108,6 +109,21 @@ test("store query helpers resolve existence, counts, and pending artifacts", () 
   assert.equal(countWorkPackagesByRolePair(store, "missing-role-pair"), 0);
   assert.equal(findLatestPendingArtifactForWorkPackage(store, "wp-evt_exit-evt_test_report").id, "artifact-latest-pending-helper");
   assert.equal(findLatestPendingArtifactForWorkPackage(store, "missing-work-package"), null);
+});
+
+test("store runtime summary returns operational counts", () => {
+  const store = createDemoStore();
+  store.gateApprovalPacks.push({ id: "pack-runtime-summary" });
+  store.notifications.push({ id: "notification-runtime-summary" });
+  store.auditEvents.push({ id: "audit-runtime-summary" });
+
+  assert.deepEqual(getStoreRuntimeSummary(store), {
+    activeProjectId: "project-smart-controller",
+    projectCount: 1,
+    auditEventCount: 1,
+    gateApprovalPackCount: 1,
+    notificationCount: 1,
+  });
 });
 
 test("current project helper falls back to the first project", () => {

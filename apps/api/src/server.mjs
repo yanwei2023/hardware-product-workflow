@@ -49,6 +49,7 @@ import {
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
+  getStoreRuntimeSummary,
   getUserActionItemsReadModel,
   getWorkPackageReadModel,
   markNotificationReadInStore,
@@ -207,6 +208,7 @@ export function getStorageStatus() {
   const backupExists = fs.existsSync(backupPath);
   const stat = exists ? fs.statSync(storePath) : null;
   const backupStat = backupExists ? fs.statSync(backupPath) : null;
+  const runtimeSummary = getStoreRuntimeSummary(store);
   return {
     storePath,
     backupPath,
@@ -216,11 +218,7 @@ export function getStorageStatus() {
     backupSizeBytes: backupStat?.size || 0,
     updatedAt: stat?.mtime?.toISOString() || null,
     backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
-    activeProjectId: store.activeProjectId,
-    projectCount: store.projects.length,
-    auditEventCount: store.auditEvents.length,
-    gateApprovalPackCount: store.gateApprovalPacks?.length || 0,
-    notificationCount: store.notifications?.length || 0,
+    ...runtimeSummary,
   };
 }
 
@@ -2425,11 +2423,12 @@ export const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "GET" && url.pathname === "/health") {
+      const runtimeSummary = getStoreRuntimeSummary(store);
       return writeJson(res, 200, {
         ok: true,
         service: "hardware-flow-api",
-        activeProjectId: store.activeProjectId,
-        projectCount: store.projects.length,
+        activeProjectId: runtimeSummary.activeProjectId,
+        projectCount: runtimeSummary.projectCount,
       });
     }
 

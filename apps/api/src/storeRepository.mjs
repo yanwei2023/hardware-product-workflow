@@ -11,6 +11,16 @@ export function getCurrentGate(store) {
   return project ? store.gates.find((gate) => gate.phaseId === project.currentPhaseId) || null : null;
 }
 
+export function getStoreRuntimeSummary(store) {
+  return {
+    activeProjectId: store.activeProjectId,
+    projectCount: store.projects.length,
+    auditEventCount: store.auditEvents.length,
+    gateApprovalPackCount: store.gateApprovalPacks?.length || 0,
+    notificationCount: store.notifications?.length || 0,
+  };
+}
+
 export function getGateReadinessReadModel(store, gateId) {
   const gate = findGate(store, gateId);
   if (!gate) {
