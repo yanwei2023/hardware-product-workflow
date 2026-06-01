@@ -23,6 +23,7 @@ import {
   getActiveProjectReadModel,
   getCurrentGate,
   getCurrentProject,
+  getGateReadinessReadModel,
   getGateReviewPackReadModel,
   getLatestGateApprovalPack,
   getProjectListItemReadModel,
@@ -214,6 +215,37 @@ test("gate readiness write helper synchronizes gate and phase status", () => {
   assert.equal(ready.gate.status, "GATE_READY");
   assert.equal(ready.phase.status, "GATE_READY");
   assert.equal(updateGateReadinessInStore(store, "missing-gate", "READY"), null);
+});
+
+test("gate readiness read model reports blockers and approved gates", () => {
+  const store = createDemoStore();
+
+  const blocked = getGateReadinessReadModel(store, "gate-evt_exit");
+
+  assert.equal(blocked.gateId, "gate-evt_exit");
+  assert.equal(blocked.status, "BLOCKED");
+  assert.deepEqual(
+    blocked.blockers.map((item) => item.code),
+    [
+      "MISSING_ARTIFACT",
+      "REVIEW_NOT_APPROVED",
+      "MISSING_ARTIFACT",
+      "REVIEW_NOT_APPROVED",
+      "MISSING_ARTIFACT",
+      "REVIEW_NOT_APPROVED",
+      "OPEN_HIGH_RISK",
+    ],
+  );
+
+  const gate = findGate(store, "gate-evt_exit");
+  gate.status = "APPROVED";
+
+  assert.deepEqual(getGateReadinessReadModel(store, "gate-evt_exit"), {
+    gateId: "gate-evt_exit",
+    status: "APPROVED",
+    blockers: [],
+  });
+  assert.equal(getGateReadinessReadModel(store, "missing-gate"), null);
 });
 
 test("notification write helpers mark one or many notifications read", () => {

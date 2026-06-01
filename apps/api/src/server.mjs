@@ -43,6 +43,7 @@ import {
   getActiveProjectReadModel,
   getCurrentGate,
   getCurrentProject,
+  getGateReadinessReadModel,
   getProjectRiskRegisterReadModel,
   getProjectSnapshotReadModel,
   getProjectUserNotifications,
@@ -656,109 +657,19 @@ function currentGateCheck() {
 }
 
 export function checkGate(gateId) {
-  const gate = store.gates.find((item) => item.id === gateId);
-  if (!gate) {
+  const readiness = getGateReadinessReadModel(store, gateId);
+  if (!readiness) {
     return null;
   }
 
-  if (gate.status === "APPROVED") {
-    return {
-      gateId,
-      status: "APPROVED",
-      blockers: [],
-    };
+  if (readiness.status === "APPROVED") {
+    return readiness;
   }
 
-  const blockers = [];
-  const requirements = store.gateRequirements.filter((item) => item.gateId === gateId);
-
-  for (const requirement of requirements) {
-    const workPackage = store.workPackages.find(
-      (item) =>
-        item.phaseId === gate.phaseId &&
-        item.title === requirement.requiredWorkPackageTitle &&
-        item.requiredArtifactType === requirement.requiredArtifactType,
-    );
-
-    if (!workPackage) {
-      blockers.push({
-        code: "MISSING_WORK_PACKAGE",
-        message: `缺少必需工作包：${requirement.requiredWorkPackageTitle}`,
-      });
-      continue;
-    }
-
-    const approvedArtifact = store.artifactVersions.find(
-      (item) =>
-        item.workPackageId === workPackage.id &&
-        item.artifactType === requirement.requiredArtifactType &&
-        (item.status === "APPROVED" || item.status === "LOCKED"),
-    );
-
-    if (!approvedArtifact) {
-      blockers.push({
-        code: "MISSING_ARTIFACT",
-        message: `交付物尚未被人类批准：${requirement.requiredArtifactType}`,
-        relatedObjectId: workPackage.id,
-      });
-    }
-
-    const approvedReview = store.reviews.find(
-      (item) =>
-        item.workPackageId === workPackage.id &&
-        (item.decision === "APPROVE" || item.decision === "APPROVE_WITH_CONDITIONS"),
-    );
-
-    if (!approvedReview) {
-      blockers.push({
-        code: "REVIEW_NOT_APPROVED",
-        message: `工作包尚未通过人类审核：${workPackage.title}`,
-        relatedObjectId: workPackage.id,
-      });
-    }
-  }
-
-  for (const risk of store.risks) {
-    const blocksGate =
-      risk.phaseId === gate.phaseId &&
-      (risk.severity === "HIGH" || risk.severity === "CRITICAL") &&
-      risk.status !== "CLOSED" &&
-      risk.status !== "ACCEPTED";
-
-    if (blocksGate) {
-      blockers.push({
-        code: "OPEN_HIGH_RISK",
-        message: `高风险未关闭或未被人类接受：${risk.title}`,
-        relatedObjectId: risk.id,
-      });
-    }
-  }
-
-  for (const finding of store.agentFindings) {
-    const workPackage = store.workPackages.find((item) => item.id === finding.workPackageId);
-    const blocksGate =
-      workPackage?.phaseId === gate.phaseId &&
-      (finding.severity === "HIGH" || finding.severity === "CRITICAL") &&
-      finding.status === "OPEN";
-
-    if (blocksGate) {
-      blockers.push({
-        code: "UNRESOLVED_AGENT_FINDING",
-        message: `Agent 高风险发现尚未处理：${finding.message}`,
-        relatedObjectId: finding.id,
-      });
-    }
-  }
-
-  const status = blockers.length > 0 ? "BLOCKED" : "READY";
-  updateGateReadinessInStore(store, gate.id, status);
+  updateGateReadinessInStore(store, gateId, readiness.status);
   persistStore();
 
-  return {
-    gateId,
-    status,
-    blockers,
-  };
+  return readiness;
 }
 
 export function getActiveProjectView() {
