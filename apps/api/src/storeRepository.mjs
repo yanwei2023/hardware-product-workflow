@@ -263,6 +263,26 @@ export function updateRiskStatusInStore(
   return risk;
 }
 
+export function completeReviewConditionsInStore(
+  store,
+  reviewId,
+  {
+    completedAt = new Date().toISOString(),
+    completedByUserId = "",
+    completionComment = "",
+  } = {},
+) {
+  const review = findReview(store, reviewId);
+  if (!review) {
+    return null;
+  }
+
+  review.conditionsCompletedAt = completedAt;
+  review.conditionsCompletedByUserId = completedByUserId;
+  review.conditionsCompletionComment = completionComment;
+  return review;
+}
+
 export function updateRolePairOwnerInStore(store, rolePairId, humanUserId) {
   const rolePair = findRolePair(store, rolePairId);
   if (!rolePair) {

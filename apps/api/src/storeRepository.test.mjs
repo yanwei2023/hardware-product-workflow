@@ -6,6 +6,7 @@ import {
   addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
+  completeReviewConditionsInStore,
   completeRiskMitigationInStore,
   findGate,
   findNotification,
@@ -322,6 +323,31 @@ test("risk status write helper records acceptance and closure metadata", () => {
   assert.equal(closed.closedComment, "措施关闭");
   assert.equal(findRisk(store, riskId).status, "CLOSED");
   assert.equal(updateRiskStatusInStore(store, "missing-risk", { status: "OPEN" }), null);
+});
+
+test("review condition completion write helper records completion metadata", () => {
+  const store = createDemoStore();
+  store.reviews.push({
+    id: "review-conditional-helper",
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    reviewerUserId: "user-test-lead",
+    decision: "APPROVE_WITH_CONDITIONS",
+    conditions: ["补充环境边界"],
+    comment: "带条件批准",
+    reviewedAt: "2026-06-01T07:00:00.000Z",
+  });
+
+  const completed = completeReviewConditionsInStore(store, "review-conditional-helper", {
+    completedAt: "2026-06-01T08:00:00.000Z",
+    completedByUserId: "user-test-lead",
+    completionComment: "已补充",
+  });
+
+  assert.equal(completed.conditionsCompletedAt, "2026-06-01T08:00:00.000Z");
+  assert.equal(completed.conditionsCompletedByUserId, "user-test-lead");
+  assert.equal(completed.conditionsCompletionComment, "已补充");
+  assert.equal(findReview(store, "review-conditional-helper").conditionsCompletionComment, "已补充");
+  assert.equal(completeReviewConditionsInStore(store, "missing-review"), null);
 });
 
 test("role pair owner write helper tracks previous owner", () => {

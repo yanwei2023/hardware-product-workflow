@@ -24,6 +24,7 @@ import {
   addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
+  completeReviewConditionsInStore,
   completeRiskMitigationInStore,
   findGate,
   findNotification,
@@ -2001,9 +2002,10 @@ export function completeConditionalApproval(reviewId, body = {}) {
     };
   }
 
-  review.conditionsCompletedAt = new Date().toISOString();
-  review.conditionsCompletedByUserId = actorUserId;
-  review.conditionsCompletionComment = String(body.comment || "").trim();
+  completeReviewConditionsInStore(store, review.id, {
+    completedByUserId: actorUserId,
+    completionComment: String(body.comment || "").trim(),
+  });
 
   audit("CONDITIONAL_APPROVAL_COMPLETED", "human", actorUserId, "review", review.id, {
     workPackageId: workPackage.id,
