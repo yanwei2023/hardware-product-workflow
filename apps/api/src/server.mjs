@@ -30,7 +30,9 @@ import {
   archiveProjectInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
+  countWorkPackagesByRolePair,
   findGate,
+  findLatestPendingArtifactForWorkPackage,
   findNotification,
   findPhase,
   findProject,
@@ -51,6 +53,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  projectExists,
   recordInvalidAgentOutputInStore,
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
@@ -750,7 +753,7 @@ export function validateProjectSnapshotImport(input = {}) {
   pushIfMissing(errors, Array.isArray(snapshot.rolePairs), "rolePairs 必须是数组");
   pushIfMissing(errors, Array.isArray(snapshot.workPackages), "workPackages 必须是数组");
 
-  if (project?.id && store.projects.some((item) => item.id === project.id)) {
+  if (project?.id && projectExists(store, project.id)) {
     errors.push({
       message: "项目 ID 已存在，不能直接导入",
       projectId: project.id,
@@ -1000,7 +1003,7 @@ export function importProjectSnapshot(input = {}) {
 
 function uniqueProjectIdFromName(name) {
   let baseId = `project-${slugifyProjectName(name)}`;
-  if (store.projects.some((project) => project.id === baseId)) {
+  if (projectExists(store, baseId)) {
     baseId = `${baseId}-${Date.now()}`;
   }
   return baseId;
@@ -1378,7 +1381,7 @@ export function updateRolePair(rolePairId, body = {}) {
 
   updateRolePairOwnerInStore(store, rolePair.id, body.humanUserId);
   const actorUserId = body.actorUserId || "user-project-manager";
-  const affectedWorkPackageCount = store.workPackages.filter((item) => item.rolePairId === rolePair.id).length;
+  const affectedWorkPackageCount = countWorkPackagesByRolePair(store, rolePair.id);
   audit("ROLE_PAIR_UPDATED", "human", actorUserId, "rolePair", rolePair.id, {
     previousHumanUserId,
     humanUserId: body.humanUserId,
@@ -1822,9 +1825,7 @@ export function submitHumanReview(body) {
     reviewedAt: new Date().toISOString(),
   };
 
-  const pendingArtifact = [...store.artifactVersions]
-    .reverse()
-    .find((item) => item.workPackageId === workPackage.id && item.status === "PENDING_REVIEW");
+  const pendingArtifact = findLatestPendingArtifactForWorkPackage(store, workPackage.id);
 
   if (!pendingArtifact) {
     return {

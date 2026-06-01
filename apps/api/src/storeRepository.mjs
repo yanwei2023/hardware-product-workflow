@@ -117,6 +117,10 @@ export function findProject(store, projectId) {
   return store.projects.find((item) => item.id === projectId) || null;
 }
 
+export function projectExists(store, projectId) {
+  return store.projects.some((item) => item.id === projectId);
+}
+
 export function findPhase(store, phaseId) {
   return store.phases.find((item) => item.id === phaseId) || null;
 }
@@ -127,6 +131,16 @@ export function findRolePair(store, rolePairId) {
 
 export function findWorkPackage(store, workPackageId) {
   return store.workPackages.find((item) => item.id === workPackageId) || null;
+}
+
+export function countWorkPackagesByRolePair(store, rolePairId) {
+  return store.workPackages.filter((item) => item.rolePairId === rolePairId).length;
+}
+
+export function findLatestPendingArtifactForWorkPackage(store, workPackageId) {
+  return [...store.artifactVersions]
+    .reverse()
+    .find((item) => item.workPackageId === workPackageId && item.status === "PENDING_REVIEW") || null;
 }
 
 export function findNotification(store, notificationId) {

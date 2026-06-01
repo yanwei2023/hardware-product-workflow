@@ -12,7 +12,9 @@ import {
   archiveProjectInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
+  countWorkPackagesByRolePair,
   findGate,
+  findLatestPendingArtifactForWorkPackage,
   findNotification,
   findPhase,
   findProject,
@@ -36,6 +38,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  projectExists,
   recordInvalidAgentOutputInStore,
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
@@ -78,6 +81,33 @@ test("store lookup helpers resolve current and individual records", () => {
   assert.equal(findPhase(store, "missing-phase"), null);
   assert.equal(findReview(store, "missing-review"), null);
   assert.equal(findRisk(store, "missing-risk"), null);
+});
+
+test("store query helpers resolve existence, counts, and pending artifacts", () => {
+  const store = createDemoStore();
+  store.artifactVersions.push(
+    {
+      id: "artifact-old-pending-helper",
+      workPackageId: "wp-evt_exit-evt_test_report",
+      artifactType: "TEST_REPORT",
+      status: "PENDING_REVIEW",
+      version: "0.1",
+    },
+    {
+      id: "artifact-latest-pending-helper",
+      workPackageId: "wp-evt_exit-evt_test_report",
+      artifactType: "TEST_REPORT",
+      status: "PENDING_REVIEW",
+      version: "0.2",
+    },
+  );
+
+  assert.equal(projectExists(store, "project-smart-controller"), true);
+  assert.equal(projectExists(store, "missing-project"), false);
+  assert.equal(countWorkPackagesByRolePair(store, "pair-test_agent"), 3);
+  assert.equal(countWorkPackagesByRolePair(store, "missing-role-pair"), 0);
+  assert.equal(findLatestPendingArtifactForWorkPackage(store, "wp-evt_exit-evt_test_report").id, "artifact-latest-pending-helper");
+  assert.equal(findLatestPendingArtifactForWorkPackage(store, "missing-work-package"), null);
 });
 
 test("current project helper falls back to the first project", () => {
