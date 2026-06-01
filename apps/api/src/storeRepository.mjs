@@ -67,6 +67,16 @@ export function markProjectUserNotificationsReadInStore(
   return updatedCount;
 }
 
+export function updateWorkPackageScheduleInStore(store, workPackageId, dueAt) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  if (!workPackage) {
+    return null;
+  }
+
+  workPackage.dueAt = dueAt || null;
+  return workPackage;
+}
+
 export function getProjectReadModel(store, projectId) {
   const project = store.projects.find((item) => item.id === projectId);
   if (!project) {

@@ -39,6 +39,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
@@ -1515,7 +1516,7 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
     });
   }
 
-  workPackage.dueAt = dueAt || null;
+  updateWorkPackageScheduleInStore(store, workPackage.id, dueAt);
   audit("WORK_PACKAGE_SCHEDULE_UPDATED", "human", body.actorUserId || "user-project-manager", "workPackage", workPackage.id, {
     dueAt: workPackage.dueAt,
     scheduleStatus: workPackageScheduleStatus(workPackage),

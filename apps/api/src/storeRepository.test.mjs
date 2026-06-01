@@ -24,6 +24,7 @@ import {
   getWorkPackageReadModel,
   markNotificationReadInStore,
   markProjectUserNotificationsReadInStore,
+  updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 
 test("store lookup helpers resolve current and individual records", () => {
@@ -113,6 +114,20 @@ test("notification write helpers mark one or many notifications read", () => {
   assert.equal(findNotification(store, "notification-read-bulk").readAt, "2026-05-31T02:00:00.000Z");
   assert.equal(findNotification(store, "notification-other-user").status, "UNREAD");
   assert.equal(markNotificationReadInStore(store, "missing-notification"), null);
+});
+
+test("work package schedule write helper updates and clears due dates", () => {
+  const store = createDemoStore();
+
+  const updated = updateWorkPackageScheduleInStore(store, "wp-evt_exit-evt_test_plan", "2026-06-15");
+  const updatedDueAt = updated.dueAt;
+  const cleared = updateWorkPackageScheduleInStore(store, "wp-evt_exit-evt_test_plan", "");
+
+  assert.equal(updated.id, "wp-evt_exit-evt_test_plan");
+  assert.equal(updatedDueAt, "2026-06-15");
+  assert.equal(cleared.dueAt, null);
+  assert.equal(findWorkPackage(store, "wp-evt_exit-evt_test_plan").dueAt, null);
+  assert.equal(updateWorkPackageScheduleInStore(store, "missing-work-package", "2026-06-15"), null);
 });
 
 test("project read model scopes workflow records to one project", () => {
