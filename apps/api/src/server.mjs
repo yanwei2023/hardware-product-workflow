@@ -23,6 +23,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addProjectGraphInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   approveGateInStore,
@@ -1052,22 +1053,23 @@ export function importProjectSnapshot(input = {}) {
     projectId: project.id,
   }));
 
-  store.projects.push(project);
-  store.phases.push(...phases);
-  store.gates.push(...gates);
-  store.rolePairs.push(...rolePairs);
-  store.gateRequirements.push(...gateRequirements);
-  store.workPackages.push(...workPackages);
-  store.artifactVersions.push(...artifactVersions);
-  store.reviews.push(...reviews);
-  store.evidenceRefs.push(...evidenceRefs);
-  store.gateApprovalPacks.push(...gateApprovalPacks);
-  store.risks.push(...risks);
-  store.agentRuns.push(...agentRuns);
-  store.agentFindings.push(...agentFindings);
-  store.notifications.push(...notifications);
-  store.auditEvents.push(...auditEvents);
-  store.activeProjectId = project.id;
+  addProjectGraphInStore(store, {
+    project,
+    phases,
+    gates,
+    rolePairs,
+    gateRequirements,
+    workPackages,
+    artifactVersions,
+    reviews,
+    evidenceRefs,
+    gateApprovalPacks,
+    risks,
+    agentRuns,
+    agentFindings,
+    notifications,
+    auditEvents,
+  });
 
   audit(input.importEventType || "PROJECT_IMPORTED", "human", input.actorUserId || "user-project-manager", "project", project.id, {
     sourceExportedAt: snapshot.exportedAt || null,
@@ -1333,13 +1335,14 @@ export function createProject(body = {}) {
     createdAt: new Date().toISOString(),
   };
   const generated = buildProjectFromTemplate(project, activePhaseKey);
-  store.projects.push(project);
-  store.phases.push(...generated.phases);
-  store.gates.push(...generated.gates);
-  store.rolePairs.push(...generated.rolePairs);
-  store.gateRequirements.push(...generated.gateRequirements);
-  store.workPackages.push(...generated.workPackages);
-  store.activeProjectId = project.id;
+  addProjectGraphInStore(store, {
+    project,
+    phases: generated.phases,
+    gates: generated.gates,
+    rolePairs: generated.rolePairs,
+    gateRequirements: generated.gateRequirements,
+    workPackages: generated.workPackages,
+  });
 
   audit("PROJECT_CREATED", "human", body.userId || "user-project-manager", "project", project.id, {
     templateKey: "standard_hardware_development_v0_1",

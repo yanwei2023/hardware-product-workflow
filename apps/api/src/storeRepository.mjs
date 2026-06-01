@@ -103,6 +103,49 @@ export function addNotificationInStore(
   return notification;
 }
 
+export function addProjectGraphInStore(
+  store,
+  {
+    project,
+    phases = [],
+    gates = [],
+    rolePairs = [],
+    gateRequirements = [],
+    workPackages = [],
+    artifactVersions = [],
+    reviews = [],
+    evidenceRefs = [],
+    gateApprovalPacks = [],
+    risks = [],
+    agentRuns = [],
+    agentFindings = [],
+    notifications = [],
+    auditEvents = [],
+    activate = true,
+  } = {},
+) {
+  store.projects.push(project);
+  store.phases.push(...phases);
+  store.gates.push(...gates);
+  store.rolePairs.push(...rolePairs);
+  store.gateRequirements.push(...gateRequirements);
+  store.workPackages.push(...workPackages);
+  store.artifactVersions.push(...artifactVersions);
+  store.reviews.push(...reviews);
+  store.evidenceRefs.push(...evidenceRefs);
+  store.gateApprovalPacks.push(...gateApprovalPacks);
+  store.risks.push(...risks);
+  store.agentRuns.push(...agentRuns);
+  store.agentFindings.push(...agentFindings);
+  store.notifications.push(...notifications);
+  store.auditEvents.push(...auditEvents);
+  if (activate) {
+    store.activeProjectId = project.id;
+  }
+
+  return project;
+}
+
 export function updateGateReadinessInStore(store, gateId, readinessStatus) {
   const gate = findGate(store, gateId);
   if (!gate) {

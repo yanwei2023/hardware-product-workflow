@@ -5,6 +5,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addProjectGraphInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   approveGateInStore,
@@ -133,6 +134,69 @@ test("audit and notification write helpers append records with defaults", () => 
     createdAt: "2026-06-01T07:00:00.000Z",
   });
   assert.equal(store.notifications.at(-1).id, "notification-helper-defaults");
+});
+
+test("project graph write helper appends workflow records and activates project", () => {
+  const store = createDemoStore();
+  const project = {
+    id: "project-graph-helper",
+    name: "图谱项目",
+    productLine: "测试",
+    currentPhaseId: "project-graph-helper-phase",
+    status: "IN_PROGRESS",
+    createdAt: "2026-06-01T18:00:00.000Z",
+  };
+  const phase = {
+    id: "project-graph-helper-phase",
+    projectId: project.id,
+    phaseKey: "initiation",
+    name: "立项",
+    sequence: 1,
+    status: "IN_PROGRESS",
+  };
+  const gate = {
+    id: "project-graph-helper-gate",
+    projectId: project.id,
+    phaseId: phase.id,
+    name: "立项门",
+    status: "GATE_BLOCKED",
+  };
+
+  const created = addProjectGraphInStore(store, {
+    project,
+    phases: [phase],
+    gates: [gate],
+    rolePairs: [{ id: "project-graph-helper-pair", projectId: project.id }],
+    gateRequirements: [{ id: "project-graph-helper-req", projectId: project.id, gateId: gate.id }],
+    workPackages: [{ id: "project-graph-helper-wp", projectId: project.id, phaseId: phase.id }],
+    artifactVersions: [{ id: "project-graph-helper-artifact", workPackageId: "project-graph-helper-wp" }],
+    reviews: [{ id: "project-graph-helper-review", workPackageId: "project-graph-helper-wp" }],
+    evidenceRefs: [{ id: "project-graph-helper-evidence", projectId: project.id }],
+    gateApprovalPacks: [{ id: "project-graph-helper-pack", projectId: project.id, gateId: gate.id }],
+    risks: [{ id: "project-graph-helper-risk", projectId: project.id, phaseId: phase.id }],
+    agentRuns: [{ id: "project-graph-helper-run", workPackageId: "project-graph-helper-wp" }],
+    agentFindings: [{ id: "project-graph-helper-finding", workPackageId: "project-graph-helper-wp" }],
+    notifications: [{ id: "project-graph-helper-notification", projectId: project.id }],
+    auditEvents: [{ id: "project-graph-helper-audit", projectId: project.id }],
+  });
+
+  assert.equal(created.id, project.id);
+  assert.equal(store.activeProjectId, project.id);
+  assert.equal(findProject(store, project.id).name, "图谱项目");
+  assert.equal(findPhase(store, phase.id).id, phase.id);
+  assert.equal(findGate(store, gate.id).id, gate.id);
+  assert.equal(store.workPackages.at(-1).id, "project-graph-helper-wp");
+  assert.equal(store.auditEvents.at(-1).id, "project-graph-helper-audit");
+
+  const inactiveProject = {
+    ...project,
+    id: "project-graph-helper-inactive",
+    currentPhaseId: "project-graph-helper-inactive-phase",
+  };
+  addProjectGraphInStore(store, { project: inactiveProject, activate: false });
+
+  assert.equal(store.activeProjectId, project.id);
+  assert.equal(findProject(store, inactiveProject.id).id, inactiveProject.id);
 });
 
 test("gate readiness write helper synchronizes gate and phase status", () => {
