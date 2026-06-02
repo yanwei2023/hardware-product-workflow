@@ -16,7 +16,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -42,12 +43,18 @@ button:disabled {
 }
 
 input,
-select {
+select,
+textarea {
   border: 1px solid #cbd5df;
   border-radius: 6px;
   min-height: 36px;
   padding: 7px 9px;
   width: 100%;
+}
+
+textarea {
+  line-height: 1.45;
+  resize: vertical;
 }
 
 label {
@@ -190,6 +197,10 @@ h3 {
   min-width: 280px;
 }
 
+.import-actions {
+  margin-top: 12px;
+}
+
 .message {
   background: #e7f5ef;
   border: 1px solid #a9dbc6;
@@ -239,6 +250,11 @@ h3 {
 
 .runtime-grid {
   grid-template-columns: repeat(4, minmax(120px, 1fr));
+}
+
+.import-summary {
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  margin: 12px 0;
 }
 
 .metric-card {

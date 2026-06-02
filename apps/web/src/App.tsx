@@ -365,6 +365,50 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
 function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageStatus, users }: any) {
   const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
+  const [importRaw, setImportRaw] = useState("");
+  const [importValidation, setImportValidation] = useState<any | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+
+  function parseImportSnapshot() {
+    if (!importRaw.trim()) {
+      setImportValidation({ valid: false, canImport: false, errors: [{ message: "请先粘贴项目快照 JSON。" }], warnings: [] });
+      return null;
+    }
+    try {
+      return JSON.parse(importRaw);
+    } catch (error) {
+      setImportValidation({
+        valid: false,
+        canImport: false,
+        errors: [{ message: `JSON 格式错误：${error instanceof Error ? error.message : String(error)}` }],
+        warnings: [],
+      });
+      return null;
+    }
+  }
+
+  async function validateImportSnapshot() {
+    const snapshot = parseImportSnapshot();
+    if (!snapshot) return;
+    setImportBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/projects/import/validate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(snapshot),
+      });
+      setImportValidation(await response.json());
+    } catch (error) {
+      setImportValidation({
+        valid: false,
+        canImport: false,
+        errors: [{ message: error instanceof Error ? error.message : String(error) }],
+        warnings: [],
+      });
+    } finally {
+      setImportBusy(false);
+    }
+  }
 
   return (
     <section className="content-grid projects-grid">
@@ -499,6 +543,82 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
           <Metric label="通知" value={storageStatus?.notificationCount || 0} />
         </div>
       </article>
+      <article className="panel span-3">
+        <h2>项目快照导入</h2>
+        <label>
+          项目快照 JSON
+          <textarea
+            placeholder="粘贴 /projects/:id/snapshot 导出的 JSON"
+            rows={9}
+            value={importRaw}
+            onChange={(event) => {
+              setImportRaw(event.target.value);
+              setImportValidation(null);
+            }}
+          />
+        </label>
+        <div className="actions import-actions">
+          <button disabled={busy || importBusy} onClick={validateImportSnapshot}>校验快照</button>
+          <button
+            className="ghost"
+            disabled={busy || importBusy || !importValidation?.canImport}
+            onClick={() => {
+              const snapshot = parseImportSnapshot();
+              if (!snapshot) return;
+              runAction("项目快照已导入", async () => {
+                await api("/projects/import", {
+                  method: "POST",
+                  body: JSON.stringify({ ...snapshot, actorUserId }),
+                });
+                setImportRaw("");
+                setImportValidation(null);
+                setSelectedWorkPackageId(null);
+              });
+            }}
+          >
+            导入项目
+          </button>
+        </div>
+        {importValidation ? <ImportValidationResult result={importValidation} /> : null}
+      </article>
+    </section>
+  );
+}
+
+function ImportValidationResult({ result }: any) {
+  const errors = result.errors || [];
+  const warnings = result.warnings || [];
+
+  return (
+    <section className="subpanel import-result">
+      <div className="detail-head">
+        <h3>校验结果</h3>
+        {result.valid ? badge("READY") : badge("BLOCKED")}
+      </div>
+      {result.summary ? (
+        <div className="runtime-grid import-summary">
+          <Metric label="项目" value={result.summary.projectName || "-"} />
+          <Metric label="阶段" value={result.summary.phaseCount || 0} />
+          <Metric label="工作包" value={result.summary.workPackageCount || 0} />
+          <Metric label="交付物" value={result.summary.artifactVersionCount || 0} />
+        </div>
+      ) : null}
+      {errors.length ? (
+        <>
+          <h3>错误</h3>
+          <ul className="plain-list">
+            {errors.map((item: any, index: number) => <li key={index}><span>{item.message}</span></li>)}
+          </ul>
+        </>
+      ) : null}
+      {warnings.length ? (
+        <>
+          <h3>警告</h3>
+          <ul className="plain-list">
+            {warnings.map((item: any, index: number) => <li key={index}><span>{item.message}</span></li>)}
+          </ul>
+        </>
+      ) : null}
     </section>
   );
 }
