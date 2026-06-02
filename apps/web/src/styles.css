@@ -201,6 +201,10 @@ h3 {
   margin-top: 12px;
 }
 
+.storage-actions {
+  margin-top: 12px;
+}
+
 .message {
   background: #e7f5ef;
   border: 1px solid #a9dbc6;
@@ -360,6 +364,14 @@ h3 {
 .table-stack {
   display: grid;
   gap: 5px;
+}
+
+.storage-table {
+  margin-top: 14px;
+}
+
+.storage-table th {
+  width: 150px;
 }
 
 .segmented {

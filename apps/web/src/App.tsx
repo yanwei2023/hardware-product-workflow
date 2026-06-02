@@ -9,6 +9,7 @@ type ApiState = {
   notifications: any | null;
   gateReviewPack: any | null;
   storageStatus: any | null;
+  storageDoctor: any | null;
 };
 
 const statusText: Record<string, string> = {
@@ -82,6 +83,7 @@ export function App() {
     notifications: null,
     gateReviewPack: null,
     storageStatus: null,
+    storageDoctor: null,
   });
   const [view, setView] = useState<ViewKey>("overview");
   const [actorUserId, setActorUserId] = useState("user-project-manager");
@@ -108,10 +110,11 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
+      api("/storage/doctor"),
     ]);
     const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
     const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
@@ -128,6 +131,7 @@ export function App() {
       notifications,
       gateReviewPack,
       storageStatus,
+      storageDoctor,
     });
     setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
   }
@@ -226,6 +230,7 @@ export function App() {
             busy={busy}
             project={state.project}
             setSelectedWorkPackageId={setSelectedWorkPackageId}
+            storageDoctor={state.storageDoctor}
             storageStatus={state.storageStatus}
             runAction={runAction}
             users={state.users}
@@ -362,7 +367,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
   );
 }
 
-function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageStatus, users }: any) {
+function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageDoctor, storageStatus, users }: any) {
   const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
   const [importRaw, setImportRaw] = useState("");
@@ -536,12 +541,13 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
       </article>
       <article className="panel span-3">
         <h2>本地数据状态</h2>
-        <div className="runtime-grid">
-          <Metric label="项目数" value={storageStatus?.projectCount || 0} />
-          <Metric label="审计事件" value={storageStatus?.auditEventCount || 0} />
-          <Metric label="批准包" value={storageStatus?.gateApprovalPackCount || 0} />
-          <Metric label="通知" value={storageStatus?.notificationCount || 0} />
-        </div>
+        <StorageStatus
+          busy={busy}
+          runAction={runAction}
+          setSelectedWorkPackageId={setSelectedWorkPackageId}
+          storageDoctor={storageDoctor}
+          storageStatus={storageStatus}
+        />
       </article>
       <article className="panel span-3">
         <h2>项目快照导入</h2>
@@ -582,6 +588,75 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
         {importValidation ? <ImportValidationResult result={importValidation} /> : null}
       </article>
     </section>
+  );
+}
+
+function StorageStatus({ busy, runAction, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
+  const doctorErrors = storageDoctor?.errors || [];
+  const backupErrors = storageDoctor?.backupErrors || [];
+
+  if (!storageStatus) {
+    return <p className="muted">本地数据状态加载中。</p>;
+  }
+
+  return (
+    <>
+      <div className="runtime-grid">
+        <Metric label="项目数" value={storageStatus.projectCount || 0} />
+        <Metric label="审计事件" value={storageStatus.auditEventCount || 0} />
+        <Metric label="批准包" value={storageStatus.gateApprovalPackCount || 0} />
+        <Metric label="通知" value={storageStatus.notificationCount || 0} />
+      </div>
+      <table className="storage-table">
+        <tbody>
+          <tr><th>健康状态</th><td>{storageDoctor ? badge(storageDoctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
+          <tr><th>数据文件</th><td>{storageStatus.storePath}</td></tr>
+          <tr><th>文件状态</th><td>{storageStatus.exists ? "存在" : "不存在"}</td></tr>
+          <tr><th>文件大小</th><td>{storageStatus.sizeBytes || 0} bytes</td></tr>
+          <tr><th>更新时间</th><td>{storageStatus.updatedAt || "-"}</td></tr>
+          <tr><th>备份文件</th><td>{storageStatus.backupPath || storageDoctor?.backupPath || "-"}</td></tr>
+          <tr>
+            <th>备份状态</th>
+            <td>
+              {storageStatus.backupExists ? (
+                <span>{storageDoctor?.backupValid ? badge("READY") : badge("BLOCKED")} {storageStatus.backupSizeBytes || 0} bytes</span>
+              ) : "暂无备份"}
+            </td>
+          </tr>
+          <tr><th>备份时间</th><td>{storageStatus.backupUpdatedAt || "-"}</td></tr>
+        </tbody>
+      </table>
+      <div className="actions storage-actions">
+        <button
+          className="ghost"
+          disabled={busy || !storageStatus.backupExists}
+          onClick={() => {
+            if (!window.confirm("将用 .bak 备份覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) return;
+            runAction("已从备份恢复本地数据", async () => {
+              await api("/storage/restore-backup", {
+                method: "POST",
+                body: JSON.stringify({ confirm: true }),
+              });
+              setSelectedWorkPackageId(null);
+            });
+          }}
+        >
+          从备份恢复
+        </button>
+      </div>
+      {doctorErrors.length ? (
+        <section className="subpanel">
+          <h3>数据问题</h3>
+          <ul className="plain-list">{doctorErrors.map((error: string, index: number) => <li key={index}><span>{error}</span></li>)}</ul>
+        </section>
+      ) : null}
+      {backupErrors.length ? (
+        <section className="subpanel">
+          <h3>备份问题</h3>
+          <ul className="plain-list">{backupErrors.map((error: string, index: number) => <li key={index}><span>{error}</span></li>)}</ul>
+        </section>
+      ) : null}
+    </>
   );
 }
 
