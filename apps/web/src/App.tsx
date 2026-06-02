@@ -1,83 +1,545 @@
-const phases = [
-  { name: "立项", status: "APPROVED" },
-  { name: "需求冻结", status: "APPROVED" },
-  { name: "设计冻结", status: "APPROVED" },
-  { name: "EVT Exit", status: "GATE_BLOCKED" },
-  { name: "DVT Exit", status: "NOT_STARTED" },
-  { name: "PVT Exit", status: "NOT_STARTED" },
-  { name: "量产准备", status: "NOT_STARTED" },
-];
+import { useEffect, useMemo, useState } from "react";
 
-const reviewQueue = [
-  "审核 Test Agent 生成的 EVT Exit 报告草稿",
-  "处理热设计裕量不足风险",
-  "在 EVT 阶段门前处理 Agent 发现项",
-];
+type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks";
 
-const statusLabels: Record<string, string> = {
-  APPROVED: "已批准",
-  GATE_BLOCKED: "阶段门阻塞",
-  NOT_STARTED: "未开始",
+type ApiState = {
+  project: any | null;
+  users: any[];
+  actionItems: any | null;
+  notifications: any | null;
+  gateReviewPack: any | null;
+  storageStatus: any | null;
 };
 
+const statusText: Record<string, string> = {
+  APPROVED: "已批准",
+  GATE_BLOCKED: "阶段门阻塞",
+  GATE_READY: "阶段门可通过",
+  NOT_STARTED: "未开始",
+  IN_PROGRESS: "进行中",
+  HUMAN_APPROVED: "人类已批准",
+  AGENT_DRAFT_READY: "草稿待审",
+  NEEDS_AGENT_REVISION: "需要修改",
+  PENDING_REVIEW: "待审核",
+  NEEDS_REVISION: "需要修改",
+  REJECTED: "已驳回",
+  OPEN: "打开",
+  ACCEPTED: "已接受",
+  CLOSED: "已关闭",
+  READY: "可通过",
+  BLOCKED: "阻塞",
+  READ: "已读",
+  UNREAD: "未读",
+  OVERDUE: "逾期",
+  DUE_SOON: "临期",
+  ON_TRACK: "正常",
+  UNSCHEDULED: "未排期",
+  DONE: "完成",
+  LOCKED: "已锁定",
+};
+
+const navItems: Array<{ key: ViewKey; label: string }> = [
+  { key: "overview", label: "总览" },
+  { key: "projects", label: "项目" },
+  { key: "workpackages", label: "工作包" },
+  { key: "gate", label: "阶段门" },
+  { key: "risks", label: "风险" },
+];
+
+const apiBase = import.meta.env.VITE_API_BASE || "";
+
+async function api(path: string, options: RequestInit = {}) {
+  const response = await fetch(`${apiBase}${path}`, {
+    headers: { "content-type": "application/json" },
+    ...options,
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error || JSON.stringify(body));
+  }
+  return body;
+}
+
+function badge(status?: string) {
+  const value = status || "-";
+  return <span className={`badge ${value}`}>{statusText[value] || value}</span>;
+}
+
+function formatUser(users: any[], userId?: string) {
+  const user = users.find((item) => item.userId === userId);
+  return user ? `${user.name}` : userId || "-";
+}
+
 export function App() {
+  const [state, setState] = useState<ApiState>({
+    project: null,
+    users: [],
+    actionItems: null,
+    notifications: null,
+    gateReviewPack: null,
+    storageStatus: null,
+  });
+  const [view, setView] = useState<ViewKey>("overview");
+  const [actorUserId, setActorUserId] = useState("user-project-manager");
+  const [selectedWorkPackageId, setSelectedWorkPackageId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const activePhase = useMemo(
+    () => state.project?.phases.find((phase: any) => phase.id === state.project.project.currentPhaseId),
+    [state.project],
+  );
+  const activeGate = useMemo(
+    () => state.project?.gates.find((gate: any) => gate.phaseId === activePhase?.id),
+    [activePhase, state.project],
+  );
+  const phaseWorkPackages = useMemo(
+    () => state.project?.workPackages.filter((item: any) => item.phaseId === activePhase?.id) || [],
+    [activePhase, state.project],
+  );
+  const selectedWorkPackage = useMemo(
+    () => state.project?.workPackages.find((item: any) => item.id === selectedWorkPackageId) || phaseWorkPackages[0],
+    [phaseWorkPackages, selectedWorkPackageId, state.project],
+  );
+
+  async function load(nextActorUserId = actorUserId) {
+    const [project, users, storageStatus] = await Promise.all([
+      api("/projects/demo"),
+      api("/users/demo"),
+      api("/storage/status"),
+    ]);
+    const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
+    const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
+    const [actionItems, notifications, gateReviewPack] = await Promise.all([
+      api(`/users/${nextActorUserId}/action-items`),
+      api(`/users/${nextActorUserId}/notifications`),
+      gate ? api(`/gates/${gate.id}/review-pack`) : Promise.resolve(null),
+    ]);
+
+    setState({
+      project,
+      users: users.users,
+      actionItems,
+      notifications,
+      gateReviewPack,
+      storageStatus,
+    });
+    setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
+  }
+
+  async function runAction(label: string, action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      await action();
+      await load();
+      setMessage(label);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    load().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+  }, []);
+
+  useEffect(() => {
+    load(actorUserId).catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+  }, [actorUserId]);
+
+  if (!state.project) {
+    return <main className="loading">正在加载硬件流程工作台...</main>;
+  }
+
+  const highOpenRisks = state.project.risks.filter(
+    (risk: any) => risk.status === "OPEN" && (risk.severity === "HIGH" || risk.severity === "CRITICAL"),
+  );
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <h1>硬件流程</h1>
+        <div className="brand">
+          <strong>Hardware Flow</strong>
+          <span>Human + Agent</span>
+        </div>
         <nav>
-          <a>项目总览</a>
-          <a>我的审核</a>
-          <a>阶段门</a>
-          <a>交付物</a>
-          <a>系统管理</a>
+          {navItems.map((item) => (
+            <button className={view === item.key ? "active" : ""} key={item.key} onClick={() => setView(item.key)}>
+              {item.label}
+            </button>
+          ))}
         </nav>
       </aside>
+
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">智能控制器项目</p>
-            <h2>EVT Exit 被阻塞，必须完成必要的人类审核和风险处理后才能通过。</h2>
+            <p className="eyebrow">{state.project.project.name}</p>
+            <h1>{activePhase?.name || "-"} · {activeGate?.name || "无阶段门"}</h1>
           </div>
-          <button>打开阶段门审核</button>
+          <div className="top-actions">
+            <select value={actorUserId} onChange={(event) => setActorUserId(event.target.value)}>
+              {state.users.map((user) => (
+                <option key={user.userId} value={user.userId}>
+                  {user.name} · {user.roles.join("/")}
+                </option>
+              ))}
+            </select>
+            <button onClick={() => load()} disabled={busy}>刷新</button>
+          </div>
         </header>
 
-        <section className="phase-strip">
-          {phases.map((phase) => (
-            <article className={`phase-card ${phase.status.toLowerCase()}`} key={phase.name}>
-              <span>{statusLabels[phase.status] ?? phase.status}</span>
-              <strong>{phase.name}</strong>
-            </article>
-          ))}
-        </section>
+        {message ? <div className={message.includes("错误") || message.includes("无权") ? "message error" : "message"}>{message}</div> : null}
 
-        <section className="content-grid">
-          <article className="panel">
-            <h3>阶段门阻塞项</h3>
-            <ul>
-              <li>缺少已批准交付物：EVT Exit 报告</li>
-              <li>人类审核尚未批准：EVT Exit 报告</li>
-              <li>高风险未关闭：热设计裕量不足</li>
-            </ul>
-          </article>
+        {view === "overview" ? (
+          <Overview
+            actionItems={state.actionItems}
+            activeGate={activeGate}
+            highOpenRisks={highOpenRisks}
+            notifications={state.notifications}
+            phaseWorkPackages={phaseWorkPackages}
+            project={state.project}
+            setView={setView}
+          />
+        ) : null}
 
-          <article className="panel">
-            <h3>人类审核队列</h3>
-            <ul>
-              {reviewQueue.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </article>
+        {view === "projects" ? (
+          <Projects
+            busy={busy}
+            project={state.project}
+            storageStatus={state.storageStatus}
+            runAction={runAction}
+          />
+        ) : null}
 
-          <article className="panel agent-panel">
-            <h3>Agent 状态</h3>
-            <p>Test Agent 已准备草稿。在测试负责人批准前，该内容只作为建议，不能进入正式基线。</p>
-            <button>要求修改</button>
-            <button>开始人类审核</button>
-          </article>
-        </section>
+        {view === "workpackages" ? (
+          <WorkPackages
+            actorUserId={actorUserId}
+            busy={busy}
+            project={state.project}
+            selectedWorkPackage={selectedWorkPackage}
+            phaseWorkPackages={phaseWorkPackages}
+            setSelectedWorkPackageId={setSelectedWorkPackageId}
+            runAction={runAction}
+          />
+        ) : null}
+
+        {view === "gate" ? (
+          <Gate
+            activeGate={activeGate}
+            busy={busy}
+            gateReviewPack={state.gateReviewPack}
+            latestGateCheck={state.project.latestGateCheck}
+            runAction={runAction}
+          />
+        ) : null}
+
+        {view === "risks" ? (
+          <Risks
+            actorUserId={actorUserId}
+            busy={busy}
+            project={state.project}
+            users={state.users}
+            runAction={runAction}
+          />
+        ) : null}
       </section>
     </main>
+  );
+}
+
+function Overview({ actionItems, activeGate, highOpenRisks, notifications, phaseWorkPackages, project, setView }: any) {
+  return (
+    <>
+      <section className="phase-strip">
+        {project.phases.map((phase: any) => (
+          <article className="phase-card" key={phase.id}>
+            {badge(phase.status)}
+            <strong>{phase.name}</strong>
+          </article>
+        ))}
+      </section>
+      <section className="metric-grid">
+        <Metric label="阶段门" value={activeGate?.status || "-"} />
+        <Metric label="阻塞项" value={project.latestGateCheck.blockers.length} />
+        <Metric label="当前阶段工作包" value={phaseWorkPackages.length} />
+        <Metric label="打开高风险" value={highOpenRisks.length} />
+        <Metric label="我的待办" value={actionItems?.total || 0} />
+        <Metric label="未读通知" value={notifications?.unreadCount || 0} />
+      </section>
+      <section className="content-grid">
+        <article className="panel">
+          <h2>阶段门阻塞项</h2>
+          {project.latestGateCheck.blockers.length ? (
+            <ul className="plain-list">
+              {project.latestGateCheck.blockers.map((item: any, index: number) => (
+                <li key={`${item.code}-${index}`}>
+                  <strong>{item.code || item.type}</strong>
+                  <span>{item.message || item.riskId || item.relatedObjectId}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">当前阶段门没有阻塞项。</p>
+          )}
+        </article>
+        <article className="panel">
+          <h2>我的待办</h2>
+          <ul className="plain-list">
+            {[...(actionItems?.pendingReviews || []), ...(actionItems?.riskMitigations || []), ...(actionItems?.gateApprovals || [])]
+              .slice(0, 8)
+              .map((item: any, index: number) => (
+                <li key={`${item.workPackageId || item.riskId || item.gateId}-${index}`}>
+                  <strong>{item.title}</strong>
+                  <span>{item.scheduleStatus || item.requiredArtifactType || item.gateStatus || "待处理"}</span>
+                </li>
+              ))}
+          </ul>
+        </article>
+        <article className="panel">
+          <h2>快速进入</h2>
+          <div className="button-grid">
+            <button onClick={() => setView("workpackages")}>处理工作包</button>
+            <button onClick={() => setView("gate")}>查看阶段门</button>
+            <button onClick={() => setView("risks")}>处理风险</button>
+          </div>
+        </article>
+      </section>
+    </>
+  );
+}
+
+function Projects({ busy, project, runAction, storageStatus }: any) {
+  const [name, setName] = useState("");
+  const [productLine, setProductLine] = useState("");
+
+  return (
+    <section className="content-grid projects-grid">
+      <article className="panel">
+        <h2>创建项目</h2>
+        <label>项目名称<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>产品线<input value={productLine} onChange={(event) => setProductLine(event.target.value)} /></label>
+        <button disabled={busy || !name.trim()} onClick={() => runAction("项目已创建", () => api("/projects", {
+          method: "POST",
+          body: JSON.stringify({ name, productLine }),
+        }))}>创建</button>
+      </article>
+      <article className="panel span-2">
+        <h2>项目列表</h2>
+        <table>
+          <thead><tr><th>项目</th><th>阶段</th><th>阶段门</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            {project.projectSummaries.map((item: any) => (
+              <tr key={item.id}>
+                <td>{item.name}</td>
+                <td>{item.currentPhaseName}</td>
+                <td>{item.currentGateName}</td>
+                <td>{badge(item.status)}</td>
+                <td>
+                  <button disabled={busy || item.id === project.activeProjectId} onClick={() => runAction("项目已切换", () => api(`/projects/${item.id}/select`, { method: "POST", body: "{}" }))}>切换</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </article>
+      <article className="panel span-3">
+        <h2>本地数据状态</h2>
+        <div className="runtime-grid">
+          <Metric label="项目数" value={storageStatus?.projectCount || 0} />
+          <Metric label="审计事件" value={storageStatus?.auditEventCount || 0} />
+          <Metric label="批准包" value={storageStatus?.gateApprovalPackCount || 0} />
+          <Metric label="通知" value={storageStatus?.notificationCount || 0} />
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction, selectedWorkPackage, setSelectedWorkPackageId }: any) {
+  const artifacts = project.artifactVersions.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
+  const reviews = project.reviews.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
+  const latestArtifact = artifacts.at(-1);
+
+  return (
+    <section className="split">
+      <article className="panel">
+        <h2>当前阶段工作包</h2>
+        <div className="work-list">
+          {phaseWorkPackages.map((item: any) => (
+            <button className={item.id === selectedWorkPackage?.id ? "selected" : ""} key={item.id} onClick={() => setSelectedWorkPackageId(item.id)}>
+              <strong>{item.title}</strong>
+              <span>{item.requiredArtifactType}</span>
+              {badge(item.status)}
+            </button>
+          ))}
+        </div>
+      </article>
+      <article className="panel">
+        {selectedWorkPackage ? (
+          <>
+            <div className="detail-head">
+              <div>
+                <h2>{selectedWorkPackage.title}</h2>
+                <p className="muted">{selectedWorkPackage.requiredArtifactType} · {selectedWorkPackage.artifactTemplateKey}</p>
+              </div>
+              {badge(selectedWorkPackage.status)}
+            </div>
+            <div className="actions">
+              <button disabled={busy} onClick={() => runAction("Agent 输出已生成", () => api("/agent/run", {
+                method: "POST",
+                body: JSON.stringify({ workPackageId: selectedWorkPackage.id }),
+              }))}>Agent 生成</button>
+              <button disabled={busy || !latestArtifact} onClick={() => runAction("工作包已批准", () => api("/reviews", {
+                method: "POST",
+                body: JSON.stringify({ workPackageId: selectedWorkPackage.id, reviewerUserId: actorUserId, decision: "APPROVE", comment: "React 工作台批准" }),
+              }))}>批准</button>
+              <button disabled={busy || !latestArtifact} className="ghost" onClick={() => runAction("已要求修改", () => api("/reviews", {
+                method: "POST",
+                body: JSON.stringify({ workPackageId: selectedWorkPackage.id, reviewerUserId: actorUserId, decision: "REQUEST_REVISION", comment: "请补充关键章节" }),
+              }))}>要求修改</button>
+            </div>
+            <section className="subpanel">
+              <h3>交付物</h3>
+              {latestArtifact ? (
+                <pre>{latestArtifact.content?.draftMarkdown || latestArtifact.content?.summary || "已有交付物记录"}</pre>
+              ) : <p className="muted">尚无 Agent 输出。</p>}
+            </section>
+            <section className="subpanel">
+              <h3>审核记录</h3>
+              {reviews.length ? reviews.map((review: any) => (
+                <p key={review.id}>{review.reviewedAt} · {review.reviewerUserId} · {review.decision} · {review.comment}</p>
+              )) : <p className="muted">暂无审核记录。</p>}
+            </section>
+          </>
+        ) : <p className="muted">当前阶段暂无工作包。</p>}
+      </article>
+    </section>
+  );
+}
+
+function Gate({ activeGate, busy, gateReviewPack, latestGateCheck, runAction }: any) {
+  return (
+    <section className="content-grid gate-grid">
+      <article className="panel">
+        <h2>阶段门检查</h2>
+        <p>{badge(latestGateCheck.status)}</p>
+        <div className="actions">
+          <button disabled={busy} onClick={() => runAction("阶段门检查已更新", () => api(`/gates/${activeGate.id}/check`))}>重新检查</button>
+          <button disabled={busy || latestGateCheck.status !== "READY"} onClick={() => runAction("阶段门已批准", () => api(`/gates/${activeGate.id}/approve`, {
+            method: "POST",
+            body: JSON.stringify({ userId: "user-project-manager", comment: "React 工作台批准" }),
+          }))}>批准阶段门</button>
+        </div>
+      </article>
+      <article className="panel span-2">
+        <h2>审核包证据</h2>
+        <table>
+          <thead><tr><th>交付物</th><th>工作包</th><th>状态</th><th>证据</th></tr></thead>
+          <tbody>
+            {(gateReviewPack?.evidence || []).map((item: any) => (
+              <tr key={item.workPackageId}>
+                <td>{item.requiredArtifactType}</td>
+                <td>{item.requiredWorkPackageTitle}</td>
+                <td>{item.ready ? badge("READY") : badge("BLOCKED")}</td>
+                <td>{item.manualEvidenceRefs?.length || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </article>
+      <article className="panel span-3">
+        <h2>阻塞项</h2>
+        {latestGateCheck.blockers.length ? (
+          <ul className="plain-list">
+            {latestGateCheck.blockers.map((item: any, index: number) => (
+              <li key={index}><strong>{item.code || item.type}</strong><span>{item.message || item.relatedObjectId}</span></li>
+            ))}
+          </ul>
+        ) : <p className="muted">无阻塞项。</p>}
+      </article>
+    </section>
+  );
+}
+
+function Risks({ actorUserId, busy, project, runAction, users }: any) {
+  const [title, setTitle] = useState("");
+
+  return (
+    <article className="panel">
+      <div className="detail-head">
+        <div>
+          <h2>风险台账</h2>
+          <p className="muted">{project.project.name}</p>
+        </div>
+        <div className="inline-create">
+          <input placeholder="新增风险标题" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <button disabled={busy || !title.trim()} onClick={() => runAction("风险已创建", () => api("/risks/current-phase", {
+            method: "POST",
+            body: JSON.stringify({ title, severity: "HIGH", userId: actorUserId }),
+          }))}>新增风险</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>风险</th><th>严重度</th><th>状态</th><th>缓解</th><th>操作</th></tr></thead>
+        <tbody>
+          {project.risks.map((risk: any) => (
+            <RiskRow actorUserId={actorUserId} busy={busy} key={risk.id} risk={risk} runAction={runAction} users={users} />
+          ))}
+        </tbody>
+      </table>
+    </article>
+  );
+}
+
+function RiskRow({ actorUserId, busy, risk, runAction, users }: any) {
+  const [owner, setOwner] = useState(risk.mitigationOwnerUserId || "");
+  const [dueAt, setDueAt] = useState(risk.mitigationDueAt || "");
+  const [mitigation, setMitigation] = useState(risk.mitigation || "");
+
+  return (
+    <tr>
+      <td>{risk.title}</td>
+      <td>{risk.severity}</td>
+      <td>{badge(risk.status)} {risk.mitigationStatus ? badge(risk.mitigationStatus) : null}</td>
+      <td>
+        <div className="risk-plan">
+          <select value={owner} onChange={(event) => setOwner(event.target.value)}>
+            <option value="">未指定</option>
+            {users.map((user: any) => <option key={user.userId} value={user.userId}>{user.name}</option>)}
+          </select>
+          <input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+          <input value={mitigation} onChange={(event) => setMitigation(event.target.value)} placeholder="缓解措施" />
+        </div>
+      </td>
+      <td>
+        <div className="actions">
+          <button disabled={busy} onClick={() => runAction("缓解计划已保存", () => api(`/risks/${risk.id}/mitigation`, {
+            method: "POST",
+            body: JSON.stringify({ userId: actorUserId, mitigationOwnerUserId: owner, mitigationDueAt: dueAt, mitigation }),
+          }))}>保存</button>
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已接受", () => api(`/risks/${risk.id}/status`, {
+            method: "POST",
+            body: JSON.stringify({ userId: actorUserId, status: "ACCEPTED", comment: "React 工作台接受" }),
+          }))}>接受</button>
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已关闭", () => api(`/risks/${risk.id}/status`, {
+            method: "POST",
+            body: JSON.stringify({ userId: actorUserId, status: "CLOSED", comment: "React 工作台关闭" }),
+          }))}>关闭</button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <article className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
   );
 }
