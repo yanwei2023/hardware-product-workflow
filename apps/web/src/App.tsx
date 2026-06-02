@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks";
+type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "notifications";
 
 type ApiState = {
   project: any | null;
@@ -44,6 +44,7 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
   { key: "workpackages", label: "工作包" },
   { key: "gate", label: "阶段门" },
   { key: "risks", label: "风险" },
+  { key: "notifications", label: "通知" },
 ];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
@@ -82,6 +83,7 @@ export function App() {
   const [view, setView] = useState<ViewKey>("overview");
   const [actorUserId, setActorUserId] = useState("user-project-manager");
   const [selectedWorkPackageId, setSelectedWorkPackageId] = useState<string | null>(null);
+  const [notificationFilter, setNotificationFilter] = useState("ALL");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -112,7 +114,7 @@ export function App() {
     const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
     const [actionItems, notifications, gateReviewPack] = await Promise.all([
       api(`/users/${nextActorUserId}/action-items`),
-      api(`/users/${nextActorUserId}/notifications`),
+      api(`/users/${nextActorUserId}/notifications${notificationQuery(notificationFilter)}`),
       gate ? api(`/gates/${gate.id}/review-pack`) : Promise.resolve(null),
     ]);
 
@@ -142,6 +144,11 @@ export function App() {
     }
   }
 
+  async function reloadNotifications(filter = notificationFilter, userId = actorUserId) {
+    const notifications = await api(`/users/${userId}/notifications${notificationQuery(filter)}`);
+    setState((current) => ({ ...current, notifications }));
+  }
+
   useEffect(() => {
     load().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
   }, []);
@@ -149,6 +156,10 @@ export function App() {
   useEffect(() => {
     load(actorUserId).catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
   }, [actorUserId]);
+
+  useEffect(() => {
+    reloadNotifications().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+  }, [notificationFilter]);
 
   if (!state.project) {
     return <main className="loading">正在加载硬件流程工作台...</main>;
@@ -246,9 +257,30 @@ export function App() {
             runAction={runAction}
           />
         ) : null}
+
+        {view === "notifications" ? (
+          <Notifications
+            actorUserId={actorUserId}
+            busy={busy}
+            filter={notificationFilter}
+            notifications={state.notifications}
+            runAction={runAction}
+            setFilter={setNotificationFilter}
+          />
+        ) : null}
       </section>
     </main>
   );
+}
+
+function notificationQuery(filter: string) {
+  const params: Record<string, string> = {
+    UNREAD: "?status=UNREAD",
+    ACTION: "?type=ACTION",
+    WARNING: "?type=WARNING",
+    INFO: "?type=INFO",
+  };
+  return params[filter] || "";
 }
 
 function Overview({ actionItems, activeGate, highOpenRisks, notifications, phaseWorkPackages, project, setView }: any) {
@@ -462,6 +494,93 @@ function Gate({ activeGate, busy, gateReviewPack, latestGateCheck, runAction }: 
         ) : <p className="muted">无阻塞项。</p>}
       </article>
     </section>
+  );
+}
+
+function Notifications({ actorUserId, busy, filter, notifications, runAction, setFilter }: any) {
+  if (!notifications) {
+    return <article className="panel"><p className="muted">通知加载中。</p></article>;
+  }
+
+  const counts = notifications.counts || {};
+  const filterItems = [
+    ["ALL", "全部", notifications.total || 0],
+    ["UNREAD", "未读", notifications.unreadCount || 0],
+    ["ACTION", "行动项", counts.action || 0],
+    ["WARNING", "提醒", counts.warning || 0],
+    ["INFO", "信息", counts.info || 0],
+  ];
+
+  return (
+    <article className="panel">
+      <div className="detail-head">
+        <div>
+          <h2>通知中心</h2>
+          <p className="muted">{notifications.filteredCount || 0} 条匹配 · {notifications.unreadCount || 0} 条未读</p>
+        </div>
+        <button
+          className="ghost"
+          disabled={busy || !notifications.unreadCount}
+          onClick={() => runAction("通知已全部标记为已读", () => api(`/users/${actorUserId}/notifications/read`, {
+            method: "POST",
+            body: "{}",
+          }))}
+        >
+          全部已读
+        </button>
+      </div>
+
+      <div className="segmented" role="tablist" aria-label="通知筛选">
+        {filterItems.map(([key, label, count]) => (
+          <button
+            className={filter === key ? "active" : ""}
+            key={key}
+            onClick={() => setFilter(key)}
+            role="tab"
+            aria-selected={filter === key}
+          >
+            <span>{label}</span>
+            <strong>{count}</strong>
+          </button>
+        ))}
+      </div>
+
+      <table>
+        <thead><tr><th>状态</th><th>通知</th><th>类型</th><th>对象</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>
+          {notifications.notifications?.length ? notifications.notifications.map((item: any) => (
+            <tr key={item.id}>
+              <td>{badge(item.status)}</td>
+              <td>
+                <div className="notification-copy">
+                  <strong>{item.title}</strong>
+                  <span>{item.message}</span>
+                </div>
+              </td>
+              <td>{item.type || "-"}</td>
+              <td>{item.objectType || "-"}</td>
+              <td>{item.createdAt || "-"}</td>
+              <td>
+                {item.status === "UNREAD" ? (
+                  <button
+                    className="ghost"
+                    disabled={busy}
+                    onClick={() => runAction("通知已标记为已读", () => api(`/notifications/${item.id}/read`, {
+                      method: "POST",
+                      body: JSON.stringify({ userId: actorUserId }),
+                    }))}
+                  >
+                    标记已读
+                  </button>
+                ) : "-"}
+              </td>
+            </tr>
+          )) : (
+            <tr><td colSpan={6}>当前筛选下没有通知。</td></tr>
+          )}
+        </tbody>
+      </table>
+    </article>
   );
 }
 

@@ -324,6 +324,33 @@ h3 {
   padding-bottom: 10px;
 }
 
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.segmented button {
+  align-items: center;
+  background: #fff;
+  border-color: #cbd5df;
+  color: #265d73;
+  display: inline-flex;
+  gap: 8px;
+  min-width: 94px;
+}
+
+.segmented button.active {
+  background: #265d73;
+  border-color: #265d73;
+  color: #fff;
+}
+
+.segmented strong {
+  font-size: 13px;
+}
+
 .detail-head {
   align-items: flex-start;
   display: flex;
@@ -376,6 +403,17 @@ h3 {
   display: grid;
   gap: 6px;
   min-width: 260px;
+}
+
+.notification-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 240px;
+}
+
+.notification-copy span {
+  color: #607086;
+  font-size: 13px;
 }
 
 @media (max-width: 1120px) {
