@@ -252,6 +252,19 @@ h3 {
   color: #607086;
 }
 
+.inline-badge {
+  background: #edf7fb;
+  border: 1px solid #b9dbe8;
+  border-radius: 999px;
+  color: #265d73;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 8px;
+  padding: 4px 7px;
+}
+
 .metric-card strong {
   font-size: 24px;
 }
@@ -326,6 +339,11 @@ h3 {
   display: grid;
   gap: 4px;
   padding-bottom: 10px;
+}
+
+.table-stack {
+  display: grid;
+  gap: 5px;
 }
 
 .segmented {

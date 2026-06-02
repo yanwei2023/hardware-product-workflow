@@ -26,6 +26,8 @@ const statusText: Record<string, string> = {
   OPEN: "打开",
   ACCEPTED: "已接受",
   CLOSED: "已关闭",
+  ARCHIVED: "已归档",
+  PLANNED: "已计划",
   READY: "可通过",
   BLOCKED: "阻塞",
   READ: "已读",
@@ -220,8 +222,10 @@ export function App() {
 
         {view === "projects" ? (
           <Projects
+            actorUserId={actorUserId}
             busy={busy}
             project={state.project}
+            setSelectedWorkPackageId={setSelectedWorkPackageId}
             storageStatus={state.storageStatus}
             runAction={runAction}
           />
@@ -357,7 +361,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
   );
 }
 
-function Projects({ busy, project, runAction, storageStatus }: any) {
+function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageStatus }: any) {
   const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
 
@@ -375,16 +379,92 @@ function Projects({ busy, project, runAction, storageStatus }: any) {
       <article className="panel span-2">
         <h2>项目列表</h2>
         <table>
-          <thead><tr><th>项目</th><th>阶段</th><th>阶段门</th><th>状态</th><th>操作</th></tr></thead>
+          <thead><tr><th>项目</th><th>阶段</th><th>阶段门</th><th>风险</th><th>待闭环</th><th>状态</th><th>操作</th></tr></thead>
           <tbody>
             {project.projectSummaries.map((item: any) => (
               <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>{item.currentPhaseName}</td>
-                <td>{item.currentGateName}</td>
+                <td>
+                  <strong>{item.name}</strong>
+                  {item.id === project.activeProjectId ? <span className="inline-badge">当前</span> : null}
+                </td>
+                <td>{item.currentPhaseName || item.currentPhaseId}</td>
+                <td>
+                  <div className="table-stack">
+                    <span>{item.currentGateName || "-"}</span>
+                    {item.currentGateStatus ? badge(item.currentGateStatus) : null}
+                  </div>
+                </td>
+                <td>{item.openHighRiskCount || 0}</td>
+                <td>
+                  <div className="table-stack muted">
+                    <span>逾期 {item.overdueWorkPackageCount || 0}</span>
+                    <span>条款 {item.openConditionalApprovalCount || 0}</span>
+                    <span>缓解 {item.openMitigationCount || 0}</span>
+                  </div>
+                </td>
                 <td>{badge(item.status)}</td>
                 <td>
-                  <button disabled={busy || item.id === project.activeProjectId} onClick={() => runAction("项目已切换", () => api(`/projects/${item.id}/select`, { method: "POST", body: "{}" }))}>切换</button>
+                  <div className="actions">
+                    <button
+                      disabled={busy || item.id === project.activeProjectId}
+                      onClick={() => runAction("项目已切换", async () => {
+                        await api(`/projects/${item.id}/select`, { method: "POST", body: "{}" });
+                        setSelectedWorkPackageId(null);
+                      })}
+                    >
+                      切换
+                    </button>
+                    <button className="ghost" onClick={() => window.open(`/projects/${item.id}/snapshot.md`, "_blank")}>导出快照</button>
+                    <button
+                      className="ghost"
+                      disabled={busy}
+                      onClick={() => {
+                        const cloneName = window.prompt("输入项目副本名称", `${item.name} 副本`);
+                        if (!cloneName) return;
+                        runAction("项目副本已创建", async () => {
+                          await api(`/projects/${item.id}/clone`, {
+                            method: "POST",
+                            body: JSON.stringify({ name: cloneName, userId: actorUserId }),
+                          });
+                          setSelectedWorkPackageId(null);
+                        });
+                      }}
+                    >
+                      复制
+                    </button>
+                    {item.status === "ARCHIVED" ? (
+                      <button
+                        className="ghost"
+                        disabled={busy}
+                        onClick={() => runAction("项目已恢复", async () => {
+                          await api(`/projects/${item.id}/restore`, {
+                            method: "POST",
+                            body: JSON.stringify({ userId: actorUserId }),
+                          });
+                          setSelectedWorkPackageId(null);
+                        })}
+                      >
+                        恢复
+                      </button>
+                    ) : (
+                      <button
+                        className="ghost"
+                        disabled={busy}
+                        onClick={() => {
+                          if (!window.confirm(`归档项目「${item.name}」？项目数据会保留，可稍后恢复。`)) return;
+                          runAction("项目已归档", async () => {
+                            await api(`/projects/${item.id}/archive`, {
+                              method: "POST",
+                              body: JSON.stringify({ userId: actorUserId }),
+                            });
+                            setSelectedWorkPackageId(null);
+                          });
+                        }}
+                      >
+                        归档
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

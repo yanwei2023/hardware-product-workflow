@@ -38,12 +38,24 @@ POST /projects/:id/select
 
 - 创建新项目；
 - 查看项目列表；
-- 切换当前项目。
+- 切换当前项目；
+- 导出项目快照 Markdown；
+- 复制项目并自动切换到副本；
+- 归档项目并保留全部数据；
+- 恢复已归档项目。
+
+项目生命周期 API：
+
+```text
+POST /projects/:id/clone
+POST /projects/:id/archive
+POST /projects/:id/restore
+GET /projects/:id/snapshot.md
+```
 
 ## 当前限制
 
 - 还没有真实登录，创建人通过 `userId` 传入；
 - 新项目默认从“立项”阶段开始；
 - 阶段角色负责人暂时使用演示用户；
-- 还没有项目归档、删除、复制模板功能。
-
+- 还没有项目删除功能，归档用于保留数据的下线场景。
