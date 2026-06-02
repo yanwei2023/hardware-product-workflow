@@ -11,8 +11,8 @@
 ## 仓库结构
 
 ```text
-apps/web       前端工作台骨架
-apps/api       后台流程引擎骨架
+apps/web       React API 工作台
+apps/api       后台流程引擎
 agents/worker  Agent 执行 worker 骨架
 docs           产品、流程、架构文档
 schemas        共享领域模型与数据库草案
@@ -32,7 +32,7 @@ infra          本地部署配置
 
 ## 本地开发
 
-当前无依赖试用版可以直接启动：
+本地 API 与静态工作台可以直接启动：
 
 ```text
 npm start
@@ -49,6 +49,8 @@ npm run start:lan
 ```text
 npm --workspace apps/api run demo
 npm run demo:multi-phase
+npm run dev:web
+npm run web:build
 npm run agent:sample
 ```
 
@@ -67,10 +69,23 @@ docker compose up -d
 node apps/api/src/server.mjs
 ```
 
-然后访问：
+然后访问静态工作台：
 
 ```text
 http://localhost:3001
+```
+
+React 工作台开发模式：
+
+```text
+npm start
+npm run dev:web
+```
+
+然后访问：
+
+```text
+http://localhost:5173
 ```
 
 详细说明见：
@@ -89,9 +104,9 @@ docs/postgres-migration.md
 - `apps/api/src/gateEngine.ts` 检查阶段门是阻塞还是可通过。
 - `apps/api/src/artifactValidator.mjs` 检查 Agent 输出是否满足交付物模板要求。
 - `apps/api/src/server.mjs` 提供本地可运行 API、静态工作台、项目快照、阶段门、审核、风险、通知和导入导出链路。
-- `apps/static` 提供当前主力本地工作台。
+- `apps/static` 提供无构建依赖的本地工作台。
+- `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、工作包、阶段门和风险主流程。
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
-- `apps/web/src/App.tsx` 保留第一版 React 工作台草案。
 - `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
 - `apps/api/src/postgresMapper.mjs`、`postgresExportReport.mjs`、`postgresImportBundle.mjs` 和相关 CLI 脚本提供 JSON store 到 PostgreSQL rows/seed SQL、导入包、导入包自检和数据库 preflight 的迁移准备工具。
