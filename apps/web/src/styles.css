@@ -233,6 +233,10 @@ h3 {
   grid-template-columns: repeat(6, minmax(120px, 1fr));
 }
 
+.action-summary {
+  margin: 14px 0;
+}
+
 .runtime-grid {
   grid-template-columns: repeat(4, minmax(120px, 1fr));
 }

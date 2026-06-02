@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "notifications";
+type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "actions" | "notifications";
 
 type ApiState = {
   project: any | null;
@@ -44,6 +44,7 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
   { key: "workpackages", label: "工作包" },
   { key: "gate", label: "阶段门" },
   { key: "risks", label: "风险" },
+  { key: "actions", label: "待办" },
   { key: "notifications", label: "通知" },
 ];
 
@@ -258,6 +259,17 @@ export function App() {
           />
         ) : null}
 
+        {view === "actions" ? (
+          <ActionItems
+            actionItems={state.actionItems}
+            actorUserId={actorUserId}
+            busy={busy}
+            runAction={runAction}
+            setSelectedWorkPackageId={setSelectedWorkPackageId}
+            setView={setView}
+          />
+        ) : null}
+
         {view === "notifications" ? (
           <Notifications
             actorUserId={actorUserId}
@@ -337,6 +349,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
             <button onClick={() => setView("workpackages")}>处理工作包</button>
             <button onClick={() => setView("gate")}>查看阶段门</button>
             <button onClick={() => setView("risks")}>处理风险</button>
+            <button onClick={() => setView("actions")}>查看待办</button>
           </div>
         </article>
       </section>
@@ -494,6 +507,129 @@ function Gate({ activeGate, busy, gateReviewPack, latestGateCheck, runAction }: 
         ) : <p className="muted">无阻塞项。</p>}
       </article>
     </section>
+  );
+}
+
+function ActionItems({ actionItems, actorUserId, busy, runAction, setSelectedWorkPackageId, setView }: any) {
+  const rows = [
+    ...(actionItems?.pendingReviews || []).map((item: any) => ({
+      key: `review-${item.workPackageId}`,
+      type: "工作包审核",
+      title: item.title,
+      detail: `${item.artifactType || item.requiredArtifactType || "交付物"}${item.canApprove ? " · 可批准" : ""}`,
+      action: (
+        <button onClick={() => {
+          setSelectedWorkPackageId(item.workPackageId);
+          setView("workpackages");
+        }}>处理</button>
+      ),
+    })),
+    ...(actionItems?.scheduleAlerts || []).map((item: any) => ({
+      key: `schedule-${item.workPackageId}`,
+      type: "计划提醒",
+      title: item.title,
+      detail: `${statusText[item.scheduleStatus] || item.scheduleStatus || "-"} · ${item.dueAt || "未排期"}`,
+      action: (
+        <button onClick={() => {
+          setSelectedWorkPackageId(item.workPackageId);
+          setView("workpackages");
+        }}>处理</button>
+      ),
+    })),
+    ...(actionItems?.conditionalApprovals || []).map((item: any) => ({
+      key: `condition-${item.reviewId}`,
+      type: "有条件批准",
+      title: item.title,
+      detail: `${item.conditions?.join("；") || "补充条款"}${item.comment ? ` · ${item.comment}` : ""}`,
+      action: (
+        <div className="actions">
+          <button onClick={() => {
+            setSelectedWorkPackageId(item.workPackageId);
+            setView("workpackages");
+          }}>处理</button>
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={() => runAction("有条件批准条款已完成", () => api(`/reviews/${item.reviewId}/conditions/complete`, {
+              method: "POST",
+              body: JSON.stringify({ actorUserId, comment: "React 工作台记录条款已完成。" }),
+            }))}
+          >
+            完成条款
+          </button>
+        </div>
+      ),
+    })),
+    ...(actionItems?.riskDecisions || []).map((item: any) => ({
+      key: `risk-decision-${item.riskId}`,
+      type: "风险决策",
+      title: item.title,
+      detail: item.severity || "-",
+      action: <button onClick={() => setView("risks")}>处理</button>,
+    })),
+    ...(actionItems?.riskMitigations || []).map((item: any) => ({
+      key: `risk-mitigation-${item.riskId}`,
+      type: "风险缓解",
+      title: item.title,
+      detail: `${statusText[item.scheduleStatus] || item.scheduleStatus || "-"} · ${item.dueAt || "未排期"}${item.mitigation ? ` · ${item.mitigation}` : ""}`,
+      action: (
+        <div className="actions">
+          <button onClick={() => setView("risks")}>处理</button>
+          <button
+            className="ghost"
+            disabled={busy}
+            onClick={() => runAction("风险缓解已完成", () => api(`/risks/${item.riskId}/mitigation/complete`, {
+              method: "POST",
+              body: JSON.stringify({ actorUserId, comment: "React 工作台记录缓解措施已完成。" }),
+            }))}
+          >
+            完成缓解
+          </button>
+        </div>
+      ),
+    })),
+    ...(actionItems?.gateApprovals || []).map((item: any) => ({
+      key: `gate-${item.gateId}`,
+      type: "阶段门批准",
+      title: item.title,
+      detail: "阶段门已满足批准条件",
+      action: <button onClick={() => setView("gate")}>处理</button>,
+    })),
+  ];
+
+  return (
+    <article className="panel">
+      <div className="detail-head">
+        <div>
+          <h2>我的待办</h2>
+          <p className="muted">{actionItems?.total || 0} 个待处理事项</p>
+        </div>
+        <button className="ghost" disabled={busy} onClick={() => runAction("待办已刷新", () => Promise.resolve())}>刷新</button>
+      </div>
+      <section className="metric-grid action-summary">
+        <Metric label="审核" value={actionItems?.pendingReviews?.length || 0} />
+        <Metric label="计划" value={actionItems?.scheduleAlerts?.length || 0} />
+        <Metric label="条款" value={actionItems?.conditionalApprovals?.length || 0} />
+        <Metric label="风险决策" value={actionItems?.riskDecisions?.length || 0} />
+        <Metric label="风险缓解" value={actionItems?.riskMitigations?.length || 0} />
+        <Metric label="阶段门" value={actionItems?.gateApprovals?.length || 0} />
+      </section>
+      <table>
+        <thead><tr><th>类型</th><th>事项</th><th>详情</th><th>操作</th></tr></thead>
+        <tbody>
+          {rows.length ? rows.map((row) => (
+            <tr key={row.key}>
+              <td>{row.type}</td>
+              <td><strong>{row.title}</strong></td>
+              <td>{row.detail}</td>
+              <td>{row.action}</td>
+            </tr>
+          )) : (
+            <tr><td colSpan={4}>当前没有待办。</td></tr>
+          )}
+        </tbody>
+      </table>
+    </article>
   );
 }
 
