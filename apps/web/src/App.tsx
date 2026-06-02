@@ -228,6 +228,7 @@ export function App() {
             setSelectedWorkPackageId={setSelectedWorkPackageId}
             storageStatus={state.storageStatus}
             runAction={runAction}
+            users={state.users}
           />
         ) : null}
 
@@ -361,7 +362,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
   );
 }
 
-function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageStatus }: any) {
+function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageStatus, users }: any) {
   const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
 
@@ -472,6 +473,24 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
         </table>
       </article>
       <article className="panel span-3">
+        <h2>当前项目角色配对</h2>
+        <table>
+          <thead><tr><th>人类角色</th><th>Agent</th><th>负责人</th><th>操作</th></tr></thead>
+          <tbody>
+            {project.rolePairs.map((pair: any) => (
+              <RolePairRow
+                actorUserId={actorUserId}
+                busy={busy}
+                key={pair.id}
+                pair={pair}
+                runAction={runAction}
+                users={users}
+              />
+            ))}
+          </tbody>
+        </table>
+      </article>
+      <article className="panel span-3">
         <h2>本地数据状态</h2>
         <div className="runtime-grid">
           <Metric label="项目数" value={storageStatus?.projectCount || 0} />
@@ -481,6 +500,41 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
         </div>
       </article>
     </section>
+  );
+}
+
+function RolePairRow({ actorUserId, busy, pair, runAction, users }: any) {
+  const [humanUserId, setHumanUserId] = useState(pair.humanUserId || "");
+
+  useEffect(() => {
+    setHumanUserId(pair.humanUserId || "");
+  }, [pair.humanUserId]);
+
+  return (
+    <tr>
+      <td>{pair.humanRole || pair.roleKey}</td>
+      <td>{pair.agentKey}</td>
+      <td>
+        <select value={humanUserId} onChange={(event) => setHumanUserId(event.target.value)}>
+          {users.map((user: any) => (
+            <option key={user.userId} value={user.userId}>
+              {user.name} · {user.roles.join("/")}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <button
+          disabled={busy || humanUserId === pair.humanUserId}
+          onClick={() => runAction("角色负责人已更新", () => api(`/role-pairs/${pair.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ actorUserId, humanUserId }),
+          }))}
+        >
+          保存
+        </button>
+      </td>
+    </tr>
   );
 }
 
