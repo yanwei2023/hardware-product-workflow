@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "actions" | "notifications";
+type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "actions" | "notifications" | "audit";
 
 type ApiState = {
   project: any | null;
@@ -49,6 +49,7 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
   { key: "risks", label: "风险" },
   { key: "actions", label: "待办" },
   { key: "notifications", label: "通知" },
+  { key: "audit", label: "审计" },
 ];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
@@ -290,6 +291,10 @@ export function App() {
             runAction={runAction}
             setFilter={setNotificationFilter}
           />
+        ) : null}
+
+        {view === "audit" ? (
+          <AuditTrail auditEvents={state.project.auditEvents || []} />
         ) : null}
       </section>
     </main>
@@ -1194,6 +1199,50 @@ function Notifications({ actorUserId, busy, filter, notifications, runAction, se
         </tbody>
       </table>
     </article>
+  );
+}
+
+function AuditTrail({ auditEvents }: any) {
+  const events = [...auditEvents].reverse();
+
+  return (
+    <article className="panel">
+      <div className="detail-head">
+        <div>
+          <h2>审计事件</h2>
+          <p className="muted">{events.length} 条行为记录</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>时间</th><th>事件</th><th>操作者</th><th>对象</th><th>详情</th></tr></thead>
+        <tbody>
+          {events.length ? events.map((event: any) => (
+            <tr key={event.id}>
+              <td>{event.createdAt || "-"}</td>
+              <td>{event.eventType || "-"}</td>
+              <td>{event.actorType || "-"}:{event.actorId || "-"}</td>
+              <td>{event.objectType || "-"}:{event.objectId || "-"}</td>
+              <td><AuditPayload payload={event.payload} /></td>
+            </tr>
+          )) : (
+            <tr><td colSpan={5}>当前项目暂无审计事件。</td></tr>
+          )}
+        </tbody>
+      </table>
+    </article>
+  );
+}
+
+function AuditPayload({ payload }: any) {
+  if (!payload || Object.keys(payload).length === 0) {
+    return <span className="muted">无</span>;
+  }
+
+  return (
+    <details className="audit-detail">
+      <summary>查看</summary>
+      <pre>{JSON.stringify(payload, null, 2)}</pre>
+    </details>
   );
 }
 
