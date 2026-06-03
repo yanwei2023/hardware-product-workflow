@@ -736,7 +736,8 @@ function RolePairRow({ actorUserId, busy, pair, runAction, users }: any) {
 function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction, selectedWorkPackage, setSelectedWorkPackageId }: any) {
   const artifacts = project.artifactVersions.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const reviews = project.reviews.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
-  const latestArtifact = artifacts.at(-1);
+  const evidenceRefs = (project.evidenceRefs || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
+  const agentRuns = (project.agentRuns || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
 
   return (
     <section className="split">
@@ -747,51 +748,163 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
             <button className={item.id === selectedWorkPackage?.id ? "selected" : ""} key={item.id} onClick={() => setSelectedWorkPackageId(item.id)}>
               <strong>{item.title}</strong>
               <span>{item.requiredArtifactType}</span>
-              {badge(item.status)}
+              <span>{badge(item.status)} {item.scheduleStatus ? badge(item.scheduleStatus) : null}</span>
             </button>
           ))}
         </div>
       </article>
       <article className="panel">
         {selectedWorkPackage ? (
-          <>
-            <div className="detail-head">
-              <div>
-                <h2>{selectedWorkPackage.title}</h2>
-                <p className="muted">{selectedWorkPackage.requiredArtifactType} · {selectedWorkPackage.artifactTemplateKey}</p>
-              </div>
-              {badge(selectedWorkPackage.status)}
-            </div>
-            <div className="actions">
-              <button disabled={busy} onClick={() => runAction("Agent 输出已生成", () => api("/agent/run", {
-                method: "POST",
-                body: JSON.stringify({ workPackageId: selectedWorkPackage.id }),
-              }))}>Agent 生成</button>
-              <button disabled={busy || !latestArtifact} onClick={() => runAction("工作包已批准", () => api("/reviews", {
-                method: "POST",
-                body: JSON.stringify({ workPackageId: selectedWorkPackage.id, reviewerUserId: actorUserId, decision: "APPROVE", comment: "React 工作台批准" }),
-              }))}>批准</button>
-              <button disabled={busy || !latestArtifact} className="ghost" onClick={() => runAction("已要求修改", () => api("/reviews", {
-                method: "POST",
-                body: JSON.stringify({ workPackageId: selectedWorkPackage.id, reviewerUserId: actorUserId, decision: "REQUEST_REVISION", comment: "请补充关键章节" }),
-              }))}>要求修改</button>
-            </div>
-            <section className="subpanel">
-              <h3>交付物</h3>
-              {latestArtifact ? (
-                <pre>{latestArtifact.content?.draftMarkdown || latestArtifact.content?.summary || "已有交付物记录"}</pre>
-              ) : <p className="muted">尚无 Agent 输出。</p>}
-            </section>
-            <section className="subpanel">
-              <h3>审核记录</h3>
-              {reviews.length ? reviews.map((review: any) => (
-                <p key={review.id}>{review.reviewedAt} · {review.reviewerUserId} · {review.decision} · {review.comment}</p>
-              )) : <p className="muted">暂无审核记录。</p>}
-            </section>
-          </>
+          <WorkPackageDetail
+            actorUserId={actorUserId}
+            agentRuns={agentRuns}
+            artifacts={artifacts}
+            busy={busy}
+            evidenceRefs={evidenceRefs}
+            reviews={reviews}
+            runAction={runAction}
+            workPackage={selectedWorkPackage}
+          />
         ) : <p className="muted">当前阶段暂无工作包。</p>}
       </article>
     </section>
+  );
+}
+
+function WorkPackageDetail({ actorUserId, agentRuns, artifacts, busy, evidenceRefs, reviews, runAction, workPackage }: any) {
+  const latestArtifact = artifacts.at(-1);
+  const latestAgentRun = agentRuns.at(-1);
+  const validation = latestArtifact?.content?.validation || latestAgentRun?.validation || null;
+  const [dueAt, setDueAt] = useState(workPackage.dueAt || "");
+  const [evidenceLabel, setEvidenceLabel] = useState("");
+  const [evidenceRef, setEvidenceRef] = useState("");
+
+  useEffect(() => {
+    setDueAt(workPackage.dueAt || "");
+    setEvidenceLabel("");
+    setEvidenceRef("");
+  }, [workPackage.id, workPackage.dueAt]);
+
+  function submitReview(decision: string, defaultComment: string, extra: Record<string, any> = {}) {
+    return runAction("审核已提交", () => api("/reviews", {
+      method: "POST",
+      body: JSON.stringify({
+        workPackageId: workPackage.id,
+        reviewerUserId: actorUserId,
+        decision,
+        comment: defaultComment,
+        ...extra,
+      }),
+    }));
+  }
+
+  return (
+    <>
+      <div className="detail-head">
+        <div>
+          <h2>{workPackage.title}</h2>
+          <p className="muted">{workPackage.requiredArtifactType} · {workPackage.artifactTemplateKey}</p>
+          <p className="muted">截止日期：{workPackage.dueAt || "未设置"} · {workPackage.scheduleStatus ? badge(workPackage.scheduleStatus) : null}</p>
+        </div>
+        {badge(workPackage.status)}
+      </div>
+      <div className="actions">
+        <button disabled={busy} onClick={() => runAction("Agent 输出已生成", () => api("/agent-runs", {
+          method: "POST",
+          body: JSON.stringify({ workPackageId: workPackage.id, inputRefs: ["artifact:react-workbench"] }),
+        }))}>Agent 生成</button>
+        <button disabled={busy || !latestArtifact} onClick={() => submitReview("APPROVE", "React 工作台批准")}>批准</button>
+        <button
+          disabled={busy || !latestArtifact}
+          className="ghost"
+          onClick={() => {
+            const conditionText = window.prompt("请输入有条件批准条款，用分号分隔", "补充验证记录；关闭遗留问题");
+            if (conditionText === null) return;
+            const conditions = conditionText.split(/[;；]/).map((item) => item.trim()).filter(Boolean);
+            submitReview("APPROVE_WITH_CONDITIONS", "React 工作台有条件批准", { conditions });
+          }}
+        >
+          有条件批准
+        </button>
+        <button disabled={busy || !latestArtifact} className="ghost" onClick={() => submitReview("REQUEST_REVISION", "请 Agent 根据审核意见修改后重新提交。")}>要求修改</button>
+        <button disabled={busy || !latestArtifact} className="ghost" onClick={() => submitReview("REJECT", "审核驳回。")}>驳回</button>
+        <button disabled={busy} className="ghost" onClick={() => runAction("无效输出已模拟", () => api("/agent-runs", {
+          method: "POST",
+          body: JSON.stringify({
+            workPackageId: workPackage.id,
+            inputRefs: ["artifact:react-invalid"],
+            draftMarkdown: "# 无效草稿\n\n缺少模板必填章节。",
+          }),
+        }))}>模拟无效输出</button>
+        <button className="ghost" onClick={() => window.open(`/work-packages/${workPackage.id}/export.md`, "_blank")}>导出 Markdown</button>
+      </div>
+      <section className="subpanel">
+        <h3>计划</h3>
+        <div className="inline-create">
+          <label>截止日期<input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
+          <button className="ghost" disabled={busy} onClick={() => runAction("工作包截止日期已保存", () => api(`/work-packages/${workPackage.id}/schedule`, {
+            method: "PATCH",
+            body: JSON.stringify({ actorUserId, dueAt }),
+          }))}>保存截止日期</button>
+        </div>
+      </section>
+      <section className="subpanel">
+        <h3>模板校验</h3>
+        {validation ? (
+          <>
+            <p>{badge(validation.status)}</p>
+            <p><strong>缺失项：</strong>{validation.missingSections?.length ? validation.missingSections.join("、") : "无"}</p>
+            <p><strong>空内容项：</strong>{validation.emptySections?.length ? validation.emptySections.join("、") : "无"}</p>
+          </>
+        ) : <p className="muted">尚无 Agent 输出。</p>}
+      </section>
+      <section className="subpanel">
+        <h3>证据引用</h3>
+        <div className="evidence-form">
+          <input placeholder="证据标题" value={evidenceLabel} onChange={(event) => setEvidenceLabel(event.target.value)} />
+          <input placeholder="URL、文件路径或文档编号" value={evidenceRef} onChange={(event) => setEvidenceRef(event.target.value)} />
+          <button className="ghost" disabled={busy || !evidenceLabel.trim() || !evidenceRef.trim()} onClick={() => runAction("证据引用已添加", async () => {
+            await api(`/work-packages/${workPackage.id}/evidence-refs`, {
+              method: "POST",
+              body: JSON.stringify({ actorUserId, label: evidenceLabel, ref: evidenceRef }),
+            });
+            setEvidenceLabel("");
+            setEvidenceRef("");
+          })}>添加证据</button>
+        </div>
+        {evidenceRefs.length ? (
+          <table className="compact-table">
+            <thead><tr><th>标题</th><th>引用</th><th>添加人</th></tr></thead>
+            <tbody>
+              {[...evidenceRefs].reverse().map((item: any) => (
+                <tr key={item.id}>
+                  <td>{item.label}</td>
+                  <td>{item.ref}</td>
+                  <td>{item.createdByUserId}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p className="muted">暂无人工补充证据。</p>}
+      </section>
+      <section className="subpanel">
+        <h3>交付物</h3>
+        {latestArtifact ? (
+          <pre>{latestArtifact.content?.draftMarkdown || latestArtifact.content?.summary || "已有交付物记录"}</pre>
+        ) : <p className="muted">尚无 Agent 输出。</p>}
+      </section>
+      <section className="subpanel">
+        <h3>审核记录</h3>
+        {reviews.length ? reviews.map((review: any) => (
+          <p key={review.id}>
+            {review.reviewedAt} · {review.reviewerUserId} · {review.decision} · {review.comment}
+            {review.conditions?.length ? <><br /><span className="muted">条件：{review.conditions.join("；")}</span></> : null}
+            {review.conditions?.length ? <><br /><span className="muted">条款：{review.conditionsCompletedAt ? "已完成" : "未完成"}{review.conditionsCompletedByUserId ? ` · ${review.conditionsCompletedByUserId}` : ""}</span></> : null}
+            {review.conditionsCompletionComment ? <><br /><span className="muted">完成说明：{review.conditionsCompletionComment}</span></> : null}
+          </p>
+        )) : <p className="muted">暂无审核记录。</p>}
+      </section>
+    </>
   );
 }
 

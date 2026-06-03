@@ -366,6 +366,18 @@ h3 {
   gap: 5px;
 }
 
+.compact-table th,
+.compact-table td {
+  padding: 7px;
+}
+
+.evidence-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr) auto;
+  margin-bottom: 12px;
+}
+
 .storage-table {
   margin-top: 14px;
 }
@@ -480,7 +492,8 @@ h3 {
   .metric-grid,
   .runtime-grid,
   .content-grid,
-  .split {
+  .split,
+  .evidence-form {
     grid-template-columns: 1fr;
   }
 

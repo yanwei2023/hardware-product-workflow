@@ -105,7 +105,7 @@ docs/postgres-migration.md
 - `apps/api/src/artifactValidator.mjs` 检查 Agent 输出是否满足交付物模板要求。
 - `apps/api/src/server.mjs` 提供本地可运行 API、静态工作台、项目快照、阶段门、审核、风险、通知和导入导出链路。
 - `apps/static` 提供无构建依赖的本地工作台。
-- `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、项目快照导入、本地数据运维、角色负责人配置、工作包、阶段门、风险、待办和通知主流程。
+- `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、项目快照导入、本地数据运维、角色负责人配置、工作包计划/证据/审核、阶段门、风险、待办和通知主流程。
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
 - `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
