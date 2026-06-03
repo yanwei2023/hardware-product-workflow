@@ -251,6 +251,7 @@ export function App() {
 
         {view === "gate" ? (
           <Gate
+            actorUserId={actorUserId}
             activeGate={activeGate}
             busy={busy}
             gateReviewPack={state.gateReviewPack}
@@ -908,7 +909,7 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, busy, evidenceRe
   );
 }
 
-function Gate({ activeGate, busy, gateReviewPack, latestGateCheck, runAction }: any) {
+function Gate({ actorUserId, activeGate, busy, gateReviewPack, latestGateCheck, runAction }: any) {
   return (
     <section className="content-grid gate-grid">
       <article className="panel">
@@ -916,25 +917,59 @@ function Gate({ activeGate, busy, gateReviewPack, latestGateCheck, runAction }: 
         <p>{badge(latestGateCheck.status)}</p>
         <div className="actions">
           <button disabled={busy} onClick={() => runAction("阶段门检查已更新", () => api(`/gates/${activeGate.id}/check`))}>重新检查</button>
+          <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/review-pack.md`, "_blank")}>导出审核包</button>
+          <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/approval-pack.md`, "_blank")}>导出批准包</button>
           <button disabled={busy || latestGateCheck.status !== "READY"} onClick={() => runAction("阶段门已批准", () => api(`/gates/${activeGate.id}/approve`, {
             method: "POST",
-            body: JSON.stringify({ userId: "user-project-manager", comment: "React 工作台批准" }),
+            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台批准" }),
           }))}>批准阶段门</button>
+        </div>
+      </article>
+      <article className="panel span-2">
+        <h2>审核包摘要</h2>
+        <div className="runtime-grid">
+          <Metric label="证据" value={`${gateReviewPack?.summary?.readyEvidenceCount || 0}/${gateReviewPack?.summary?.requiredEvidenceCount || 0}`} />
+          <Metric label="人工证据" value={gateReviewPack?.summary?.manualEvidenceRefCount || 0} />
+          <Metric label="阻塞项" value={gateReviewPack?.summary?.blockerCount || 0} />
+          <Metric label="阻塞风险" value={gateReviewPack?.summary?.openBlockingRiskCount || 0} />
         </div>
       </article>
       <article className="panel span-2">
         <h2>审核包证据</h2>
         <table>
-          <thead><tr><th>交付物</th><th>工作包</th><th>状态</th><th>证据</th></tr></thead>
+          <thead><tr><th>交付物</th><th>工作包</th><th>审核</th><th>状态</th><th>证据</th></tr></thead>
           <tbody>
             {(gateReviewPack?.evidence || []).map((item: any) => (
               <tr key={item.workPackageId}>
                 <td>{item.requiredArtifactType}</td>
-                <td>{item.requiredWorkPackageTitle}</td>
+                <td>{item.requiredWorkPackageTitle}<br /><span className="muted">{item.workPackageStatus}</span></td>
+                <td>
+                  {item.reviewerUserId || "-"}<br />
+                  <span className="muted">{item.approvedReviewDecision || "-"}</span>
+                  {item.approvedReviewConditions?.length ? <><br /><span className="muted">条件：{item.approvedReviewConditions.join("；")}</span></> : null}
+                  {item.approvedReviewConditions?.length ? <><br /><span className="muted">条款：{item.approvedReviewConditionsCompletedAt ? "已完成" : "未完成"}</span></> : null}
+                </td>
                 <td>{item.ready ? badge("READY") : badge("BLOCKED")}</td>
-                <td>{item.manualEvidenceRefs?.length || 0}</td>
+                <td>{item.manualEvidenceCount || item.manualEvidenceRefs?.length || 0}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </article>
+      <article className="panel span-3">
+        <h2>审核包风险</h2>
+        <table>
+          <thead><tr><th>风险</th><th>缓解</th><th>严重度</th><th>状态</th><th>阻塞</th></tr></thead>
+          <tbody>
+            {(gateReviewPack?.risks || []).length ? gateReviewPack.risks.map((risk: any) => (
+              <tr key={risk.id}>
+                <td>{risk.title}</td>
+                <td>{risk.mitigationStatus ? badge(risk.mitigationStatus) : badge("UNSCHEDULED")}<br /><span className="muted">{risk.mitigationOwnerUserId || "未指定"} · {risk.mitigationDueAt || "未设置"}</span></td>
+                <td>{risk.severity}</td>
+                <td>{badge(risk.status)}</td>
+                <td>{risk.blocksGate ? badge("BLOCKED") : badge("READY")}</td>
+              </tr>
+            )) : <tr><td colSpan={5}>当前阶段暂无风险。</td></tr>}
           </tbody>
         </table>
       </article>
@@ -1179,6 +1214,7 @@ function Risks({ actorUserId, busy, project, runAction, users }: any) {
             body: JSON.stringify({ title, severity: "HIGH", userId: actorUserId }),
           }))}>新增风险</button>
         </div>
+        <button className="ghost" onClick={() => window.open(`/projects/${project.project.id}/risk-register.md`, "_blank")}>导出 Markdown</button>
       </div>
       <table>
         <thead><tr><th>风险</th><th>严重度</th><th>状态</th><th>缓解</th><th>操作</th></tr></thead>
@@ -1215,16 +1251,20 @@ function RiskRow({ actorUserId, busy, risk, runAction, users }: any) {
       <td>
         <div className="actions">
           <button disabled={busy} onClick={() => runAction("缓解计划已保存", () => api(`/risks/${risk.id}/mitigation`, {
-            method: "POST",
-            body: JSON.stringify({ userId: actorUserId, mitigationOwnerUserId: owner, mitigationDueAt: dueAt, mitigation }),
+            method: "PATCH",
+            body: JSON.stringify({ actorUserId, mitigationOwnerUserId: owner, mitigationDueAt: dueAt, mitigation }),
           }))}>保存</button>
-          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已接受", () => api(`/risks/${risk.id}/status`, {
+          <button disabled={busy || !risk.mitigationOwnerUserId || risk.mitigationStatus === "DONE"} className="ghost" onClick={() => runAction("风险缓解已完成", () => api(`/risks/${risk.id}/mitigation/complete`, {
             method: "POST",
-            body: JSON.stringify({ userId: actorUserId, status: "ACCEPTED", comment: "React 工作台接受" }),
+            body: JSON.stringify({ actorUserId, comment: "React 工作台记录缓解措施已完成。" }),
+          }))}>完成缓解</button>
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已接受", () => api(`/risks/${risk.id}/accept`, {
+            method: "POST",
+            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台接受" }),
           }))}>接受</button>
-          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已关闭", () => api(`/risks/${risk.id}/status`, {
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已关闭", () => api(`/risks/${risk.id}/close`, {
             method: "POST",
-            body: JSON.stringify({ userId: actorUserId, status: "CLOSED", comment: "React 工作台关闭" }),
+            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台关闭" }),
           }))}>关闭</button>
         </div>
       </td>
