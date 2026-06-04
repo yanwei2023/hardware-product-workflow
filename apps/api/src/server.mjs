@@ -82,6 +82,7 @@ const serviceMetadata = {
   packageName: packageMetadata.name,
   version: packageMetadata.version,
 };
+const accessLogEnabled = process.env.HARDWARE_FLOW_ACCESS_LOG !== "0";
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -245,6 +246,7 @@ export function getRuntimeConfigStatus() {
     reactStaticRoot,
     fallbackStaticRoot,
     reactStaticAvailable,
+    accessLogEnabled,
   };
 }
 
@@ -348,6 +350,30 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
     "access-control-allow-origin": "*",
   });
   res.end(body);
+}
+
+function attachAccessLog(req, res, url) {
+  if (!accessLogEnabled || typeof res.on !== "function") {
+    return;
+  }
+
+  const requestId = req.headers["x-request-id"] || randomUUID();
+  const startedAt = process.hrtime.bigint();
+  if (typeof res.setHeader === "function") {
+    res.setHeader("x-request-id", requestId);
+  }
+
+  res.on("finish", () => {
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    console.log(JSON.stringify({
+      type: "access",
+      requestId,
+      method: req.method,
+      path: url.pathname,
+      statusCode: res.statusCode,
+      durationMs: Number(durationMs.toFixed(2)),
+    }));
+  });
 }
 
 function renderGateReviewPackMarkdown(pack) {
@@ -2460,6 +2486,7 @@ function serveStatic(req, res, url) {
 
 export const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  attachAccessLog(req, res, url);
 
   if (req.method === "OPTIONS") {
     return writeJson(res, 204, {});

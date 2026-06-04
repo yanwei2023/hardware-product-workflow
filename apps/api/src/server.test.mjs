@@ -7,6 +7,7 @@ import { after, beforeEach, test } from "node:test";
 
 const tempDir = mkdtempSync(path.join(tmpdir(), "hardware-flow-http-test-"));
 process.env.HARDWARE_FLOW_STORE_PATH = path.join(tempDir, "store.json");
+process.env.HARDWARE_FLOW_ACCESS_LOG = "0";
 
 const workflow = await import("./server.mjs");
 const requestHandler = workflow.server.listeners("request")[0];
@@ -120,6 +121,7 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.ok(result.body.storePath.endsWith("store.json"));
   assert.match(result.body.staticMode, /^(react|static)$/);
   assert.equal(typeof result.body.reactStaticAvailable, "boolean");
+  assert.equal(result.body.accessLogEnabled, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
 });
 
