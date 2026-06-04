@@ -690,6 +690,8 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="静态资源" value={runtimeConfig?.staticMode || "-"} />
         <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
+        <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />
+        <Metric label="请求超时" value={runtimeConfig?.requestTimeoutMs ? `${runtimeConfig.requestTimeoutMs}ms` : "-"} />
       </div>
       <section className="subpanel">
         <h3>运行指标</h3>
