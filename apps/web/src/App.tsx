@@ -83,6 +83,10 @@ function promptComment(message: string, fallback: string) {
   return comment === null ? null : comment.trim() || fallback;
 }
 
+function openApiPath(path: string) {
+  window.open(`${apiBase}${path}`, "_blank", "noopener,noreferrer");
+}
+
 export function App() {
   const [state, setState] = useState<ApiState>({
     project: null,
@@ -477,7 +481,7 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
                     >
                       切换
                     </button>
-                    <button className="ghost" onClick={() => window.open(`/projects/${item.id}/snapshot.md`, "_blank")}>导出快照</button>
+                    <button className="ghost" onClick={() => openApiPath(`/projects/${item.id}/snapshot.md`)}>导出快照</button>
                     <button
                       className="ghost"
                       disabled={busy}
@@ -862,7 +866,7 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, busy, evidenceRe
             draftMarkdown: "# 无效草稿\n\n缺少模板必填章节。",
           }),
         }))}>模拟无效输出</button>
-        <button className="ghost" onClick={() => window.open(`/work-packages/${workPackage.id}/export.md`, "_blank")}>导出 Markdown</button>
+        <button className="ghost" onClick={() => openApiPath(`/work-packages/${workPackage.id}/export.md`)}>导出 Markdown</button>
       </div>
       <section className="subpanel">
         <h3>计划</h3>
@@ -942,8 +946,8 @@ function Gate({ actorUserId, activeGate, busy, gateReviewPack, latestGateCheck, 
         <p>{badge(latestGateCheck.status)}</p>
         <div className="actions">
           <button disabled={busy} onClick={() => runAction("阶段门检查已更新", () => api(`/gates/${activeGate.id}/check`))}>重新检查</button>
-          <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/review-pack.md`, "_blank")}>导出审核包</button>
-          <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/approval-pack.md`, "_blank")}>导出批准包</button>
+          <button className="ghost" onClick={() => openApiPath(`/gates/${activeGate.id}/review-pack.md`)}>导出审核包</button>
+          <button className="ghost" onClick={() => openApiPath(`/gates/${activeGate.id}/approval-pack.md`)}>导出批准包</button>
           <button disabled={busy || latestGateCheck.status !== "READY"} onClick={() => {
             const comment = promptComment("请输入阶段门批准说明", "证据和风险状态已确认，批准进入下一阶段。");
             if (comment === null) return;
@@ -1335,7 +1339,7 @@ function Risks({ actorUserId, busy, project, runAction, users }: any) {
             setSeverity("HIGH");
           })}>新增风险</button>
         </div>
-        <button className="ghost" onClick={() => window.open(`/projects/${project.project.id}/risk-register.md`, "_blank")}>导出 Markdown</button>
+        <button className="ghost" onClick={() => openApiPath(`/projects/${project.project.id}/risk-register.md`)}>导出 Markdown</button>
       </div>
       <table>
         <thead><tr><th>风险</th><th>严重度</th><th>状态</th><th>缓解</th><th>操作</th></tr></thead>
