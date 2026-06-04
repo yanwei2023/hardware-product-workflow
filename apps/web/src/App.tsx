@@ -777,6 +777,12 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
   const reviews = project.reviews.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const evidenceRefs = (project.evidenceRefs || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const agentRuns = (project.agentRuns || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
+  const reviewIds = new Set(reviews.map((review: any) => review.id));
+  const auditEvents = (project.auditEvents || []).filter(
+    (event: any) =>
+      (event.objectType === "workPackage" && event.objectId === selectedWorkPackage?.id) ||
+      (event.objectType === "review" && reviewIds.has(event.objectId)),
+  );
 
   return (
     <section className="split">
@@ -798,6 +804,7 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
             actorUserId={actorUserId}
             agentRuns={agentRuns}
             artifacts={artifacts}
+            auditEvents={auditEvents}
             busy={busy}
             evidenceRefs={evidenceRefs}
             reviews={reviews}
@@ -810,7 +817,7 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
   );
 }
 
-function WorkPackageDetail({ actorUserId, agentRuns, artifacts, busy, evidenceRefs, reviews, runAction, workPackage }: any) {
+function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, busy, evidenceRefs, reviews, runAction, workPackage }: any) {
   const latestArtifact = artifacts.at(-1);
   const latestAgentRun = agentRuns.at(-1);
   const validation = latestArtifact?.content?.validation || latestAgentRun?.validation || null;
@@ -942,6 +949,25 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, busy, evidenceRe
             {review.conditionsCompletionComment ? <><br /><span className="muted">完成说明：{review.conditionsCompletionComment}</span></> : null}
           </p>
         )) : <p className="muted">暂无审核记录。</p>}
+      </section>
+      <section className="subpanel">
+        <h3>活动记录</h3>
+        {auditEvents.length ? (
+          <table className="compact-table">
+            <thead><tr><th>时间</th><th>事件</th><th>操作者</th><th>对象</th><th>详情</th></tr></thead>
+            <tbody>
+              {[...auditEvents].reverse().map((event: any) => (
+                <tr key={event.id}>
+                  <td>{event.createdAt || "-"}</td>
+                  <td>{event.eventType || "-"}</td>
+                  <td>{event.actorType || "-"}:{event.actorId || "-"}</td>
+                  <td>{event.objectType || "-"}:{event.objectId || "-"}</td>
+                  <td><AuditPayload payload={event.payload} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p className="muted">当前工作包暂无活动记录。</p>}
       </section>
     </>
   );
