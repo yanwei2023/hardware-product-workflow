@@ -107,6 +107,7 @@ docs/postgres-migration.md
 - `Dockerfile` 构建生产镜像时会先构建 React 工作台，并由 API 服务优先托管 `apps/web/dist`；未构建时本地仍回退到 `apps/static`。
 - `/health` 用于 API 活性检查，`/ready` 会同时校验当前 store 文件，可作为容器 healthcheck。
 - `/runtime/config` 暴露非敏感运行配置，用于部署后确认端口、store 路径和当前静态资源模式。
+- `/metrics` 暴露 Prometheus 文本格式的轻量运行指标。
 - `HARDWARE_FLOW_ACCESS_LOG=0` 可关闭 JSON 访问日志；默认开启。
 - `apps/static` 提供无构建依赖的本地工作台。
 - `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、项目快照导入、本地数据运维、演示数据重置、角色负责人配置、工作包计划/证据/审核、阶段门审核包、风险台账、待办、通知和审计主流程。

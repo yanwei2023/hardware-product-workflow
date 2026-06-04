@@ -82,9 +82,10 @@ HOST=0.0.0.0 PORT=3100 npm start
 http://localhost:3001/health
 http://localhost:3001/ready
 http://localhost:3001/runtime/config
+http://localhost:3001/metrics
 ```
 
-`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析；`/runtime/config` 用于确认当前端口、store 路径、服务版本和静态资源模式。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析；`/runtime/config` 用于确认当前端口、store 路径、服务版本和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，便于内网监控工具抓取。
 
 ## 数据文件
 

@@ -285,6 +285,35 @@ export function getReadinessStatus() {
   };
 }
 
+function renderMetrics() {
+  const runtimeSummary = getStoreRuntimeSummary(store);
+  const storageDoctor = getStorageDoctorStatus();
+  const lines = [
+    "# HELP hardware_flow_ready Whether the API and local store are ready.",
+    "# TYPE hardware_flow_ready gauge",
+    `hardware_flow_ready ${storageDoctor.exists && storageDoctor.valid ? 1 : 0}`,
+    "# HELP hardware_flow_projects_total Number of projects in the active store.",
+    "# TYPE hardware_flow_projects_total gauge",
+    `hardware_flow_projects_total ${runtimeSummary.projectCount}`,
+    "# HELP hardware_flow_audit_events_total Number of audit events in the active store.",
+    "# TYPE hardware_flow_audit_events_total gauge",
+    `hardware_flow_audit_events_total ${runtimeSummary.auditEventCount}`,
+    "# HELP hardware_flow_notifications_total Number of notifications in the active store.",
+    "# TYPE hardware_flow_notifications_total gauge",
+    `hardware_flow_notifications_total ${runtimeSummary.notificationCount}`,
+    "# HELP hardware_flow_gate_approval_packs_total Number of archived gate approval packs.",
+    "# TYPE hardware_flow_gate_approval_packs_total gauge",
+    `hardware_flow_gate_approval_packs_total ${runtimeSummary.gateApprovalPackCount}`,
+    "# HELP hardware_flow_store_valid Whether the JSON store file is valid.",
+    "# TYPE hardware_flow_store_valid gauge",
+    `hardware_flow_store_valid ${storageDoctor.valid ? 1 : 0}`,
+    "# HELP hardware_flow_static_mode_react Whether the API is serving the React build.",
+    "# TYPE hardware_flow_static_mode_react gauge",
+    `hardware_flow_static_mode_react ${staticMode === "react" ? 1 : 0}`,
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
 export function restoreStorageBackup(body = {}) {
   if (body.confirm !== true) {
     return validationError("恢复备份需要 confirm: true");
@@ -2510,6 +2539,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/runtime/config") {
       return writeJson(res, 200, getRuntimeConfigStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/metrics") {
+      return writeText(res, 200, renderMetrics(), "text/plain; version=0.0.4; charset=utf-8");
     }
 
     if (req.method === "GET" && url.pathname === "/storage/status") {

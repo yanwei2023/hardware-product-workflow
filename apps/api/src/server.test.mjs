@@ -125,6 +125,17 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.ok(result.body.staticRoot.includes("apps/"));
 });
 
+test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
+  const result = await dispatch("/metrics");
+
+  assert.equal(result.status, 200);
+  assert.match(result.headers["content-type"], /text\/plain/);
+  assert.match(result.body, /# TYPE hardware_flow_ready gauge/);
+  assert.match(result.body, /hardware_flow_ready 1/);
+  assert.match(result.body, /hardware_flow_projects_total 1/);
+  assert.match(result.body, /hardware_flow_store_valid 1/);
+});
+
 test("storage status endpoint reports persistence metadata", async () => {
   const result = await dispatch("/storage/status");
 

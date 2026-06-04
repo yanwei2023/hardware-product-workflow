@@ -26,6 +26,7 @@
 | `GET` | `/health` | 检查后台是否运行 |
 | `GET` | `/ready` | 检查 API 与本地 store 是否就绪 |
 | `GET` | `/runtime/config` | 查看非敏感运行配置和静态资源模式 |
+| `GET` | `/metrics` | 导出 Prometheus 文本格式运行指标 |
 | `GET` | `/storage/status` | 查看当前 JSON 存储文件与项目统计 |
 | `GET` | `/storage/doctor` | 检查当前 JSON 存储文件结构与引用完整性 |
 | `POST` | `/storage/restore-backup` | 显式确认后从 `.bak` 恢复当前 JSON 存储 |
