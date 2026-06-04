@@ -241,6 +241,24 @@ export function getStorageDoctorStatus() {
   };
 }
 
+export function getReadinessStatus() {
+  const runtimeSummary = getStoreRuntimeSummary(store);
+  const storageDoctor = getStorageDoctorStatus();
+  return {
+    ready: storageDoctor.exists && storageDoctor.valid,
+    service: "hardware-flow-api",
+    ...runtimeSummary,
+    storage: {
+      exists: storageDoctor.exists,
+      valid: storageDoctor.valid,
+      errors: storageDoctor.errors,
+      backupExists: storageDoctor.backupExists,
+      backupValid: storageDoctor.backupValid,
+      backupErrors: storageDoctor.backupErrors,
+    },
+  };
+}
+
 export function restoreStorageBackup(body = {}) {
   if (body.confirm !== true) {
     return validationError("恢复备份需要 confirm: true");
@@ -2432,6 +2450,11 @@ export const server = http.createServer(async (req, res) => {
         activeProjectId: runtimeSummary.activeProjectId,
         projectCount: runtimeSummary.projectCount,
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/ready") {
+      const readiness = getReadinessStatus();
+      return writeJson(res, readiness.ready ? 200 : 503, readiness);
     }
 
     if (req.method === "GET" && url.pathname === "/storage/status") {

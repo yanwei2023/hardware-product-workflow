@@ -92,6 +92,18 @@ test("health endpoint reports the active project", async () => {
   assert.equal(result.body.projectCount, 1);
 });
 
+test("ready endpoint reports runtime and storage readiness", async () => {
+  const result = await dispatch("/ready");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.ready, true);
+  assert.equal(result.body.service, "hardware-flow-api");
+  assert.equal(result.body.activeProjectId, "project-smart-controller");
+  assert.equal(result.body.storage.exists, true);
+  assert.equal(result.body.storage.valid, true);
+  assert.deepEqual(result.body.storage.errors, []);
+});
+
 test("storage status endpoint reports persistence metadata", async () => {
   const result = await dispatch("/storage/status");
 
