@@ -82,8 +82,15 @@ const serviceMetadata = {
   packageName: packageMetadata.name,
   version: packageMetadata.version,
 };
+
+function parsePositiveIntegerEnv(name, fallbackValue) {
+  const value = Number(process.env[name]);
+  return Number.isInteger(value) && value > 0 ? value : fallbackValue;
+}
+
 const accessLogEnabled = process.env.HARDWARE_FLOW_ACCESS_LOG !== "0";
-const maxJsonBodyBytes = Number(process.env.HARDWARE_FLOW_MAX_JSON_BODY_BYTES || 1_048_576);
+const maxJsonBodyBytes = parsePositiveIntegerEnv("HARDWARE_FLOW_MAX_JSON_BODY_BYTES", 1_048_576);
+const requestTimeoutMs = parsePositiveIntegerEnv("HARDWARE_FLOW_REQUEST_TIMEOUT_MS", 120_000);
 const requestCounters = {
   total: 0,
   errors: 0,
@@ -255,6 +262,7 @@ export function getRuntimeConfigStatus() {
     reactStaticAvailable,
     accessLogEnabled,
     maxJsonBodyBytes,
+    requestTimeoutMs,
     shuttingDown: isShuttingDown,
   };
 }
@@ -2861,6 +2869,7 @@ export const server = http.createServer(async (req, res) => {
     });
   }
 });
+server.requestTimeout = requestTimeoutMs;
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   function shutdown(signal) {

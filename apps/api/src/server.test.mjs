@@ -125,6 +125,7 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.equal(typeof result.body.reactStaticAvailable, "boolean");
   assert.equal(result.body.accessLogEnabled, false);
   assert.equal(result.body.maxJsonBodyBytes, 1048576);
+  assert.equal(result.body.requestTimeoutMs, 120000);
   assert.equal(result.body.shuttingDown, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
 });

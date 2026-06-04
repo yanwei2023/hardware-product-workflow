@@ -110,6 +110,7 @@ docs/postgres-migration.md
 - `/metrics` 暴露 Prometheus 文本格式的轻量运行指标。
 - `HARDWARE_FLOW_ACCESS_LOG=0` 可关闭 JSON 访问日志；默认开启。
 - `HARDWARE_FLOW_MAX_JSON_BODY_BYTES` 可调整 JSON 请求体大小上限；默认 `1048576` bytes。
+- `HARDWARE_FLOW_REQUEST_TIMEOUT_MS` 可调整单个 HTTP 请求超时；默认 `120000` ms。
 - `apps/static` 提供无构建依赖的本地工作台。
 - `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、项目快照导入、本地数据运维、演示数据重置、角色负责人配置、工作包计划/证据/审核、阶段门审核包、风险台账、待办、通知和审计主流程。
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
