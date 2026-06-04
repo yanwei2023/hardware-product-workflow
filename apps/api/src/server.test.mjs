@@ -124,6 +124,7 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.match(result.body.staticMode, /^(react|static)$/);
   assert.equal(typeof result.body.reactStaticAvailable, "boolean");
   assert.equal(result.body.accessLogEnabled, false);
+  assert.equal(result.body.maxJsonBodyBytes, 1048576);
   assert.equal(result.body.shuttingDown, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
 });
@@ -505,6 +506,16 @@ test("post endpoints return 400 for malformed JSON bodies", async () => {
 
   assert.equal(result.status, 400);
   assert.equal(result.body.error, "请求体不是合法 JSON");
+});
+
+test("post endpoints reject JSON bodies over the configured limit", async () => {
+  const result = await dispatch("/projects/import/validate", {
+    method: "POST",
+    body: " ".repeat(1_048_577),
+  });
+
+  assert.equal(result.status, 413);
+  assert.match(result.body.error, /请求体超过 1048576 bytes 限制/);
 });
 
 test("action items endpoint returns user-specific work", async () => {

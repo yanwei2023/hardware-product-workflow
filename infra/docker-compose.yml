@@ -7,6 +7,8 @@ services:
       HOST: 0.0.0.0
       PORT: 3001
       HARDWARE_FLOW_STORE_PATH: /app/data/demo-store.json
+      HARDWARE_FLOW_ACCESS_LOG: 1
+      HARDWARE_FLOW_MAX_JSON_BODY_BYTES: 1048576
     ports:
       - "3001:3001"
     volumes:

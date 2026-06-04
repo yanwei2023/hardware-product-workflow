@@ -83,6 +83,7 @@ const serviceMetadata = {
   version: packageMetadata.version,
 };
 const accessLogEnabled = process.env.HARDWARE_FLOW_ACCESS_LOG !== "0";
+const maxJsonBodyBytes = Number(process.env.HARDWARE_FLOW_MAX_JSON_BODY_BYTES || 1_048_576);
 const requestCounters = {
   total: 0,
   errors: 0,
@@ -253,6 +254,7 @@ export function getRuntimeConfigStatus() {
     fallbackStaticRoot,
     reactStaticAvailable,
     accessLogEnabled,
+    maxJsonBodyBytes,
     shuttingDown: isShuttingDown,
   };
 }
@@ -751,7 +753,14 @@ ${riskRows}
 
 async function readJson(req) {
   const chunks = [];
+  let byteLength = 0;
   for await (const chunk of req) {
+    byteLength += chunk.length;
+    if (byteLength > maxJsonBodyBytes) {
+      const bodyTooLargeError = new Error(`请求体超过 ${maxJsonBodyBytes} bytes 限制`);
+      bodyTooLargeError.statusCode = 413;
+      throw bodyTooLargeError;
+    }
     chunks.push(chunk);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
@@ -2847,7 +2856,7 @@ export const server = http.createServer(async (req, res) => {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     return writeJson(res, statusCode, {
-      error: statusCode === 400 ? error.message : "服务器错误",
+      error: statusCode >= 400 && statusCode < 500 ? error.message : "服务器错误",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
