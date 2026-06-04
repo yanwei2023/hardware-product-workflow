@@ -93,6 +93,7 @@ const maxJsonBodyBytes = parsePositiveIntegerEnv("HARDWARE_FLOW_MAX_JSON_BODY_BY
 const requestTimeoutMs = parsePositiveIntegerEnv("HARDWARE_FLOW_REQUEST_TIMEOUT_MS", 120_000);
 const requestCounters = {
   total: 0,
+  clientErrors: 0,
   errors: 0,
   byMethod: new Map(),
 };
@@ -381,6 +382,9 @@ function renderMetrics() {
     "# HELP hardware_flow_http_requests_total Total HTTP responses served since process start.",
     "# TYPE hardware_flow_http_requests_total counter",
     `hardware_flow_http_requests_total ${requestCounters.total}`,
+    "# HELP hardware_flow_http_client_errors_total Total HTTP 4xx responses served since process start.",
+    "# TYPE hardware_flow_http_client_errors_total counter",
+    `hardware_flow_http_client_errors_total ${requestCounters.clientErrors}`,
     "# HELP hardware_flow_http_errors_total Total HTTP 5xx responses served since process start.",
     "# TYPE hardware_flow_http_errors_total counter",
     `hardware_flow_http_errors_total ${requestCounters.errors}`,
@@ -482,6 +486,9 @@ function attachAccessLog(req, res, url) {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     requestCounters.total += 1;
     requestCounters.byMethod.set(req.method, (requestCounters.byMethod.get(req.method) || 0) + 1);
+    if (res.statusCode >= 400 && res.statusCode < 500) {
+      requestCounters.clientErrors += 1;
+    }
     if (res.statusCode >= 500) {
       requestCounters.errors += 1;
     }

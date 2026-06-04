@@ -746,6 +746,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <h3>运行指标</h3>
         <div className="runtime-grid">
           <Metric label="HTTP 请求" value={metric("hardware_flow_http_requests_total")} />
+          <Metric label="HTTP 4xx" value={metric("hardware_flow_http_client_errors_total")} />
           <Metric label="HTTP 5xx" value={metric("hardware_flow_http_errors_total")} />
           <Metric label="活跃工作包" value={metric("hardware_flow_active_work_packages_total")} />
           <Metric label="打开高风险" value={metric("hardware_flow_active_open_high_risks")} />

@@ -159,6 +159,7 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /hardware_flow_active_open_high_risks 1/);
   assert.match(result.body, /hardware_flow_active_gate_ready 0/);
   assert.match(result.body, /# TYPE hardware_flow_http_requests_total counter/);
+  assert.match(result.body, /# TYPE hardware_flow_http_client_errors_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_errors_total counter/);
 });
 
