@@ -85,7 +85,9 @@ http://localhost:3001/runtime/config
 http://localhost:3001/metrics
 ```
 
-`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析；`/runtime/config` 用于确认当前端口、store 路径、服务版本和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，便于内网监控工具抓取。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、store 状态和当前项目工作包/风险/阶段门业务指标。
+
+所有响应会带 `x-service-version` 和 `x-request-id`。如果调用方传入 `x-request-id`，服务端会原样返回；否则服务端生成一个，方便对齐访问日志和前端报错。
 
 ## 数据文件
 

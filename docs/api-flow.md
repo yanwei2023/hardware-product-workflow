@@ -63,6 +63,15 @@
 | `POST` | `/notifications/:id/read` | 将站内通知标记为已读 |
 | `POST` | `/users/:id/notifications/read` | 将指定用户在当前项目中的全部通知标记为已读 |
 
+所有 API 响应都会带上 `x-service-version`；请求未提供 `x-request-id` 时服务端会生成一个，请求提供时会透传，便于把前端报错、访问日志和后端响应串起来。
+
+`/metrics` 当前包含：
+
+- 进程状态：ready、shutting down、uptime、RSS/heap 内存；
+- HTTP 状态：总响应数、5xx 响应数、按方法聚合的响应数；
+- 存储状态：store 是否有效、项目数、通知数、审计事件数、批准包数；
+- 当前项目业务状态：工作包总数、已批准数、逾期数、风险数、打开高风险、打开缓解计划和阶段门是否可批准。
+
 ## 强制规则
 
 - Agent 只能生成草稿和发现项，不能批准工作包。
