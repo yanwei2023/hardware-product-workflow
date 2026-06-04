@@ -12,6 +12,7 @@ type ApiState = {
   storageDoctor: any | null;
   readiness: any | null;
   runtimeConfig: any | null;
+  runtimeMetrics: Record<string, number> | null;
 };
 
 const statusText: Record<string, string> = {
@@ -58,16 +59,39 @@ const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
 
-async function api(path: string, options: RequestInit = {}) {
+type ApiRequestOptions = RequestInit & { allowError?: boolean };
+
+async function api(path: string, options: ApiRequestOptions = {}) {
+  const { allowError = false, ...fetchOptions } = options;
   const response = await fetch(`${apiBase}${path}`, {
     headers: { "content-type": "application/json" },
-    ...options,
+    ...fetchOptions,
   });
   const body = await response.json();
-  if (!response.ok) {
+  if (!response.ok && !allowError) {
     throw new Error(body.error || JSON.stringify(body));
   }
   return body;
+}
+
+async function apiText(path: string) {
+  const response = await fetch(`${apiBase}${path}`);
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(body || `请求失败：${response.status}`);
+  }
+  return body;
+}
+
+function parsePrometheusMetrics(text: string) {
+  const metrics: Record<string, number> = {};
+  text.split("\n").forEach((line) => {
+    if (!line || line.startsWith("#")) return;
+    const match = line.match(/^([a-zA-Z_:][\w:]*)(?:\{[^}]*\})?\s+(-?\d+(?:\.\d+)?)/);
+    if (!match) return;
+    metrics[match[1]] = Number(match[2]);
+  });
+  return metrics;
 }
 
 function badge(status?: string) {
@@ -100,6 +124,7 @@ export function App() {
     storageDoctor: null,
     readiness: null,
     runtimeConfig: null,
+    runtimeMetrics: null,
   });
   const [view, setView] = useState<ViewKey>("overview");
   const [actorUserId, setActorUserId] = useState("user-project-manager");
@@ -126,13 +151,14 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor, readiness, runtimeConfig] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, runtimeConfig, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
       api("/storage/doctor"),
-      api("/ready"),
+      api("/ready", { allowError: true }),
       api("/runtime/config"),
+      apiText("/metrics"),
     ]);
     const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
     const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
@@ -152,6 +178,7 @@ export function App() {
       storageDoctor,
       readiness,
       runtimeConfig,
+      runtimeMetrics: parsePrometheusMetrics(metricsText),
     });
     setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
   }
@@ -253,6 +280,7 @@ export function App() {
             storageDoctor={state.storageDoctor}
             readiness={state.readiness}
             runtimeConfig={state.runtimeConfig}
+            runtimeMetrics={state.runtimeMetrics}
             storageStatus={state.storageStatus}
             runAction={runAction}
             users={state.users}
@@ -402,7 +430,19 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
   );
 }
 
-function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackageId, storageDoctor, storageStatus, users }: any) {
+function Projects({
+  actorUserId,
+  busy,
+  project,
+  readiness,
+  runAction,
+  runtimeConfig,
+  runtimeMetrics,
+  setSelectedWorkPackageId,
+  storageDoctor,
+  storageStatus,
+  users,
+}: any) {
   const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
   const [importRaw, setImportRaw] = useState("");
@@ -580,6 +620,9 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
         <StorageStatus
           busy={busy}
           runAction={runAction}
+          readiness={readiness}
+          runtimeConfig={runtimeConfig}
+          runtimeMetrics={runtimeMetrics}
           setSelectedWorkPackageId={setSelectedWorkPackageId}
           storageDoctor={storageDoctor}
           storageStatus={storageStatus}
@@ -627,9 +670,10 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
   );
 }
 
-function StorageStatus({ busy, readiness, runAction, runtimeConfig, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
+function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetrics, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
   const doctorErrors = storageDoctor?.errors || [];
   const backupErrors = storageDoctor?.backupErrors || [];
+  const metric = (name: string) => runtimeMetrics?.[name] ?? 0;
 
   if (!storageStatus) {
     return <p className="muted">本地数据状态加载中。</p>;
@@ -647,6 +691,17 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, setSelectedW
         <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
       </div>
+      <section className="subpanel">
+        <h3>运行指标</h3>
+        <div className="runtime-grid">
+          <Metric label="HTTP 请求" value={metric("hardware_flow_http_requests_total")} />
+          <Metric label="HTTP 5xx" value={metric("hardware_flow_http_errors_total")} />
+          <Metric label="活跃工作包" value={metric("hardware_flow_active_work_packages_total")} />
+          <Metric label="打开高风险" value={metric("hardware_flow_active_open_high_risks")} />
+          <Metric label="阶段门可过" value={metric("hardware_flow_active_gate_ready") ? "是" : "否"} />
+          <Metric label="关停中" value={metric("hardware_flow_shutting_down") ? "是" : "否"} />
+        </div>
+      </section>
       <table className="storage-table">
         <tbody>
           <tr><th>服务</th><td>{runtimeConfig?.packageName || "-"} · {runtimeConfig?.nodeEnv || "-"}</td></tr>
