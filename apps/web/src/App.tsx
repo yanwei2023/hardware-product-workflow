@@ -323,6 +323,10 @@ function notificationQuery(filter: string) {
 }
 
 function Overview({ actionItems, activeGate, highOpenRisks, notifications, phaseWorkPackages, project, setView }: any) {
+  const conditionalSummary = project.conditionalApprovalSummary || {};
+  const mitigationSummary = project.riskMitigationSummary || {};
+  const scheduleSummary = project.scheduleSummary || {};
+
   return (
     <>
       <section className="phase-strip">
@@ -340,6 +344,10 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
         <Metric label="打开高风险" value={highOpenRisks.length} />
         <Metric label="我的待办" value={actionItems?.total || 0} />
         <Metric label="未读通知" value={notifications?.unreadCount || 0} />
+        <Metric label="风险缓解" value={`${mitigationSummary.completedMitigationCount || 0}/${mitigationSummary.mitigationPlanCount || 0}`} />
+        <Metric label="逾期/临期" value={`${scheduleSummary.overdueWorkPackageCount || 0}/${scheduleSummary.dueSoonWorkPackageCount || 0}`} />
+        <Metric label="批准包归档" value={project.gateApprovalPacks?.length || 0} />
+        <Metric label="条件条款" value={`${conditionalSummary.completedConditionalApprovalCount || 0}/${conditionalSummary.conditionalApprovalCount || 0}`} />
       </section>
       <section className="content-grid">
         <article className="panel">
