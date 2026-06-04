@@ -78,6 +78,11 @@ function formatUser(users: any[], userId?: string) {
   return user ? `${user.name}` : userId || "-";
 }
 
+function promptComment(message: string, fallback: string) {
+  const comment = window.prompt(message, fallback);
+  return comment === null ? null : comment.trim() || fallback;
+}
+
 export function App() {
   const [state, setState] = useState<ApiState>({
     project: null,
@@ -939,10 +944,14 @@ function Gate({ actorUserId, activeGate, busy, gateReviewPack, latestGateCheck, 
           <button disabled={busy} onClick={() => runAction("阶段门检查已更新", () => api(`/gates/${activeGate.id}/check`))}>重新检查</button>
           <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/review-pack.md`, "_blank")}>导出审核包</button>
           <button className="ghost" onClick={() => window.open(`/gates/${activeGate.id}/approval-pack.md`, "_blank")}>导出批准包</button>
-          <button disabled={busy || latestGateCheck.status !== "READY"} onClick={() => runAction("阶段门已批准", () => api(`/gates/${activeGate.id}/approve`, {
-            method: "POST",
-            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台批准" }),
-          }))}>批准阶段门</button>
+          <button disabled={busy || latestGateCheck.status !== "READY"} onClick={() => {
+            const comment = promptComment("请输入阶段门批准说明", "证据和风险状态已确认，批准进入下一阶段。");
+            if (comment === null) return;
+            runAction("阶段门已批准", () => api(`/gates/${activeGate.id}/approve`, {
+              method: "POST",
+              body: JSON.stringify({ userId: actorUserId, comment }),
+            }));
+          }}>批准阶段门</button>
         </div>
       </article>
       <article className="panel span-2">
@@ -1047,10 +1056,14 @@ function ActionItems({ actionItems, actorUserId, busy, runAction, setSelectedWor
           <button
             className="ghost"
             disabled={busy}
-            onClick={() => runAction("有条件批准条款已完成", () => api(`/reviews/${item.reviewId}/conditions/complete`, {
-              method: "POST",
-              body: JSON.stringify({ actorUserId, comment: "React 工作台记录条款已完成。" }),
-            }))}
+            onClick={() => {
+              const comment = promptComment("请输入有条件批准条款完成说明", "补充条款已完成并记录验证结果。");
+              if (comment === null) return;
+              runAction("有条件批准条款已完成", () => api(`/reviews/${item.reviewId}/conditions/complete`, {
+                method: "POST",
+                body: JSON.stringify({ actorUserId, comment }),
+              }));
+            }}
           >
             完成条款
           </button>
@@ -1075,10 +1088,14 @@ function ActionItems({ actionItems, actorUserId, busy, runAction, setSelectedWor
           <button
             className="ghost"
             disabled={busy}
-            onClick={() => runAction("风险缓解已完成", () => api(`/risks/${item.riskId}/mitigation/complete`, {
-              method: "POST",
-              body: JSON.stringify({ actorUserId, comment: "React 工作台记录缓解措施已完成。" }),
-            }))}
+            onClick={() => {
+              const comment = promptComment("请输入风险缓解完成说明", "缓解措施已完成并记录验证结果。");
+              if (comment === null) return;
+              runAction("风险缓解已完成", () => api(`/risks/${item.riskId}/mitigation/complete`, {
+                method: "POST",
+                body: JSON.stringify({ actorUserId, comment }),
+              }));
+            }}
           >
             完成缓解
           </button>
@@ -1326,18 +1343,30 @@ function RiskRow({ actorUserId, busy, risk, runAction, users }: any) {
             method: "PATCH",
             body: JSON.stringify({ actorUserId, mitigationOwnerUserId: owner, mitigationDueAt: dueAt, mitigation }),
           }))}>保存</button>
-          <button disabled={busy || !risk.mitigationOwnerUserId || risk.mitigationStatus === "DONE"} className="ghost" onClick={() => runAction("风险缓解已完成", () => api(`/risks/${risk.id}/mitigation/complete`, {
-            method: "POST",
-            body: JSON.stringify({ actorUserId, comment: "React 工作台记录缓解措施已完成。" }),
-          }))}>完成缓解</button>
-          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已接受", () => api(`/risks/${risk.id}/accept`, {
-            method: "POST",
-            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台接受" }),
-          }))}>接受</button>
-          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => runAction("风险已关闭", () => api(`/risks/${risk.id}/close`, {
-            method: "POST",
-            body: JSON.stringify({ userId: actorUserId, comment: "React 工作台关闭" }),
-          }))}>关闭</button>
+          <button disabled={busy || !risk.mitigationOwnerUserId || risk.mitigationStatus === "DONE"} className="ghost" onClick={() => {
+            const comment = promptComment("请输入风险缓解完成说明", "缓解措施已完成并记录验证结果。");
+            if (comment === null) return;
+            runAction("风险缓解已完成", () => api(`/risks/${risk.id}/mitigation/complete`, {
+              method: "POST",
+              body: JSON.stringify({ actorUserId, comment }),
+            }));
+          }}>完成缓解</button>
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => {
+            const comment = promptComment("请输入接受风险的说明", "已评估影响和缓解措施，可接受。");
+            if (comment === null) return;
+            runAction("风险已接受", () => api(`/risks/${risk.id}/accept`, {
+              method: "POST",
+              body: JSON.stringify({ userId: actorUserId, comment }),
+            }));
+          }}>接受</button>
+          <button disabled={busy || risk.status !== "OPEN"} className="ghost" onClick={() => {
+            const comment = promptComment("请输入关闭风险的说明", "风险已处理并验证关闭。");
+            if (comment === null) return;
+            runAction("风险已关闭", () => api(`/risks/${risk.id}/close`, {
+              method: "POST",
+              body: JSON.stringify({ userId: actorUserId, comment }),
+            }));
+          }}>关闭</button>
         </div>
       </td>
     </tr>
