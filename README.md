@@ -107,7 +107,7 @@ docs/postgres-migration.md
 - `Dockerfile` 构建生产镜像时会先构建 React 工作台，并由 API 服务优先托管 `apps/web/dist`；未构建时本地仍回退到 `apps/static`。
 - `/health` 用于 API 活性检查，`/ready` 会同时校验当前 store 文件，可作为容器 healthcheck。
 - `/runtime/config` 暴露非敏感运行配置，用于部署后确认端口、store 路径和当前静态资源模式。
-- `/metrics` 暴露 Prometheus 文本格式的轻量运行指标，覆盖 ready、关停状态、进程 uptime、内存、HTTP 计数和当前项目业务状态。
+- `/metrics` 暴露 Prometheus 文本格式的轻量运行指标，覆盖 ready、关停状态、进程 uptime、内存、HTTP 计数、4xx/5xx、响应耗时和当前项目业务状态。
 - API 响应会带 `x-service-version` 和 `x-request-id`，便于把前端问题、访问日志和后端响应关联起来。
 - `HARDWARE_FLOW_ACCESS_LOG=0` 可关闭 JSON 访问日志；默认开启。
 - `HARDWARE_FLOW_MAX_JSON_BODY_BYTES` 可调整 JSON 请求体大小上限；默认 `1048576` bytes。
