@@ -134,6 +134,10 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /hardware_flow_ready 1/);
   assert.match(result.body, /hardware_flow_projects_total 1/);
   assert.match(result.body, /hardware_flow_store_valid 1/);
+  assert.match(result.body, /hardware_flow_active_work_packages_total 22/);
+  assert.match(result.body, /hardware_flow_active_risks_total 1/);
+  assert.match(result.body, /hardware_flow_active_open_high_risks 1/);
+  assert.match(result.body, /hardware_flow_active_gate_ready 0/);
 });
 
 test("storage status endpoint reports persistence metadata", async () => {

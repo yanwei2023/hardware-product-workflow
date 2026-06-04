@@ -288,6 +288,18 @@ export function getReadinessStatus() {
 function renderMetrics() {
   const runtimeSummary = getStoreRuntimeSummary(store);
   const storageDoctor = getStorageDoctorStatus();
+  const project = currentProject();
+  const projectWorkPackages = project ? store.workPackages.filter((item) => item.projectId === project.id) : [];
+  const projectPhases = project ? store.phases.filter((item) => item.projectId === project.id) : [];
+  const projectPhaseIds = new Set(projectPhases.map((item) => item.id));
+  const projectRisks = project ? store.risks.filter((item) => item.projectId === project.id && projectPhaseIds.has(item.phaseId)) : [];
+  const gateCheck = currentGateCheck();
+  const riskMitigationSummary = summarizeRiskMitigations(projectRisks);
+  const approvedWorkPackages = projectWorkPackages.filter((item) => item.status === "HUMAN_APPROVED" || item.status === "LOCKED");
+  const overdueWorkPackages = projectWorkPackages.filter((item) => workPackageScheduleStatus(item) === "OVERDUE");
+  const openHighRisks = projectRisks.filter(
+    (risk) => (risk.severity === "HIGH" || risk.severity === "CRITICAL") && risk.status === "OPEN",
+  );
   const lines = [
     "# HELP hardware_flow_ready Whether the API and local store are ready.",
     "# TYPE hardware_flow_ready gauge",
@@ -310,6 +322,27 @@ function renderMetrics() {
     "# HELP hardware_flow_static_mode_react Whether the API is serving the React build.",
     "# TYPE hardware_flow_static_mode_react gauge",
     `hardware_flow_static_mode_react ${staticMode === "react" ? 1 : 0}`,
+    "# HELP hardware_flow_active_work_packages_total Number of work packages in the active project.",
+    "# TYPE hardware_flow_active_work_packages_total gauge",
+    `hardware_flow_active_work_packages_total ${projectWorkPackages.length}`,
+    "# HELP hardware_flow_active_work_packages_approved Number of approved or locked work packages in the active project.",
+    "# TYPE hardware_flow_active_work_packages_approved gauge",
+    `hardware_flow_active_work_packages_approved ${approvedWorkPackages.length}`,
+    "# HELP hardware_flow_active_work_packages_overdue Number of overdue work packages in the active project.",
+    "# TYPE hardware_flow_active_work_packages_overdue gauge",
+    `hardware_flow_active_work_packages_overdue ${overdueWorkPackages.length}`,
+    "# HELP hardware_flow_active_risks_total Number of risks in the active project.",
+    "# TYPE hardware_flow_active_risks_total gauge",
+    `hardware_flow_active_risks_total ${projectRisks.length}`,
+    "# HELP hardware_flow_active_open_high_risks Number of open HIGH or CRITICAL risks in the active project.",
+    "# TYPE hardware_flow_active_open_high_risks gauge",
+    `hardware_flow_active_open_high_risks ${openHighRisks.length}`,
+    "# HELP hardware_flow_active_risk_mitigations_open Number of open risk mitigation plans in the active project.",
+    "# TYPE hardware_flow_active_risk_mitigations_open gauge",
+    `hardware_flow_active_risk_mitigations_open ${riskMitigationSummary.openMitigationCount || 0}`,
+    "# HELP hardware_flow_active_gate_ready Whether the current gate is ready for approval.",
+    "# TYPE hardware_flow_active_gate_ready gauge",
+    `hardware_flow_active_gate_ready ${gateCheck?.status === "READY" ? 1 : 0}`,
   ];
   return `${lines.join("\n")}\n`;
 }
