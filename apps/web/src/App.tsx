@@ -52,6 +52,8 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
   { key: "audit", label: "审计" },
 ];
 
+const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
 const apiBase = import.meta.env.VITE_API_BASE || "";
 
 async function api(path: string, options: RequestInit = {}) {
@@ -1261,6 +1263,7 @@ function AuditPayload({ payload }: any) {
 
 function Risks({ actorUserId, busy, project, runAction, users }: any) {
   const [title, setTitle] = useState("");
+  const [severity, setSeverity] = useState("HIGH");
 
   return (
     <article className="panel">
@@ -1271,10 +1274,17 @@ function Risks({ actorUserId, busy, project, runAction, users }: any) {
         </div>
         <div className="inline-create">
           <input placeholder="新增风险标题" value={title} onChange={(event) => setTitle(event.target.value)} />
-          <button disabled={busy || !title.trim()} onClick={() => runAction("风险已创建", () => api("/risks/current-phase", {
-            method: "POST",
-            body: JSON.stringify({ title, severity: "HIGH", userId: actorUserId }),
-          }))}>新增风险</button>
+          <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+            {riskSeverityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <button disabled={busy || !title.trim()} onClick={() => runAction("风险已创建", async () => {
+            await api("/risks/current-phase", {
+              method: "POST",
+              body: JSON.stringify({ title, severity, userId: actorUserId }),
+            });
+            setTitle("");
+            setSeverity("HIGH");
+          })}>新增风险</button>
         </div>
         <button className="ghost" onClick={() => window.open(`/projects/${project.project.id}/risk-register.md`, "_blank")}>导出 Markdown</button>
       </div>

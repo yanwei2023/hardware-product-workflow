@@ -203,6 +203,16 @@ h3 {
   min-width: 280px;
 }
 
+.inline-create input {
+  min-width: 220px;
+  width: auto;
+}
+
+.inline-create select {
+  min-width: 128px;
+  width: auto;
+}
+
 .import-actions {
   margin-top: 12px;
 }
