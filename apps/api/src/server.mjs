@@ -83,6 +83,11 @@ const serviceMetadata = {
   version: packageMetadata.version,
 };
 const accessLogEnabled = process.env.HARDWARE_FLOW_ACCESS_LOG !== "0";
+const requestCounters = {
+  total: 0,
+  errors: 0,
+  byMethod: new Map(),
+};
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -343,6 +348,15 @@ function renderMetrics() {
     "# HELP hardware_flow_active_gate_ready Whether the current gate is ready for approval.",
     "# TYPE hardware_flow_active_gate_ready gauge",
     `hardware_flow_active_gate_ready ${gateCheck?.status === "READY" ? 1 : 0}`,
+    "# HELP hardware_flow_http_requests_total Total HTTP responses served since process start.",
+    "# TYPE hardware_flow_http_requests_total counter",
+    `hardware_flow_http_requests_total ${requestCounters.total}`,
+    "# HELP hardware_flow_http_errors_total Total HTTP 5xx responses served since process start.",
+    "# TYPE hardware_flow_http_errors_total counter",
+    `hardware_flow_http_errors_total ${requestCounters.errors}`,
+    "# HELP hardware_flow_http_requests_by_method_total HTTP responses by method since process start.",
+    "# TYPE hardware_flow_http_requests_by_method_total counter",
+    ...[...requestCounters.byMethod.entries()].map(([method, count]) => `hardware_flow_http_requests_by_method_total{method="${method}"} ${count}`),
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -415,7 +429,7 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
 }
 
 function attachAccessLog(req, res, url) {
-  if (!accessLogEnabled || typeof res.on !== "function") {
+  if (typeof res.on !== "function") {
     return;
   }
 
@@ -427,6 +441,14 @@ function attachAccessLog(req, res, url) {
 
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    requestCounters.total += 1;
+    requestCounters.byMethod.set(req.method, (requestCounters.byMethod.get(req.method) || 0) + 1);
+    if (res.statusCode >= 500) {
+      requestCounters.errors += 1;
+    }
+    if (!accessLogEnabled) {
+      return;
+    }
     console.log(JSON.stringify({
       type: "access",
       requestId,
