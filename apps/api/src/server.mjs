@@ -307,6 +307,7 @@ export function getReadinessStatus() {
 function renderMetrics() {
   const runtimeSummary = getStoreRuntimeSummary(store);
   const storageDoctor = getStorageDoctorStatus();
+  const memoryUsage = process.memoryUsage();
   const project = currentProject();
   const projectWorkPackages = project ? store.workPackages.filter((item) => item.projectId === project.id) : [];
   const projectPhases = project ? store.phases.filter((item) => item.projectId === project.id) : [];
@@ -326,6 +327,18 @@ function renderMetrics() {
     "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
     "# TYPE hardware_flow_shutting_down gauge",
     `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
+    "# HELP hardware_flow_process_uptime_seconds Process uptime in seconds.",
+    "# TYPE hardware_flow_process_uptime_seconds gauge",
+    `hardware_flow_process_uptime_seconds ${process.uptime().toFixed(3)}`,
+    "# HELP hardware_flow_process_memory_rss_bytes Resident set size in bytes.",
+    "# TYPE hardware_flow_process_memory_rss_bytes gauge",
+    `hardware_flow_process_memory_rss_bytes ${memoryUsage.rss}`,
+    "# HELP hardware_flow_process_memory_heap_used_bytes V8 heap used in bytes.",
+    "# TYPE hardware_flow_process_memory_heap_used_bytes gauge",
+    `hardware_flow_process_memory_heap_used_bytes ${memoryUsage.heapUsed}`,
+    "# HELP hardware_flow_process_memory_heap_total_bytes V8 heap total in bytes.",
+    "# TYPE hardware_flow_process_memory_heap_total_bytes gauge",
+    `hardware_flow_process_memory_heap_total_bytes ${memoryUsage.heapTotal}`,
     "# HELP hardware_flow_projects_total Number of projects in the active store.",
     "# TYPE hardware_flow_projects_total gauge",
     `hardware_flow_projects_total ${runtimeSummary.projectCount}`,

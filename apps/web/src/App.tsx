@@ -94,6 +94,26 @@ function parsePrometheusMetrics(text: string) {
   return metrics;
 }
 
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KiB", "MiB", "GiB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatSeconds(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0s";
+  if (value < 60) return `${value.toFixed(1)}s`;
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.floor(value % 60);
+  return `${minutes}m ${seconds}s`;
+}
+
 function badge(status?: string) {
   const value = status || "-";
   return <span className={`badge ${value}`}>{statusText[value] || value}</span>;
@@ -702,6 +722,9 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
           <Metric label="打开高风险" value={metric("hardware_flow_active_open_high_risks")} />
           <Metric label="阶段门可过" value={metric("hardware_flow_active_gate_ready") ? "是" : "否"} />
           <Metric label="关停中" value={metric("hardware_flow_shutting_down") ? "是" : "否"} />
+          <Metric label="运行时长" value={formatSeconds(metric("hardware_flow_process_uptime_seconds"))} />
+          <Metric label="RSS 内存" value={formatBytes(metric("hardware_flow_process_memory_rss_bytes"))} />
+          <Metric label="Heap 使用" value={formatBytes(metric("hardware_flow_process_memory_heap_used_bytes"))} />
         </div>
       </section>
       <table className="storage-table">

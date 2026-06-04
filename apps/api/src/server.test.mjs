@@ -139,6 +139,12 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /hardware_flow_ready 1/);
   assert.match(result.body, /# TYPE hardware_flow_shutting_down gauge/);
   assert.match(result.body, /hardware_flow_shutting_down 0/);
+  assert.match(result.body, /# TYPE hardware_flow_process_uptime_seconds gauge/);
+  assert.match(result.body, /hardware_flow_process_uptime_seconds \d+(\.\d+)?/);
+  assert.match(result.body, /# TYPE hardware_flow_process_memory_rss_bytes gauge/);
+  assert.match(result.body, /hardware_flow_process_memory_rss_bytes \d+/);
+  assert.match(result.body, /# TYPE hardware_flow_process_memory_heap_used_bytes gauge/);
+  assert.match(result.body, /hardware_flow_process_memory_heap_used_bytes \d+/);
   assert.match(result.body, /hardware_flow_projects_total 1/);
   assert.match(result.body, /hardware_flow_store_valid 1/);
   assert.match(result.body, /hardware_flow_active_work_packages_total 22/);
