@@ -73,7 +73,9 @@ const host = process.env.HOST || "127.0.0.1";
 const workspaceRoot = path.resolve(import.meta.dirname, "../../..");
 const reactStaticRoot = path.join(workspaceRoot, "apps/web/dist");
 const fallbackStaticRoot = path.join(workspaceRoot, "apps/static");
-const staticRoot = fs.existsSync(path.join(reactStaticRoot, "index.html")) ? reactStaticRoot : fallbackStaticRoot;
+const reactStaticAvailable = fs.existsSync(path.join(reactStaticRoot, "index.html"));
+const staticRoot = reactStaticAvailable ? reactStaticRoot : fallbackStaticRoot;
+const staticMode = reactStaticAvailable ? "react" : "static";
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -221,6 +223,22 @@ export function getStorageStatus() {
     updatedAt: stat?.mtime?.toISOString() || null,
     backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
     ...runtimeSummary,
+  };
+}
+
+export function getRuntimeConfigStatus() {
+  return {
+    service: "hardware-flow-api",
+    nodeEnv: process.env.NODE_ENV || "development",
+    host,
+    port,
+    workspaceRoot,
+    storePath: getStorePath(),
+    staticMode,
+    staticRoot,
+    reactStaticRoot,
+    fallbackStaticRoot,
+    reactStaticAvailable,
   };
 }
 
@@ -2455,6 +2473,10 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/ready") {
       const readiness = getReadinessStatus();
       return writeJson(res, readiness.ready ? 200 : 503, readiness);
+    }
+
+    if (req.method === "GET" && url.pathname === "/runtime/config") {
+      return writeJson(res, 200, getRuntimeConfigStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/storage/status") {

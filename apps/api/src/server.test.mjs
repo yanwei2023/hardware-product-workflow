@@ -104,6 +104,19 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.deepEqual(result.body.storage.errors, []);
 });
 
+test("runtime config endpoint reports non-secret deployment settings", async () => {
+  const result = await dispatch("/runtime/config");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.service, "hardware-flow-api");
+  assert.equal(result.body.host, "127.0.0.1");
+  assert.equal(result.body.port, 3001);
+  assert.ok(result.body.storePath.endsWith("store.json"));
+  assert.match(result.body.staticMode, /^(react|static)$/);
+  assert.equal(typeof result.body.reactStaticAvailable, "boolean");
+  assert.ok(result.body.staticRoot.includes("apps/"));
+});
+
 test("storage status endpoint reports persistence metadata", async () => {
   const result = await dispatch("/storage/status");
 
