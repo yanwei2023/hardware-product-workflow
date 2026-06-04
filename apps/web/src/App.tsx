@@ -61,6 +61,25 @@ const apiBase = import.meta.env.VITE_API_BASE || "";
 
 type ApiRequestOptions = RequestInit & { allowError?: boolean };
 
+class ApiError extends Error {
+  requestId: string | null;
+  serviceVersion: string | null;
+
+  constructor(message: string, requestId: string | null, serviceVersion: string | null) {
+    super(message);
+    this.name = "ApiError";
+    this.requestId = requestId;
+    this.serviceVersion = serviceVersion;
+  }
+}
+
+function apiErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.requestId ? `${error.message} · 请求ID ${error.requestId}` : error.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function api(path: string, options: ApiRequestOptions = {}) {
   const { allowError = false, ...fetchOptions } = options;
   const response = await fetch(`${apiBase}${path}`, {
@@ -69,7 +88,11 @@ async function api(path: string, options: ApiRequestOptions = {}) {
   });
   const body = await response.json();
   if (!response.ok && !allowError) {
-    throw new Error(body.error || JSON.stringify(body));
+    throw new ApiError(
+      body.error || JSON.stringify(body),
+      response.headers.get("x-request-id"),
+      response.headers.get("x-service-version"),
+    );
   }
   return body;
 }
@@ -78,7 +101,11 @@ async function apiText(path: string) {
   const response = await fetch(`${apiBase}${path}`);
   const body = await response.text();
   if (!response.ok) {
-    throw new Error(body || `请求失败：${response.status}`);
+    throw new ApiError(
+      body || `请求失败：${response.status}`,
+      response.headers.get("x-request-id"),
+      response.headers.get("x-service-version"),
+    );
   }
   return body;
 }
@@ -212,7 +239,7 @@ export function App() {
       await load();
       setMessage(label);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
+      setMessage(apiErrorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -224,15 +251,15 @@ export function App() {
   }
 
   useEffect(() => {
-    load().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+    load().catch((error) => setMessage(apiErrorMessage(error)));
   }, []);
 
   useEffect(() => {
-    load(actorUserId).catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+    load(actorUserId).catch((error) => setMessage(apiErrorMessage(error)));
   }, [actorUserId]);
 
   useEffect(() => {
-    reloadNotifications().catch((error) => setMessage(error instanceof Error ? error.message : String(error)));
+    reloadNotifications().catch((error) => setMessage(apiErrorMessage(error)));
   }, [notificationFilter]);
 
   if (!state.project) {
