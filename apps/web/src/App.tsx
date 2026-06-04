@@ -748,6 +748,8 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
           <Metric label="HTTP 请求" value={metric("hardware_flow_http_requests_total")} />
           <Metric label="HTTP 4xx" value={metric("hardware_flow_http_client_errors_total")} />
           <Metric label="HTTP 5xx" value={metric("hardware_flow_http_errors_total")} />
+          <Metric label="平均耗时" value={`${metric("hardware_flow_http_request_duration_ms_avg").toFixed(2)}ms`} />
+          <Metric label="最大耗时" value={`${metric("hardware_flow_http_request_duration_ms_max").toFixed(2)}ms`} />
           <Metric label="活跃工作包" value={metric("hardware_flow_active_work_packages_total")} />
           <Metric label="打开高风险" value={metric("hardware_flow_active_open_high_risks")} />
           <Metric label="阶段门可过" value={metric("hardware_flow_active_gate_ready") ? "是" : "否"} />

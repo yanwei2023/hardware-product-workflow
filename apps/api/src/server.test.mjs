@@ -161,6 +161,9 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /# TYPE hardware_flow_http_requests_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_client_errors_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_errors_total counter/);
+  assert.match(result.body, /# TYPE hardware_flow_http_request_duration_ms_total counter/);
+  assert.match(result.body, /# TYPE hardware_flow_http_request_duration_ms_avg gauge/);
+  assert.match(result.body, /# TYPE hardware_flow_http_request_duration_ms_max gauge/);
 });
 
 test("ready endpoint reports draining state during shutdown", async () => {

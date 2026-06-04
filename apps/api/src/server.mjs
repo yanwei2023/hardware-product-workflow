@@ -95,6 +95,8 @@ const requestCounters = {
   total: 0,
   clientErrors: 0,
   errors: 0,
+  durationMsTotal: 0,
+  durationMsMax: 0,
   byMethod: new Map(),
 };
 let isShuttingDown = false;
@@ -388,6 +390,15 @@ function renderMetrics() {
     "# HELP hardware_flow_http_errors_total Total HTTP 5xx responses served since process start.",
     "# TYPE hardware_flow_http_errors_total counter",
     `hardware_flow_http_errors_total ${requestCounters.errors}`,
+    "# HELP hardware_flow_http_request_duration_ms_total Total HTTP response duration in milliseconds since process start.",
+    "# TYPE hardware_flow_http_request_duration_ms_total counter",
+    `hardware_flow_http_request_duration_ms_total ${requestCounters.durationMsTotal.toFixed(2)}`,
+    "# HELP hardware_flow_http_request_duration_ms_avg Average HTTP response duration in milliseconds since process start.",
+    "# TYPE hardware_flow_http_request_duration_ms_avg gauge",
+    `hardware_flow_http_request_duration_ms_avg ${requestCounters.total ? (requestCounters.durationMsTotal / requestCounters.total).toFixed(2) : 0}`,
+    "# HELP hardware_flow_http_request_duration_ms_max Maximum HTTP response duration in milliseconds since process start.",
+    "# TYPE hardware_flow_http_request_duration_ms_max gauge",
+    `hardware_flow_http_request_duration_ms_max ${requestCounters.durationMsMax.toFixed(2)}`,
     "# HELP hardware_flow_http_requests_by_method_total HTTP responses by method since process start.",
     "# TYPE hardware_flow_http_requests_by_method_total counter",
     ...[...requestCounters.byMethod.entries()].map(([method, count]) => `hardware_flow_http_requests_by_method_total{method="${method}"} ${count}`),
@@ -485,6 +496,8 @@ function attachAccessLog(req, res, url) {
   res.on("finish", () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     requestCounters.total += 1;
+    requestCounters.durationMsTotal += durationMs;
+    requestCounters.durationMsMax = Math.max(requestCounters.durationMsMax, durationMs);
     requestCounters.byMethod.set(req.method, (requestCounters.byMethod.get(req.method) || 0) + 1);
     if (res.statusCode >= 400 && res.statusCode < 500) {
       requestCounters.clientErrors += 1;
