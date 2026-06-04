@@ -494,6 +494,13 @@ h3 {
   font-size: 13px;
 }
 
+.audit-filters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 260px);
+  margin: 14px 0;
+}
+
 .audit-detail summary {
   color: #265d73;
   cursor: pointer;
@@ -518,6 +525,7 @@ h3 {
   .phase-strip,
   .metric-grid,
   .runtime-grid,
+  .audit-filters,
   .content-grid,
   .split,
   .evidence-form {

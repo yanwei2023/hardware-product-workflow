@@ -1235,15 +1235,47 @@ function Notifications({ actorUserId, busy, filter, notifications, runAction, se
 }
 
 function AuditTrail({ auditEvents }: any) {
-  const events = [...auditEvents].reverse();
+  const [eventType, setEventType] = useState("ALL");
+  const [query, setQuery] = useState("");
+  const eventTypes = Array.from(new Set(auditEvents.map((event: any) => event.eventType).filter(Boolean))).sort();
+  const normalizedQuery = query.trim().toLowerCase();
+  const events = [...auditEvents]
+    .reverse()
+    .filter((event: any) => eventType === "ALL" || event.eventType === eventType)
+    .filter((event: any) => {
+      if (!normalizedQuery) return true;
+      return [
+        event.eventType,
+        event.actorType,
+        event.actorId,
+        event.objectType,
+        event.objectId,
+        JSON.stringify(event.payload || {}),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedQuery);
+    });
 
   return (
     <article className="panel">
       <div className="detail-head">
         <div>
           <h2>审计事件</h2>
-          <p className="muted">{events.length} 条行为记录</p>
+          <p className="muted">{events.length}/{auditEvents.length} 条行为记录</p>
         </div>
+      </div>
+      <div className="audit-filters">
+        <input
+          placeholder="搜索事件、操作者、对象或详情"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <select value={eventType} onChange={(event) => setEventType(event.target.value)}>
+          <option value="ALL">全部事件</option>
+          {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+        </select>
       </div>
       <table>
         <thead><tr><th>时间</th><th>事件</th><th>操作者</th><th>对象</th><th>详情</th></tr></thead>
@@ -1257,7 +1289,7 @@ function AuditTrail({ auditEvents }: any) {
               <td><AuditPayload payload={event.payload} /></td>
             </tr>
           )) : (
-            <tr><td colSpan={5}>当前项目暂无审计事件。</td></tr>
+            <tr><td colSpan={5}>当前筛选下没有审计事件。</td></tr>
           )}
         </tbody>
       </table>
