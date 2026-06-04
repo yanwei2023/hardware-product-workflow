@@ -37,6 +37,12 @@ button.ghost {
   color: #265d73;
 }
 
+button.danger {
+  background: #a3312b;
+  border-color: #a3312b;
+  color: #fff;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.48;

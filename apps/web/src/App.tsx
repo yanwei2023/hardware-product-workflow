@@ -649,6 +649,19 @@ function StorageStatus({ busy, runAction, setSelectedWorkPackageId, storageDocto
         >
           从备份恢复
         </button>
+        <button
+          className="danger"
+          disabled={busy}
+          onClick={() => {
+            if (!window.confirm("重置后会恢复内置演示数据，并覆盖当前本地数据。确定继续？")) return;
+            runAction("演示数据已重置", async () => {
+              await api("/demo/reset", { method: "POST" });
+              setSelectedWorkPackageId(null);
+            });
+          }}
+        >
+          重置演示数据
+        </button>
       </div>
       {doctorErrors.length ? (
         <section className="subpanel">
