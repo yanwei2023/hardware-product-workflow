@@ -148,6 +148,16 @@ EVT Exit -> DVT Exit -> PVT Exit
 
 用于验证阶段门流程可以跨阶段重复使用，而不是只针对 EVT 写死。
 
+## 发布前检查
+
+提交或发布前可以运行：
+
+```text
+npm run release:check
+```
+
+该命令会执行完整测试、React 构建、API smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查。
+
 ## 创建新项目
 
 在页面左侧进入“项目管理”，填写项目名称和产品线，点击“按标准模板创建”。
@@ -176,10 +186,9 @@ EVT Exit -> DVT Exit -> PVT Exit
 尚未接入：
 
 - 用户登录；
-- PostgreSQL；
+- PostgreSQL 运行时读写；
 - 文件上传；
 - 真实大模型；
 - 飞书/企业微信通知；
-- 多项目管理；
 - 真实权限审批链；
-- 生产部署 Docker 镜像。
+- 线上托管环境。
