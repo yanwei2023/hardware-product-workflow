@@ -10,6 +10,8 @@ type ApiState = {
   gateReviewPack: any | null;
   storageStatus: any | null;
   storageDoctor: any | null;
+  readiness: any | null;
+  runtimeConfig: any | null;
 };
 
 const statusText: Record<string, string> = {
@@ -96,6 +98,8 @@ export function App() {
     gateReviewPack: null,
     storageStatus: null,
     storageDoctor: null,
+    readiness: null,
+    runtimeConfig: null,
   });
   const [view, setView] = useState<ViewKey>("overview");
   const [actorUserId, setActorUserId] = useState("user-project-manager");
@@ -122,11 +126,13 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, runtimeConfig] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
       api("/storage/doctor"),
+      api("/ready"),
+      api("/runtime/config"),
     ]);
     const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
     const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
@@ -144,6 +150,8 @@ export function App() {
       gateReviewPack,
       storageStatus,
       storageDoctor,
+      readiness,
+      runtimeConfig,
     });
     setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
   }
@@ -243,6 +251,8 @@ export function App() {
             project={state.project}
             setSelectedWorkPackageId={setSelectedWorkPackageId}
             storageDoctor={state.storageDoctor}
+            readiness={state.readiness}
+            runtimeConfig={state.runtimeConfig}
             storageStatus={state.storageStatus}
             runAction={runAction}
             users={state.users}
@@ -617,7 +627,7 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
   );
 }
 
-function StorageStatus({ busy, runAction, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
+function StorageStatus({ busy, readiness, runAction, runtimeConfig, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
   const doctorErrors = storageDoctor?.errors || [];
   const backupErrors = storageDoctor?.backupErrors || [];
 
@@ -632,9 +642,16 @@ function StorageStatus({ busy, runAction, setSelectedWorkPackageId, storageDocto
         <Metric label="审计事件" value={storageStatus.auditEventCount || 0} />
         <Metric label="批准包" value={storageStatus.gateApprovalPackCount || 0} />
         <Metric label="通知" value={storageStatus.notificationCount || 0} />
+        <Metric label="服务版本" value={runtimeConfig?.version || "-"} />
+        <Metric label="静态资源" value={runtimeConfig?.staticMode || "-"} />
+        <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
+        <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
       </div>
       <table className="storage-table">
         <tbody>
+          <tr><th>服务</th><td>{runtimeConfig?.packageName || "-"} · {runtimeConfig?.nodeEnv || "-"}</td></tr>
+          <tr><th>监听</th><td>{runtimeConfig ? `${runtimeConfig.host}:${runtimeConfig.port}` : "-"}</td></tr>
+          <tr><th>静态资源目录</th><td>{runtimeConfig?.staticRoot || "-"}</td></tr>
           <tr><th>健康状态</th><td>{storageDoctor ? badge(storageDoctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
           <tr><th>数据文件</th><td>{storageStatus.storePath}</td></tr>
           <tr><th>文件状态</th><td>{storageStatus.exists ? "存在" : "不存在"}</td></tr>
