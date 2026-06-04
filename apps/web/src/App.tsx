@@ -481,7 +481,8 @@ function Projects({ actorUserId, busy, project, runAction, setSelectedWorkPackag
                     >
                       切换
                     </button>
-                    <button className="ghost" onClick={() => openApiPath(`/projects/${item.id}/snapshot.md`)}>导出快照</button>
+                    <button className="ghost" onClick={() => openApiPath(`/projects/${item.id}/snapshot.md`)}>导出 Markdown</button>
+                    <button className="ghost" onClick={() => openApiPath(`/projects/${item.id}/snapshot`)}>导出 JSON</button>
                     <button
                       className="ghost"
                       disabled={busy}
