@@ -359,6 +359,8 @@ export function App() {
             notifications={state.notifications}
             runAction={runAction}
             setFilter={setNotificationFilter}
+            setSelectedWorkPackageId={setSelectedWorkPackageId}
+            setView={setView}
           />
         ) : null}
 
@@ -1285,7 +1287,7 @@ function ActionItems({ actionItems, actorUserId, busy, runAction, setSelectedWor
   );
 }
 
-function Notifications({ actorUserId, busy, filter, notifications, runAction, setFilter }: any) {
+function Notifications({ actorUserId, busy, filter, notifications, runAction, setFilter, setSelectedWorkPackageId, setView }: any) {
   if (!notifications) {
     return <article className="panel"><p className="muted">通知加载中。</p></article>;
   }
@@ -1349,18 +1351,21 @@ function Notifications({ actorUserId, busy, filter, notifications, runAction, se
               <td>{item.objectType || "-"}</td>
               <td>{item.createdAt || "-"}</td>
               <td>
-                {item.status === "UNREAD" ? (
-                  <button
-                    className="ghost"
-                    disabled={busy}
-                    onClick={() => runAction("通知已标记为已读", () => api(`/notifications/${item.id}/read`, {
-                      method: "POST",
-                      body: JSON.stringify({ userId: actorUserId }),
-                    }))}
-                  >
-                    标记已读
-                  </button>
-                ) : "-"}
+                <div className="actions">
+                  {notificationTargetAction(item, setSelectedWorkPackageId, setView)}
+                  {item.status === "UNREAD" ? (
+                    <button
+                      className="ghost"
+                      disabled={busy}
+                      onClick={() => runAction("通知已标记为已读", () => api(`/notifications/${item.id}/read`, {
+                        method: "POST",
+                        body: JSON.stringify({ userId: actorUserId }),
+                      }))}
+                    >
+                      标记已读
+                    </button>
+                  ) : null}
+                </div>
               </td>
             </tr>
           )) : (
@@ -1370,6 +1375,32 @@ function Notifications({ actorUserId, busy, filter, notifications, runAction, se
       </table>
     </article>
   );
+}
+
+function notificationTargetAction(item: any, setSelectedWorkPackageId: (id: string) => void, setView: (view: ViewKey) => void) {
+  if (item.objectType === "workPackage" && item.objectId) {
+    return (
+      <button
+        className="ghost"
+        onClick={() => {
+          setSelectedWorkPackageId(item.objectId);
+          setView("workpackages");
+        }}
+      >
+        查看对象
+      </button>
+    );
+  }
+
+  if (item.objectType === "risk") {
+    return <button className="ghost" onClick={() => setView("risks")}>查看对象</button>;
+  }
+
+  if (item.objectType === "gate") {
+    return <button className="ghost" onClick={() => setView("gate")}>查看对象</button>;
+  }
+
+  return null;
 }
 
 function AuditTrail({ auditEvents }: any) {
