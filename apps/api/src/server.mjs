@@ -450,6 +450,8 @@ function writeJson(res, statusCode, body) {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
     "access-control-allow-headers": "content-type",
+    "x-service-version": serviceMetadata.version,
+    ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
   });
   res.end(JSON.stringify(body, null, 2));
 }
@@ -458,19 +460,22 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
   res.writeHead(statusCode, {
     "content-type": contentType,
     "access-control-allow-origin": "*",
+    "x-service-version": serviceMetadata.version,
+    ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
   });
   res.end(body);
 }
 
 function attachAccessLog(req, res, url) {
-  if (typeof res.on !== "function") {
-    return;
-  }
-
   const requestId = req.headers["x-request-id"] || randomUUID();
   const startedAt = process.hrtime.bigint();
+  res.hardwareFlowRequestId = requestId;
   if (typeof res.setHeader === "function") {
     res.setHeader("x-request-id", requestId);
+  }
+
+  if (typeof res.on !== "function") {
+    return;
   }
 
   res.on("finish", () => {

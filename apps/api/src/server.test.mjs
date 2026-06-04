@@ -53,15 +53,18 @@ async function dispatch(pathname, options = {}) {
   const req = Readable.from(body ? [Buffer.from(body)] : []);
   req.method = options.method || "GET";
   req.url = pathname;
-  req.headers = { host: "127.0.0.1", "content-type": "application/json" };
+  req.headers = { host: "127.0.0.1", "content-type": "application/json", ...(options.headers || {}) };
 
   return await new Promise((resolve) => {
     const res = {
       statusCode: 200,
       headers: {},
+      setHeader(name, value) {
+        this.headers[name.toLowerCase()] = value;
+      },
       writeHead(statusCode, headers) {
         this.statusCode = statusCode;
-        this.headers = headers;
+        this.headers = { ...this.headers, ...headers };
       },
       end(rawBody) {
         const text = rawBody ? String(rawBody) : "";
@@ -86,9 +89,11 @@ async function dispatch(pathname, options = {}) {
 }
 
 test("health endpoint reports the active project", async () => {
-  const result = await dispatch("/health");
+  const result = await dispatch("/health", { headers: { "x-request-id": "request-health-test" } });
 
   assert.equal(result.status, 200);
+  assert.equal(result.headers["x-request-id"], "request-health-test");
+  assert.match(result.headers["x-service-version"], /^\d+\.\d+\.\d+/);
   assert.equal(result.body.ok, true);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.projectCount, 1);
@@ -135,6 +140,8 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
 
   assert.equal(result.status, 200);
   assert.match(result.headers["content-type"], /text\/plain/);
+  assert.match(result.headers["x-service-version"], /^\d+\.\d+\.\d+/);
+  assert.match(result.headers["x-request-id"], /^[0-9a-f-]+$/);
   assert.match(result.body, /# TYPE hardware_flow_ready gauge/);
   assert.match(result.body, /hardware_flow_ready 1/);
   assert.match(result.body, /# TYPE hardware_flow_shutting_down gauge/);
