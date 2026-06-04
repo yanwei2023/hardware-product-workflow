@@ -88,6 +88,7 @@ const requestCounters = {
   errors: 0,
   byMethod: new Map(),
 };
+let isShuttingDown = false;
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -252,6 +253,7 @@ export function getRuntimeConfigStatus() {
     fallbackStaticRoot,
     reactStaticAvailable,
     accessLogEnabled,
+    shuttingDown: isShuttingDown,
   };
 }
 
@@ -275,8 +277,10 @@ export function getStorageDoctorStatus() {
 export function getReadinessStatus() {
   const runtimeSummary = getStoreRuntimeSummary(store);
   const storageDoctor = getStorageDoctorStatus();
+  const storageReady = storageDoctor.exists && storageDoctor.valid;
   return {
-    ready: storageDoctor.exists && storageDoctor.valid,
+    ready: storageReady && !isShuttingDown,
+    shuttingDown: isShuttingDown,
     ...serviceMetadata,
     ...runtimeSummary,
     storage: {
@@ -308,7 +312,10 @@ function renderMetrics() {
   const lines = [
     "# HELP hardware_flow_ready Whether the API and local store are ready.",
     "# TYPE hardware_flow_ready gauge",
-    `hardware_flow_ready ${storageDoctor.exists && storageDoctor.valid ? 1 : 0}`,
+    `hardware_flow_ready ${storageDoctor.exists && storageDoctor.valid && !isShuttingDown ? 1 : 0}`,
+    "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
+    "# TYPE hardware_flow_shutting_down gauge",
+    `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
     "# HELP hardware_flow_projects_total Number of projects in the active store.",
     "# TYPE hardware_flow_projects_total gauge",
     `hardware_flow_projects_total ${runtimeSummary.projectCount}`,
@@ -408,6 +415,10 @@ export function resetDemoStore() {
   store = createDemoStore();
   persistStore();
   return getActiveProjectView();
+}
+
+export function setShuttingDownForTest(value) {
+  isShuttingDown = Boolean(value);
 }
 
 function writeJson(res, statusCode, body) {
@@ -2843,11 +2854,40 @@ export const server = http.createServer(async (req, res) => {
 });
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  function shutdown(signal) {
+    if (isShuttingDown) {
+      return;
+    }
+
+    isShuttingDown = true;
+    console.log(JSON.stringify({ type: "lifecycle", event: "shutdown_started", signal }));
+
+    const forceExit = setTimeout(() => {
+      console.error(JSON.stringify({ type: "lifecycle", event: "shutdown_forced", signal }));
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
+
+    server.close((error) => {
+      clearTimeout(forceExit);
+      if (error) {
+        console.error(JSON.stringify({ type: "lifecycle", event: "shutdown_failed", signal, error: error.message }));
+        process.exit(1);
+      }
+
+      console.log(JSON.stringify({ type: "lifecycle", event: "shutdown_complete", signal }));
+      process.exit(0);
+    });
+  }
+
   server.on("error", (error) => {
     console.error("服务启动失败。请确认当前环境允许监听端口，或通过 PORT 指定其他端口。");
     console.error(error);
     process.exit(1);
   });
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 
   server.listen(port, host, () => {
     const displayHost = host === "0.0.0.0" ? "localhost" : host;

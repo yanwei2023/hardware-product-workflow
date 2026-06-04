@@ -17,6 +17,7 @@ after(() => {
 });
 
 beforeEach(() => {
+  workflow.setShuttingDownForTest(false);
   workflow.resetDemoStore();
 });
 
@@ -100,6 +101,7 @@ test("ready endpoint reports runtime and storage readiness", async () => {
 
   assert.equal(result.status, 200);
   assert.equal(result.body.ready, true);
+  assert.equal(result.body.shuttingDown, false);
   assert.equal(result.body.service, "hardware-flow-api");
   assert.equal(result.body.packageName, "human-agent-hardware-flow");
   assert.match(result.body.version, /^\d+\.\d+\.\d+/);
@@ -122,6 +124,7 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.match(result.body.staticMode, /^(react|static)$/);
   assert.equal(typeof result.body.reactStaticAvailable, "boolean");
   assert.equal(result.body.accessLogEnabled, false);
+  assert.equal(result.body.shuttingDown, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
 });
 
@@ -132,6 +135,8 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.headers["content-type"], /text\/plain/);
   assert.match(result.body, /# TYPE hardware_flow_ready gauge/);
   assert.match(result.body, /hardware_flow_ready 1/);
+  assert.match(result.body, /# TYPE hardware_flow_shutting_down gauge/);
+  assert.match(result.body, /hardware_flow_shutting_down 0/);
   assert.match(result.body, /hardware_flow_projects_total 1/);
   assert.match(result.body, /hardware_flow_store_valid 1/);
   assert.match(result.body, /hardware_flow_active_work_packages_total 22/);
@@ -140,6 +145,20 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /hardware_flow_active_gate_ready 0/);
   assert.match(result.body, /# TYPE hardware_flow_http_requests_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_errors_total counter/);
+});
+
+test("ready endpoint reports draining state during shutdown", async () => {
+  workflow.setShuttingDownForTest(true);
+
+  const readiness = await dispatch("/ready");
+  const metrics = await dispatch("/metrics");
+
+  assert.equal(readiness.status, 503);
+  assert.equal(readiness.body.ready, false);
+  assert.equal(readiness.body.shuttingDown, true);
+  assert.equal(readiness.body.storage.valid, true);
+  assert.match(metrics.body, /hardware_flow_ready 0/);
+  assert.match(metrics.body, /hardware_flow_shutting_down 1/);
 });
 
 test("storage status endpoint reports persistence metadata", async () => {
