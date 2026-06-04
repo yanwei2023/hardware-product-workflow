@@ -76,6 +76,12 @@ const fallbackStaticRoot = path.join(workspaceRoot, "apps/static");
 const reactStaticAvailable = fs.existsSync(path.join(reactStaticRoot, "index.html"));
 const staticRoot = reactStaticAvailable ? reactStaticRoot : fallbackStaticRoot;
 const staticMode = reactStaticAvailable ? "react" : "static";
+const packageMetadata = JSON.parse(fs.readFileSync(path.join(workspaceRoot, "package.json"), "utf8"));
+const serviceMetadata = {
+  service: "hardware-flow-api",
+  packageName: packageMetadata.name,
+  version: packageMetadata.version,
+};
 const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "REQUEST_REVISION", "REJECT"]);
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
@@ -228,7 +234,7 @@ export function getStorageStatus() {
 
 export function getRuntimeConfigStatus() {
   return {
-    service: "hardware-flow-api",
+    ...serviceMetadata,
     nodeEnv: process.env.NODE_ENV || "development",
     host,
     port,
@@ -264,7 +270,7 @@ export function getReadinessStatus() {
   const storageDoctor = getStorageDoctorStatus();
   return {
     ready: storageDoctor.exists && storageDoctor.valid,
-    service: "hardware-flow-api",
+    ...serviceMetadata,
     ...runtimeSummary,
     storage: {
       exists: storageDoctor.exists,
@@ -2464,7 +2470,7 @@ export const server = http.createServer(async (req, res) => {
       const runtimeSummary = getStoreRuntimeSummary(store);
       return writeJson(res, 200, {
         ok: true,
-        service: "hardware-flow-api",
+        ...serviceMetadata,
         activeProjectId: runtimeSummary.activeProjectId,
         projectCount: runtimeSummary.projectCount,
       });

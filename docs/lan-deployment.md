@@ -80,9 +80,11 @@ HOST=0.0.0.0 PORT=3100 npm start
 
 ```text
 http://localhost:3001/health
+http://localhost:3001/ready
+http://localhost:3001/runtime/config
 ```
 
-返回 `ok: true` 表示后台服务正常。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析；`/runtime/config` 用于确认当前端口、store 路径、服务版本和静态资源模式。
 
 ## 数据文件
 

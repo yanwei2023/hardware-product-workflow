@@ -90,6 +90,8 @@ test("health endpoint reports the active project", async () => {
   assert.equal(result.body.ok, true);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.projectCount, 1);
+  assert.equal(result.body.packageName, "human-agent-hardware-flow");
+  assert.match(result.body.version, /^\d+\.\d+\.\d+/);
 });
 
 test("ready endpoint reports runtime and storage readiness", async () => {
@@ -98,6 +100,8 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.body.ready, true);
   assert.equal(result.body.service, "hardware-flow-api");
+  assert.equal(result.body.packageName, "human-agent-hardware-flow");
+  assert.match(result.body.version, /^\d+\.\d+\.\d+/);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.storage.exists, true);
   assert.equal(result.body.storage.valid, true);
@@ -109,6 +113,8 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
 
   assert.equal(result.status, 200);
   assert.equal(result.body.service, "hardware-flow-api");
+  assert.equal(result.body.packageName, "human-agent-hardware-flow");
+  assert.match(result.body.version, /^\d+\.\d+\.\d+/);
   assert.equal(result.body.host, "127.0.0.1");
   assert.equal(result.body.port, 3001);
   assert.ok(result.body.storePath.endsWith("store.json"));
