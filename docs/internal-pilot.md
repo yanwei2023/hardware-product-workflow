@@ -77,11 +77,13 @@ http://本机内网IP:3001
 http://localhost:3001/health
 http://localhost:3001/ready
 http://localhost:3001/pilot/readiness
+http://localhost:3001/runtime/network
 http://localhost:3001/runtime/config
 http://localhost:3001/metrics
 ```
 
 页面“项目 -> 本地数据状态”也应显示 store 健康、服务版本、请求上限、请求超时、HTTP 4xx/5xx、平均/最大耗时、内存和阶段门业务指标。
+其中“访问地址”区会显示本机 URL、局域网 URL 和 LAN 模式提醒，方便试点负责人把正确地址发给其他成员。
 
 页面“项目 -> 试点就绪总览”会聚合服务状态、本地 store、当前阶段门阻塞、证据齐备度、风险、审计、通知以及常用导出入口。试点负责人可以先看这个面板判断是否可以组织内部评审或试用。
 

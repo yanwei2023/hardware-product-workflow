@@ -81,11 +81,14 @@ HOST=0.0.0.0 PORT=3100 npm start
 ```text
 http://localhost:3001/health
 http://localhost:3001/ready
+http://localhost:3001/runtime/network
 http://localhost:3001/runtime/config
 http://localhost:3001/metrics
 ```
 
-`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/runtime/network` 会列出本机访问地址、可尝试的局域网 URL、当前是否 LAN 模式，以及是否只监听本机地址；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
+
+页面“项目 -> 本地数据状态 -> 访问地址”也会显示这些地址。如果看到 `LOOPBACK_ONLY` 提醒，说明当前不是局域网监听模式，需要用 `npm run start:lan` 重新启动。
 
 所有响应会带 `x-service-version` 和 `x-request-id`。如果调用方传入 `x-request-id`，服务端会原样返回；否则服务端生成一个，方便对齐访问日志和前端报错。
 

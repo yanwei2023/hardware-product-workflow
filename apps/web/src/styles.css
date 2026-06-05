@@ -37,6 +37,17 @@ button.ghost {
   color: #265d73;
 }
 
+button.link-button {
+  background: transparent;
+  border: 0;
+  color: #265d73;
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
 button.danger {
   background: #a3312b;
   border-color: #a3312b;
@@ -368,6 +379,27 @@ h3 {
   font-size: 13px;
 }
 
+.network-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.network-list > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.network-list strong {
+  font-size: 12px;
+}
+
+.network-warnings {
+  margin-top: 12px;
+}
+
 .work-list {
   display: grid;
   gap: 8px;
@@ -554,6 +586,7 @@ h3 {
   .runtime-grid,
   .audit-filters,
   .content-grid,
+  .network-list,
   .split,
   .evidence-form {
     grid-template-columns: 1fr;

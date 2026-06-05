@@ -13,6 +13,7 @@ type ApiState = {
   readiness: any | null;
   pilotReadiness: any | null;
   runtimeConfig: any | null;
+  runtimeNetwork: any | null;
   runtimeMetrics: Record<string, number> | null;
 };
 
@@ -173,6 +174,7 @@ export function App() {
     readiness: null,
     pilotReadiness: null,
     runtimeConfig: null,
+    runtimeNetwork: null,
     runtimeMetrics: null,
   });
   const [view, setView] = useState<ViewKey>("overview");
@@ -200,7 +202,7 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, runtimeConfig, metricsText] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
@@ -208,6 +210,7 @@ export function App() {
       api("/ready", { allowError: true }),
       api("/pilot/readiness"),
       api("/runtime/config"),
+      api("/runtime/network"),
       apiText("/metrics"),
     ]);
     const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
@@ -229,6 +232,7 @@ export function App() {
       readiness,
       pilotReadiness,
       runtimeConfig,
+      runtimeNetwork,
       runtimeMetrics: parsePrometheusMetrics(metricsText),
     });
     setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
@@ -332,6 +336,7 @@ export function App() {
             readiness={state.readiness}
             pilotReadiness={state.pilotReadiness}
             runtimeConfig={state.runtimeConfig}
+            runtimeNetwork={state.runtimeNetwork}
             runtimeMetrics={state.runtimeMetrics}
             storageStatus={state.storageStatus}
             runAction={runAction}
@@ -787,7 +792,7 @@ function PilotReadiness({ pilotReadiness }: any) {
   );
 }
 
-function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetrics, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
+function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetrics, runtimeNetwork, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
   const doctorErrors = storageDoctor?.errors || [];
   const backupErrors = storageDoctor?.backupErrors || [];
   const latestCheckpoint = storageStatus?.checkpoints?.[0] || null;
@@ -811,6 +816,32 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />
         <Metric label="请求超时" value={runtimeConfig?.requestTimeoutMs ? `${runtimeConfig.requestTimeoutMs}ms` : "-"} />
       </div>
+      <section className="subpanel">
+        <h3>访问地址</h3>
+        <div className="runtime-grid">
+          <Metric label="监听模式" value={runtimeNetwork?.lanMode ? "LAN" : "本机"} />
+          <Metric label="监听地址" value={runtimeNetwork ? `${runtimeNetwork.host}:${runtimeNetwork.port}` : "-"} />
+          <Metric label="局域网地址" value={runtimeNetwork?.lanUrls?.length || 0} />
+          <Metric label="启动命令" value={runtimeNetwork?.command || "-"} />
+        </div>
+        <div className="network-list">
+          <div>
+            <strong>本机访问</strong>
+            {(runtimeNetwork?.localUrls || []).map((url: string) => <button className="link-button" key={url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{url}</button>)}
+          </div>
+          <div>
+            <strong>局域网访问</strong>
+            {(runtimeNetwork?.lanUrls || []).length ? runtimeNetwork.lanUrls.map((url: string) => (
+              <button className="link-button" key={url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{url}</button>
+            )) : <span className="muted">未发现可用 IPv4 地址</span>}
+          </div>
+        </div>
+        {runtimeNetwork?.warnings?.length ? (
+          <ul className="compact-list network-warnings">
+            {runtimeNetwork.warnings.map((item: any) => <li key={item.code}><strong>{item.code}</strong><span>{item.message}</span></li>)}
+          </ul>
+        ) : null}
+      </section>
       <section className="subpanel">
         <h3>运行指标</h3>
         <div className="runtime-grid">

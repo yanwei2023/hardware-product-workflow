@@ -1,6 +1,7 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { buildProjectFromTemplate, getHardwarePhaseTemplate } from "./templateEngine.mjs";
 import {
@@ -281,6 +282,56 @@ export function getRuntimeConfigStatus() {
   };
 }
 
+function getPrivateNetworkAddresses() {
+  return Object.entries(os.networkInterfaces())
+    .flatMap(([name, entries = []]) =>
+      entries
+        .filter((entry) => entry.family === "IPv4" && !entry.internal)
+        .map((entry) => ({
+          name,
+          address: entry.address,
+          family: entry.family,
+          mac: entry.mac,
+        })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name) || a.address.localeCompare(b.address));
+}
+
+export function getRuntimeNetworkStatus() {
+  const localUrls = [
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`,
+  ];
+  const networkInterfaces = getPrivateNetworkAddresses();
+  const lanUrls = networkInterfaces.map((item) => `http://${item.address}:${port}`);
+  const lanMode = host === "0.0.0.0" || host === "::";
+  const warnings = [];
+
+  if (!lanMode) {
+    warnings.push({
+      code: "LOOPBACK_ONLY",
+      message: "当前服务只监听本机地址。局域网试点请使用 npm run start:lan 或 HOST=0.0.0.0 npm start。",
+    });
+  }
+  if (networkInterfaces.length === 0) {
+    warnings.push({
+      code: "NO_LAN_ADDRESS",
+      message: "未发现可用于局域网访问的 IPv4 地址，请确认网络连接。",
+    });
+  }
+
+  return {
+    host,
+    port,
+    lanMode,
+    localUrls,
+    lanUrls,
+    networkInterfaces,
+    warnings,
+    command: "npm run start:lan",
+  };
+}
+
 export function getStorageDoctorStatus() {
   const storePath = getStorePath();
   const backupPath = getBackupPath(storePath);
@@ -414,6 +465,7 @@ export function getPilotReadinessStatus() {
       ready: "/ready",
       metrics: "/metrics",
       runtimeConfig: "/runtime/config",
+      runtimeNetwork: "/runtime/network",
       storageDoctor: "/storage/doctor",
       projectSnapshot: project ? `/projects/${project.id}/snapshot.md` : null,
       riskRegister: project ? `/projects/${project.id}/risk-register.md` : null,
@@ -2869,6 +2921,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/runtime/config") {
       return writeJson(res, 200, getRuntimeConfigStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/runtime/network") {
+      return writeJson(res, 200, getRuntimeNetworkStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/metrics") {

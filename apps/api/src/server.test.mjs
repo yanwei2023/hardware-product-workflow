@@ -128,6 +128,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.commands.check, "npm run pilot:check");
   assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
+  assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
   assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");
   assert.equal(result.body.warnings.some((item) => item.code === "GATE_BLOCKED"), true);
 });
@@ -149,6 +150,20 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.equal(result.body.requestTimeoutMs, 120000);
   assert.equal(result.body.shuttingDown, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
+});
+
+test("runtime network endpoint reports local and LAN access hints", async () => {
+  const result = await dispatch("/runtime/network");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.host, "127.0.0.1");
+  assert.equal(result.body.port, 3001);
+  assert.equal(result.body.lanMode, false);
+  assert.deepEqual(result.body.localUrls, ["http://localhost:3001", "http://127.0.0.1:3001"]);
+  assert.equal(Array.isArray(result.body.lanUrls), true);
+  assert.equal(Array.isArray(result.body.networkInterfaces), true);
+  assert.equal(result.body.command, "npm run start:lan");
+  assert.equal(result.body.warnings.some((item) => item.code === "LOOPBACK_ONLY"), true);
 });
 
 test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
