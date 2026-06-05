@@ -417,6 +417,14 @@ textarea {
   gap: 8px;
 }
 
+.pilot-required-list {
+  margin-top: 12px;
+}
+
+.pilot-required-list h4 {
+  margin: 0 0 8px;
+}
+
 .network-list {
   display: grid;
   gap: 12px;

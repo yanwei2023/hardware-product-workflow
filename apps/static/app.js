@@ -650,6 +650,7 @@ function renderPilotReadinessSummary() {
     return "";
   }
   const checklist = readiness.checklist?.summary || {};
+  const requiredPending = (readiness.checklist?.items || []).filter((item) => item.severity === "REQUIRED" && item.status !== "DONE");
   const blockers = readiness.blockers || [];
   const warnings = readiness.warnings || [];
   const commands = readiness.commands || {};
@@ -691,6 +692,18 @@ function renderPilotReadinessSummary() {
           </div>
         </section>
       </div>
+      <section class="pilot-required-list">
+        <h4>必需待办</h4>
+        <ul class="compact-list">
+          ${requiredPending.length ? requiredPending.map((item) => `
+            <li>
+              <strong>${escapeHtml(item.title)}</strong>
+              <span>${escapeHtml(item.detail || "-")}</span>
+              ${item.action ? renderCopyableText(item.action) : ""}
+            </li>
+          `).join("") : `<li><strong>READY</strong><span>必需试点项已完成。</span></li>`}
+        </ul>
+      </section>
       <div class="actions">
         <button class="ghost" onclick="window.open('/pilot/readiness', '_blank')">打开就绪 JSON</button>
         <button class="ghost" onclick="window.open('/pilot/checklist', '_blank')">打开演练清单</button>
