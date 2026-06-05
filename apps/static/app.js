@@ -5,6 +5,7 @@ const state = {
   gateReviewPack: null,
   storageStatus: null,
   storageDoctor: null,
+  runtimeNetwork: null,
   importValidation: null,
   importSnapshotRaw: "",
   users: [],
@@ -128,16 +129,18 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users, storageStatus, storageDoctor] = await Promise.all([
+  const [project, users, storageStatus, storageDoctor, runtimeNetwork] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
     api("/storage/status"),
     api("/storage/doctor"),
+    api("/runtime/network"),
   ]);
   state.project = project;
   state.users = users.users;
   state.storageStatus = storageStatus;
   state.storageDoctor = storageDoctor;
+  state.runtimeNetwork = runtimeNetwork;
   const gate = activeGate();
   const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
@@ -397,6 +400,7 @@ function renderStorageStatus() {
   const latestCheckpoint = status.checkpoints?.[0] || null;
 
   return `
+    ${renderRuntimeNetwork()}
     <table class="table">
       <tbody>
         <tr><th>健康状态</th><td>${doctor ? statusBadge(doctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
@@ -433,6 +437,61 @@ function renderStorageStatus() {
       </section>
     ` : ""}
   `;
+}
+
+function renderRuntimeNetwork() {
+  const network = state.runtimeNetwork;
+  if (!network) {
+    return "";
+  }
+  return `
+    <section class="subpanel network-panel">
+      <h4>访问地址</h4>
+      <div class="network-summary">
+        <div><span>监听模式</span><strong>${network.lanMode ? "LAN" : "本机"}</strong></div>
+        <div><span>监听地址</span><strong>${escapeHtml(`${network.host}:${network.port}`)}</strong></div>
+        <div><span>局域网地址</span><strong>${escapeHtml(network.lanUrls?.length || 0)}</strong></div>
+        <div><span>启动命令</span><strong>${escapeHtml(network.command || "-")}</strong></div>
+      </div>
+      <div class="network-list">
+        <div>
+          <strong>本机访问</strong>
+          ${(network.localUrls || []).map((url) => renderNetworkUrl(url)).join("")}
+        </div>
+        <div>
+          <strong>局域网访问</strong>
+          ${(network.lanUrls || []).length ? network.lanUrls.map((url) => renderNetworkUrl(url)).join("") : `<span class="muted">未发现可用 IPv4 地址</span>`}
+        </div>
+      </div>
+      ${network.warnings?.length ? `
+        <ul class="compact-list network-warnings">
+          ${network.warnings.map((item) => `<li><strong>${escapeHtml(item.code)}</strong><span>${escapeHtml(item.message)}</span></li>`).join("")}
+        </ul>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderNetworkUrl(url) {
+  return `
+    <div class="network-url">
+      <button class="ghost" onclick="window.open(${jsStringAttr(url)}, '_blank')">${escapeHtml(url)}</button>
+      <button class="secondary" onclick="copyNetworkUrl(${jsStringAttr(url)})">复制</button>
+    </div>
+  `;
+}
+
+async function copyNetworkUrl(url) {
+  if (!navigator.clipboard?.writeText) {
+    window.open(url, "_blank");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    setMessage(successMessage(`已复制访问地址：${url}`));
+  } catch {
+    window.open(url, "_blank");
+  }
 }
 
 async function createStorageCheckpoint() {

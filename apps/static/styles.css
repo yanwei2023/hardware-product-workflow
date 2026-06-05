@@ -366,6 +366,78 @@ textarea {
   gap: 8px;
 }
 
+.network-panel {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.network-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.network-summary div {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.network-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.network-summary strong {
+  overflow-wrap: anywhere;
+}
+
+.network-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.network-list > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.network-url {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.network-url button:first-child {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.compact-list li {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
 .risk-plan {
   display: grid;
   gap: 8px;
@@ -466,6 +538,9 @@ textarea {
   .grid.cols-4,
   .grid.cols-3,
   .inline-form,
+  .network-list,
+  .network-summary,
+  .network-url,
   .split {
     grid-template-columns: 1fr;
   }
