@@ -39,7 +39,7 @@ npm run pilot:check
 npm run pilot:rehearse
 ```
 
-该命令使用临时 store，不会修改 `data/demo-store.json`。它会自动创建检查点、设置当前阶段截止日期、模拟无效 Agent 输出、生成并审核 EVT 工作包、补充证据、处理风险、确认清单必需项完成，并批准 EVT Exit 阶段门。
+该命令使用临时 store，不会修改 `data/demo-store.json`。它会自动创建检查点、设置当前阶段截止日期、模拟无效 Agent 输出、生成并审核 EVT 工作包、补充证据、处理风险、确认清单必需项完成，并批准 EVT Exit 阶段门。输出中的 `completedSteps` 会列出每个已完成的演练步骤，便于试点前快速定位脚本覆盖范围。
 
 ## 试点归档包
 
