@@ -978,13 +978,13 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <tbody>
           <tr><th>服务</th><td>{runtimeConfig?.packageName || "-"} · {runtimeConfig?.nodeEnv || "-"}</td></tr>
           <tr><th>监听</th><td>{runtimeConfig ? `${runtimeConfig.host}:${runtimeConfig.port}` : "-"}</td></tr>
-          <tr><th>静态资源目录</th><td>{runtimeConfig?.staticRoot || "-"}</td></tr>
+          <tr><th>静态资源目录</th><td><CopyableText value={runtimeConfig?.staticRoot} /></td></tr>
           <tr><th>健康状态</th><td>{storageDoctor ? badge(storageDoctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
-          <tr><th>数据文件</th><td>{storageStatus.storePath}</td></tr>
+          <tr><th>数据文件</th><td><CopyableText value={storageStatus.storePath} /></td></tr>
           <tr><th>文件状态</th><td>{storageStatus.exists ? "存在" : "不存在"}</td></tr>
           <tr><th>文件大小</th><td>{storageStatus.sizeBytes || 0} bytes</td></tr>
           <tr><th>更新时间</th><td>{storageStatus.updatedAt || "-"}</td></tr>
-          <tr><th>备份文件</th><td>{storageStatus.backupPath || storageDoctor?.backupPath || "-"}</td></tr>
+          <tr><th>备份文件</th><td><CopyableText value={storageStatus.backupPath || storageDoctor?.backupPath} /></td></tr>
           <tr>
             <th>备份状态</th>
             <td>
@@ -994,7 +994,14 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
             </td>
           </tr>
           <tr><th>备份时间</th><td>{storageStatus.backupUpdatedAt || "-"}</td></tr>
-          <tr><th>最近检查点</th><td>{latestCheckpoint ? `${latestCheckpoint.fileName} · ${latestCheckpoint.updatedAt}` : "暂无检查点"}</td></tr>
+          <tr>
+            <th>最近检查点</th>
+            <td>
+              {latestCheckpoint ? (
+                <CopyableText label={`${latestCheckpoint.fileName} · ${latestCheckpoint.updatedAt}`} value={latestCheckpoint.filePath} />
+              ) : "暂无检查点"}
+            </td>
+          </tr>
         </tbody>
       </table>
       <div className="actions storage-actions">
@@ -1078,6 +1085,24 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         </section>
       ) : null}
     </>
+  );
+}
+
+function CopyableText({ label, value }: { label?: string; value?: string | null }) {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    if (!value) return;
+    await copyText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className="copyable-text">
+      <span>{label || value || "-"}</span>
+      <button className="ghost" disabled={!value} onClick={onCopy}>{copied ? "已复制" : "复制"}</button>
+    </div>
   );
 }
 

@@ -443,6 +443,17 @@ h3 {
   padding: 8px;
 }
 
+.copyable-text {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.copyable-text span {
+  overflow-wrap: anywhere;
+}
+
 .network-warnings {
   margin-top: 12px;
 }
@@ -647,6 +658,7 @@ h3 {
   .checklist-action,
   .content-grid,
   .command-copy,
+  .copyable-text,
   .network-list,
   .network-url,
   .split,
