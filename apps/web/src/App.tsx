@@ -844,7 +844,7 @@ function PilotReadiness({ pilotReadiness }: any) {
                   <td>{badge(item.status)}<br /><span className="muted">{item.severity}</span></td>
                   <td><strong>{item.title}</strong><br /><span className="muted">{item.detail}</span></td>
                   <td>{item.total ? `${item.done || 0}/${item.total}` : item.done || 0}</td>
-                  <td>{item.action || "-"}</td>
+                  <td><ChecklistAction action={item.action} /></td>
                 </tr>
               ))}
             </tbody>
@@ -859,6 +859,28 @@ function PilotReadiness({ pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function ChecklistAction({ action }: { action?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    if (!action) return;
+    await copyText(action);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  if (!action) {
+    return <span>-</span>;
+  }
+
+  return (
+    <div className="checklist-action">
+      <span>{action}</span>
+      <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制"}</button>
+    </div>
   );
 }
 

@@ -493,6 +493,18 @@ h3 {
   padding: 7px;
 }
 
+.checklist-action {
+  align-items: start;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 220px;
+}
+
+.checklist-action span {
+  overflow-wrap: anywhere;
+}
+
 .evidence-form {
   display: grid;
   gap: 8px;
@@ -632,6 +644,7 @@ h3 {
   .metric-grid,
   .runtime-grid,
   .audit-filters,
+  .checklist-action,
   .content-grid,
   .command-copy,
   .network-list,
