@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 type ViewKey = "overview" | "projects" | "workpackages" | "gate" | "risks" | "actions" | "notifications" | "audit";
 
@@ -11,6 +11,7 @@ type ApiState = {
   storageStatus: any | null;
   storageDoctor: any | null;
   readiness: any | null;
+  pilotReadiness: any | null;
   runtimeConfig: any | null;
   runtimeMetrics: Record<string, number> | null;
 };
@@ -170,6 +171,7 @@ export function App() {
     storageStatus: null,
     storageDoctor: null,
     readiness: null,
+    pilotReadiness: null,
     runtimeConfig: null,
     runtimeMetrics: null,
   });
@@ -198,12 +200,13 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor, readiness, runtimeConfig, metricsText] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, runtimeConfig, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
       api("/storage/doctor"),
       api("/ready", { allowError: true }),
+      api("/pilot/readiness"),
       api("/runtime/config"),
       apiText("/metrics"),
     ]);
@@ -224,6 +227,7 @@ export function App() {
       storageStatus,
       storageDoctor,
       readiness,
+      pilotReadiness,
       runtimeConfig,
       runtimeMetrics: parsePrometheusMetrics(metricsText),
     });
@@ -326,6 +330,7 @@ export function App() {
             setSelectedWorkPackageId={setSelectedWorkPackageId}
             storageDoctor={state.storageDoctor}
             readiness={state.readiness}
+            pilotReadiness={state.pilotReadiness}
             runtimeConfig={state.runtimeConfig}
             runtimeMetrics={state.runtimeMetrics}
             storageStatus={state.storageStatus}
@@ -482,6 +487,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
 function Projects({
   actorUserId,
   busy,
+  pilotReadiness,
   project,
   readiness,
   runAction,
@@ -665,6 +671,10 @@ function Projects({
         </table>
       </article>
       <article className="panel span-3">
+        <h2>试点就绪总览</h2>
+        <PilotReadiness pilotReadiness={pilotReadiness} />
+      </article>
+      <article className="panel span-3">
         <h2>本地数据状态</h2>
         <StorageStatus
           busy={busy}
@@ -716,6 +726,64 @@ function Projects({
         {importValidation ? <ImportValidationResult result={importValidation} /> : null}
       </article>
     </section>
+  );
+}
+
+function PilotReadiness({ pilotReadiness }: any) {
+  if (!pilotReadiness) {
+    return <p className="muted">试点就绪状态加载中。</p>;
+  }
+
+  const checks = [
+    ["服务与数据", pilotReadiness.ready ? "READY" : "BLOCKED"],
+    ["本地 store", pilotReadiness.storage?.valid ? "READY" : "BLOCKED"],
+    ["当前阶段门", pilotReadiness.gate?.readiness || "-"],
+    ["证据齐备", `${pilotReadiness.gate?.readyEvidenceCount || 0}/${pilotReadiness.gate?.requiredEvidenceCount || 0}`],
+    ["阻塞项", pilotReadiness.gate?.blockerCount || 0],
+    ["打开高风险", pilotReadiness.summary?.openHighRiskCount || 0],
+    ["审计事件", pilotReadiness.summary?.auditEventCount || 0],
+    ["通知", pilotReadiness.summary?.notificationCount || 0],
+  ];
+
+  return (
+    <>
+      <div className="runtime-grid pilot-grid">
+        {checks.map(([label, value]) => (
+          <Metric key={String(label)} label={label} value={String(value).match(/^[A-Z_]+$/) ? badge(String(value)) : value} />
+        ))}
+      </div>
+      <section className="split">
+        <div className="subpanel">
+          <h3>阻塞</h3>
+          <ul className="compact-list">
+            {pilotReadiness.blockers?.length ? pilotReadiness.blockers.map((item: any) => (
+              <li key={item.code}><strong>{item.code}</strong><span>{item.message}</span></li>
+            )) : <li><strong>READY</strong><span>服务和本地数据满足试点启动条件。</span></li>}
+          </ul>
+        </div>
+        <div className="subpanel">
+          <h3>提醒</h3>
+          <ul className="compact-list">
+            {pilotReadiness.warnings?.length ? pilotReadiness.warnings.map((item: any) => (
+              <li key={item.code}><strong>{item.code}</strong><span>{item.message}</span></li>
+            )) : <li><strong>READY</strong><span>没有额外提醒。</span></li>}
+          </ul>
+        </div>
+      </section>
+      <div className="actions">
+        <button className="ghost" onClick={() => openApiPath("/pilot/readiness")}>打开就绪 JSON</button>
+        {pilotReadiness.links?.projectSnapshot ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.projectSnapshot)}>项目快照</button> : null}
+        {pilotReadiness.links?.riskRegister ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.riskRegister)}>风险台账</button> : null}
+        {pilotReadiness.links?.gateReviewPack ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.gateReviewPack)}>阶段门审核包</button> : null}
+      </div>
+      <table className="storage-table">
+        <tbody>
+          <tr><th>检查命令</th><td>{pilotReadiness.commands?.check || "-"}</td></tr>
+          <tr><th>归档命令</th><td>{pilotReadiness.commands?.archive || "-"}</td></tr>
+          <tr><th>局域网启动</th><td>{pilotReadiness.commands?.startLan || "-"}</td></tr>
+        </tbody>
+      </table>
+    </>
   );
 }
 
@@ -1604,7 +1672,7 @@ function RiskRow({ actorUserId, busy, risk, runAction, users }: any) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+function Metric({ label, value }: { label: string; value: ReactNode }) {
   return (
     <article className="metric-card">
       <span>{label}</span>

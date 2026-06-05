@@ -116,6 +116,22 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.deepEqual(result.body.storage.errors, []);
 });
 
+test("pilot readiness endpoint aggregates trial blockers and export links", async () => {
+  const result = await dispatch("/pilot/readiness");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.ready, true);
+  assert.equal(result.body.project.id, "project-smart-controller");
+  assert.equal(result.body.gate.name, "EVT Exit 阶段门");
+  assert.equal(result.body.gate.readiness, "BLOCKED");
+  assert.equal(result.body.storage.valid, true);
+  assert.equal(result.body.commands.check, "npm run pilot:check");
+  assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
+  assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
+  assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");
+  assert.equal(result.body.warnings.some((item) => item.code === "GATE_BLOCKED"), true);
+});
+
 test("runtime config endpoint reports non-secret deployment settings", async () => {
   const result = await dispatch("/runtime/config");
 

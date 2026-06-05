@@ -277,6 +277,10 @@ h3 {
   margin: 12px 0;
 }
 
+.pilot-grid {
+  margin-bottom: 14px;
+}
+
 .metric-card {
   display: grid;
   gap: 8px;
@@ -339,6 +343,29 @@ h3 {
   display: grid;
   gap: 14px;
   grid-template-columns: 360px 1fr;
+}
+
+.compact-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compact-list li {
+  display: grid;
+  gap: 4px;
+}
+
+.compact-list strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.compact-list span {
+  color: #607086;
+  font-size: 13px;
 }
 
 .work-list {

@@ -307,6 +307,110 @@ export function getReadinessStatus() {
   };
 }
 
+export function getPilotReadinessStatus() {
+  const project = currentProject();
+  const gate = currentGate();
+  const storageDoctor = getStorageDoctorStatus();
+  const storageStatus = getStorageStatus();
+  const readiness = getReadinessStatus();
+  const snapshot = project ? getProjectSnapshot(project.id) : null;
+  const reviewPack = gate ? getGateReviewPack(gate.id) : null;
+  const blockers = [];
+  const warnings = [];
+
+  if (!readiness.ready) {
+    blockers.push({
+      code: "SERVICE_NOT_READY",
+      message: isShuttingDown ? "服务正在关停" : "服务或本地数据未就绪",
+    });
+  }
+  if (!storageDoctor.exists || !storageDoctor.valid) {
+    blockers.push({
+      code: "STORE_INVALID",
+      message: "JSON store 不存在或校验失败",
+      details: storageDoctor.errors,
+    });
+  }
+  if (storageDoctor.backupExists && !storageDoctor.backupValid) {
+    warnings.push({
+      code: "BACKUP_INVALID",
+      message: "备份文件存在但校验失败，试点前应重新生成或清理备份",
+      details: storageDoctor.backupErrors,
+    });
+  }
+  if (reviewPack?.summary?.blockerCount > 0) {
+    warnings.push({
+      code: "GATE_BLOCKED",
+      message: `当前阶段门仍有 ${reviewPack.summary.blockerCount} 个阻塞项`,
+    });
+  }
+  if ((snapshot?.summary?.notificationCount || 0) === 0) {
+    warnings.push({
+      code: "NO_NOTIFICATIONS_YET",
+      message: "当前项目还没有通知记录，试点时需要覆盖通知和已读流程",
+    });
+  }
+  if ((snapshot?.summary?.auditEventCount || 0) === 0) {
+    warnings.push({
+      code: "NO_AUDIT_EVENTS_YET",
+      message: "当前项目还没有审计事件，试点时需要覆盖关键操作链路",
+    });
+  }
+
+  return {
+    ready: blockers.length === 0,
+    generatedAt: new Date().toISOString(),
+    project: project
+      ? {
+          id: project.id,
+          name: project.name,
+          status: project.status,
+          currentPhaseId: project.currentPhaseId,
+          currentPhaseName: snapshot?.currentPhase?.name || null,
+        }
+      : null,
+    gate: reviewPack
+      ? {
+          id: reviewPack.gate.id,
+          name: reviewPack.gate.name,
+          status: reviewPack.gate.status,
+          readiness: reviewPack.readiness.status,
+          blockerCount: reviewPack.summary.blockerCount,
+          readyEvidenceCount: reviewPack.summary.readyEvidenceCount,
+          requiredEvidenceCount: reviewPack.summary.requiredEvidenceCount,
+        }
+      : null,
+    storage: {
+      exists: storageDoctor.exists,
+      valid: storageDoctor.valid,
+      backupExists: storageDoctor.backupExists,
+      backupValid: storageDoctor.backupValid,
+      storePath: storageStatus.storePath,
+      backupPath: storageStatus.backupPath,
+      updatedAt: storageStatus.updatedAt,
+    },
+    summary: snapshot?.summary || null,
+    blockers,
+    warnings,
+    commands: {
+      check: "npm run pilot:check",
+      archive: "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive",
+      startLan: "npm run start:lan",
+    },
+    links: {
+      readiness: "/pilot/readiness",
+      health: "/health",
+      ready: "/ready",
+      metrics: "/metrics",
+      runtimeConfig: "/runtime/config",
+      storageDoctor: "/storage/doctor",
+      projectSnapshot: project ? `/projects/${project.id}/snapshot.md` : null,
+      riskRegister: project ? `/projects/${project.id}/risk-register.md` : null,
+      gateReviewPack: gate ? `/gates/${gate.id}/review-pack.md` : null,
+    },
+  };
+}
+
 function renderMetrics() {
   const runtimeSummary = getStoreRuntimeSummary(store);
   const storageDoctor = getStorageDoctorStatus();
@@ -2656,6 +2760,10 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/ready") {
       const readiness = getReadinessStatus();
       return writeJson(res, readiness.ready ? 200 : 503, readiness);
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/readiness") {
+      return writeJson(res, 200, getPilotReadinessStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/runtime/config") {
