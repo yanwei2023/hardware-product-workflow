@@ -154,6 +154,15 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       checklistRequiredTotal: pilotChecklist.summary.requiredTotal,
       checklistPending: pilotChecklist.summary.pending,
     },
+    operations: {
+      blockerCount: opsSummary.blockers?.length || 0,
+      warningCount: opsSummary.warnings?.length || 0,
+      httpServerErrors: opsSummary.http?.serverErrors || 0,
+      httpClientErrors: opsSummary.http?.clientErrors || 0,
+      storageReady: opsSummary.storage?.ready || false,
+      networkReady: opsSummary.network?.ready || false,
+      nextActions: opsSummary.nextActions || [],
+    },
     files: Object.fromEntries(Object.entries(files).map(([key, filePath]) => [key, relative(resolvedOutputDir, filePath)])),
     postgresImport: {
       outputDir: relative(resolvedOutputDir, postgresImport.outputDir),
