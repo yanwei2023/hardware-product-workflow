@@ -159,6 +159,7 @@ function notificationPath() {
   const filters = {
     UNREAD: "?status=UNREAD",
     ACTION: "?type=ACTION",
+    WARNING: "?type=WARNING",
     INFO: "?type=INFO",
   };
   return `/users/${state.actorUserId}/notifications${filters[state.notificationFilter] || ""}`;
@@ -657,10 +658,14 @@ function renderNotifications() {
     ["ALL", "全部", notifications.total || 0],
     ["UNREAD", "未读", counts.unread || 0],
     ["ACTION", "行动项", counts.action || 0],
+    ["WARNING", "提醒", counts.warning || 0],
     ["INFO", "信息", counts.info || 0],
   ];
 
   return `
+    <p class="muted">
+      ${escapeHtml(notifications.filteredCount || 0)} 条匹配 · ${escapeHtml(counts.unread || 0)} 条未读 · ${escapeHtml(counts.action || 0)} 个行动项 · ${escapeHtml(counts.warning || 0)} 个提醒
+    </p>
     <div class="segmented">
       ${filters
         .map(

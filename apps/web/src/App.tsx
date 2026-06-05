@@ -1526,7 +1526,9 @@ function Notifications({ actorUserId, busy, filter, notifications, runAction, se
       <div className="detail-head">
         <div>
           <h2>通知中心</h2>
-          <p className="muted">{notifications.filteredCount || 0} 条匹配 · {notifications.unreadCount || 0} 条未读</p>
+          <p className="muted">
+            {notifications.filteredCount || 0} 条匹配 · {notifications.unreadCount || 0} 条未读 · {counts.action || 0} 个行动项 · {counts.warning || 0} 个提醒
+          </p>
         </div>
         <button
           className="ghost"
