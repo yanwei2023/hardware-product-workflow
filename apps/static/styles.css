@@ -397,6 +397,26 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.pilot-summary {
+  margin-bottom: 14px;
+}
+
+.pilot-summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.pilot-summary-grid h4 {
+  margin: 0 0 8px;
+}
+
+.pilot-command-list {
+  display: grid;
+  gap: 8px;
+}
+
 .network-list {
   display: grid;
   gap: 12px;
@@ -553,6 +573,7 @@ textarea {
   .network-list,
   .network-summary,
   .network-url,
+  .pilot-summary-grid,
   .split {
     grid-template-columns: 1fr;
   }

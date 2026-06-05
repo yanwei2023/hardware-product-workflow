@@ -6,6 +6,7 @@ const state = {
   storageStatus: null,
   storageDoctor: null,
   runtimeNetwork: null,
+  pilotReadiness: null,
   importValidation: null,
   importSnapshotRaw: "",
   users: [],
@@ -129,18 +130,20 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users, storageStatus, storageDoctor, runtimeNetwork] = await Promise.all([
+  const [project, users, storageStatus, storageDoctor, runtimeNetwork, pilotReadiness] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
     api("/storage/status"),
     api("/storage/doctor"),
     api("/runtime/network"),
+    api("/pilot/readiness"),
   ]);
   state.project = project;
   state.users = users.users;
   state.storageStatus = storageStatus;
   state.storageDoctor = storageDoctor;
   state.runtimeNetwork = runtimeNetwork;
+  state.pilotReadiness = pilotReadiness;
   const gate = activeGate();
   const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
@@ -579,6 +582,7 @@ function renderOverview() {
         )
         .join("")}
     </div>
+    ${renderPilotReadinessSummary()}
     <div class="grid cols-3">
       <article class="panel">
         <h3>当前阶段门</h3>
@@ -636,6 +640,61 @@ function renderOverview() {
         </div>
       </div>
       ${renderNotifications()}
+    </article>
+  `;
+}
+
+function renderPilotReadinessSummary() {
+  const readiness = state.pilotReadiness;
+  if (!readiness) {
+    return "";
+  }
+  const checklist = readiness.checklist?.summary || {};
+  const blockers = readiness.blockers || [];
+  const warnings = readiness.warnings || [];
+  const commands = readiness.commands || {};
+
+  return `
+    <article class="panel pilot-summary">
+      <div class="detail-head">
+        <div>
+          <h3>试点就绪</h3>
+          <p class="muted">${escapeHtml(readiness.project?.name || state.project.project.name)}</p>
+        </div>
+        ${statusBadge(readiness.ready ? "READY" : "BLOCKED")}
+      </div>
+      <div class="grid cols-4">
+        <div class="metric-block"><span>必需完成</span><strong>${escapeHtml(checklist.requiredDone || 0)}/${escapeHtml(checklist.requiredTotal || 0)}</strong></div>
+        <div class="metric-block"><span>待处理</span><strong>${escapeHtml(checklist.pending || 0)}</strong></div>
+        <div class="metric-block"><span>阻塞</span><strong>${escapeHtml(blockers.length)}</strong></div>
+        <div class="metric-block"><span>提醒</span><strong>${escapeHtml(warnings.length)}</strong></div>
+      </div>
+      <div class="pilot-summary-grid">
+        <section>
+          <h4>阻塞</h4>
+          <ul class="compact-list">
+            ${blockers.length ? blockers.map((item) => `<li><strong>${escapeHtml(item.code)}</strong><span>${escapeHtml(item.message)}</span></li>`).join("") : `<li><strong>READY</strong><span>服务和本地数据满足试点启动条件。</span></li>`}
+          </ul>
+        </section>
+        <section>
+          <h4>提醒</h4>
+          <ul class="compact-list">
+            ${warnings.length ? warnings.slice(0, 4).map((item) => `<li><strong>${escapeHtml(item.code)}</strong><span>${escapeHtml(item.message)}</span></li>`).join("") : `<li><strong>READY</strong><span>没有额外提醒。</span></li>`}
+          </ul>
+        </section>
+        <section>
+          <h4>试点命令</h4>
+          <div class="pilot-command-list">
+            ${renderCopyableText(commands.check, commands.check || "检查命令")}
+            ${renderCopyableText(commands.archive, commands.archive || "归档命令")}
+            ${renderCopyableText(commands.startLan, commands.startLan || "局域网启动")}
+          </div>
+        </section>
+      </div>
+      <div class="actions">
+        <button class="ghost" onclick="window.open('/pilot/readiness', '_blank')">打开就绪 JSON</button>
+        <button class="ghost" onclick="window.open('/pilot/checklist', '_blank')">打开演练清单</button>
+      </div>
     </article>
   `;
 }
