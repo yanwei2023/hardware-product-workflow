@@ -133,6 +133,9 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.checklist.summary.requiredTotal > 0, true);
   assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");
   assert.equal(result.body.warnings.some((item) => item.code === "GATE_BLOCKED"), true);
+  const checklistWarning = result.body.warnings.find((item) => item.code === "REQUIRED_CHECKLIST_PENDING");
+  assert.equal(checklistWarning.details.some((item) => item.key === "checkpoint"), true);
+  assert.equal(checklistWarning.details.some((item) => item.action), true);
 });
 
 test("pilot checklist endpoint reports workflow trial steps", async () => {

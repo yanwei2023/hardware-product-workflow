@@ -629,6 +629,7 @@ export function getPilotReadinessStatus() {
   const snapshot = project ? getProjectSnapshot(project.id) : null;
   const reviewPack = gate ? getGateReviewPack(gate.id) : null;
   const checklist = getPilotChecklistStatus();
+  const requiredPendingItems = checklist.items.filter((item) => item.severity === "REQUIRED" && item.status !== "DONE");
   const blockers = [];
   const warnings = [];
 
@@ -656,6 +657,18 @@ export function getPilotReadinessStatus() {
     warnings.push({
       code: "GATE_BLOCKED",
       message: `当前阶段门仍有 ${reviewPack.summary.blockerCount} 个阻塞项`,
+    });
+  }
+  if (requiredPendingItems.length > 0) {
+    warnings.push({
+      code: "REQUIRED_CHECKLIST_PENDING",
+      message: `试点演练清单仍有 ${requiredPendingItems.length} 个必需项未完成`,
+      details: requiredPendingItems.map((item) => ({
+        key: item.key,
+        title: item.title,
+        status: item.status,
+        action: item.action,
+      })),
     });
   }
   if ((snapshot?.summary?.notificationCount || 0) === 0) {
