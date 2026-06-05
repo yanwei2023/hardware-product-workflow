@@ -24,6 +24,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.readiness.storageValid, true);
   assert.equal(manifest.readiness.postgresImportValid, true);
   assert.equal(manifest.readiness.checklistRequiredTotal > 0, true);
+  assert.equal(manifest.files.handoffMarkdown, "pilot-handoff.md");
   assert.equal(manifest.files.snapshotJson, "project-snapshot.json");
   assert.equal(manifest.files.riskRegisterMarkdown, "risk-register.md");
   assert.equal(manifest.files.gateReviewPackMarkdown, "gate-review-pack.md");
@@ -44,12 +45,15 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.diagnostics.storageDoctor, "/storage/doctor");
   assert.equal(manifest.postgresImport.manifestPath, "postgres-import/postgres-import-manifest.json");
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotReadinessJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotChecklistJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.opsSummaryJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.postgresImport.manifestPath)), true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(outputDir, manifest.files.opsSummaryJson), "utf8")).pilot.links.metrics, "/metrics");
+  assert.match(fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8"), /内部试点交接页/);
+  assert.match(fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8"), /\/ops\/summary/);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
 

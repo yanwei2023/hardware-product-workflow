@@ -34,6 +34,65 @@ function relative(outputDir, filePath) {
   return path.relative(outputDir, filePath);
 }
 
+function renderPilotHandoffMarkdown(manifest) {
+  const readiness = manifest.readiness;
+  const operations = manifest.operations;
+  const diagnosticsRows = Object.entries(manifest.diagnostics || {})
+    .map(([label, endpoint]) => `| ${label} | \`${endpoint}\` |`)
+    .join("\n");
+  const fileRows = Object.entries(manifest.files || {})
+    .map(([label, filePath]) => `| ${label} | \`${filePath}\` |`)
+    .join("\n");
+  const nextActions = (operations.nextActions || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外动作。";
+
+  return `# 内部试点交接页
+
+生成时间：${manifest.generatedAt}
+
+## 项目
+
+- 项目：${manifest.project.name}（${manifest.project.id}）
+- 状态：${manifest.project.status}
+- 当前阶段：${manifest.project.currentPhaseName || manifest.project.currentPhaseId}
+- 当前阶段门：${manifest.project.currentGateName || manifest.project.currentGateId || "-"}
+
+## 就绪摘要
+
+- Store 校验：${readiness.storageValid ? "READY" : "BLOCKED"}
+- PostgreSQL 导入包：${readiness.postgresImportValid ? "READY" : "BLOCKED"}
+- 运维摘要：${readiness.opsSummaryReady ? "READY" : "BLOCKED"}
+- 当前阶段门：${readiness.currentGateReadiness || readiness.currentGateStatus || "-"}
+- 阶段门阻塞：${readiness.blockerCount}
+- 试点必需项：${readiness.checklistRequiredDone}/${readiness.checklistRequiredTotal}
+- 试点待处理：${readiness.checklistPending}
+
+## 运维摘要
+
+- 运维阻塞：${operations.blockerCount}
+- 运维提醒：${operations.warningCount}
+- HTTP 4xx：${operations.httpClientErrors}
+- HTTP 5xx：${operations.httpServerErrors}
+- Store ready：${operations.storageReady ? "READY" : "BLOCKED"}
+- Network ready：${operations.networkReady ? "READY" : "BLOCKED"}
+
+## 下一步动作
+
+${nextActions}
+
+## 诊断端点
+
+| 名称 | 端点 |
+| --- | --- |
+${diagnosticsRows}
+
+## 归档文件
+
+| 名称 | 文件 |
+| --- | --- |
+${fileRows}
+`;
+}
+
 function writePostgresImportBundle(outputDir, store) {
   const postgresDir = path.join(outputDir, "postgres-import");
   const schemaPath = "schemas/database.sql";
@@ -91,6 +150,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   const sourceStore = loadStoreFromDisk() || createDemoStore();
 
   const files = {
+    handoffMarkdown: path.join(resolvedOutputDir, "pilot-handoff.md"),
     snapshotJson: path.join(resolvedOutputDir, "project-snapshot.json"),
     snapshotMarkdown: path.join(resolvedOutputDir, "project-snapshot.md"),
     riskRegisterJson: path.join(resolvedOutputDir, "risk-register.json"),
@@ -103,29 +163,14 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
   };
 
-  writeJson(files.snapshotJson, snapshot);
-  writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));
-  writeJson(files.riskRegisterJson, riskRegister);
-  writeText(files.riskRegisterMarkdown, renderRiskRegisterMarkdown(riskRegister));
-  writeJson(files.runtimeConfigJson, runtimeConfig);
-  writeJson(files.storageStatusJson, storageStatus);
-  writeJson(files.storageDoctorJson, storageDoctor);
-  writeJson(files.pilotReadinessJson, pilotReadiness);
-  writeJson(files.pilotChecklistJson, pilotChecklist);
-  writeJson(files.opsSummaryJson, opsSummary);
-
   if (reviewPack) {
     files.gateReviewPackJson = path.join(resolvedOutputDir, "gate-review-pack.json");
     files.gateReviewPackMarkdown = path.join(resolvedOutputDir, "gate-review-pack.md");
-    writeJson(files.gateReviewPackJson, reviewPack);
-    writeText(files.gateReviewPackMarkdown, renderGateReviewPackMarkdown(reviewPack));
   }
 
   if (approvalPack) {
     files.gateApprovalPackJson = path.join(resolvedOutputDir, "gate-approval-pack.json");
     files.gateApprovalPackMarkdown = path.join(resolvedOutputDir, "gate-approval-pack.md");
-    writeJson(files.gateApprovalPackJson, approvalPack);
-    writeText(files.gateApprovalPackMarkdown, renderGateReviewPackMarkdown(approvalPack.reviewPack));
   }
 
   const postgresImport = writePostgresImportBundle(resolvedOutputDir, sourceStore);
@@ -182,6 +227,28 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       errors: postgresImport.verification.errors,
     },
   };
+
+  writeText(files.handoffMarkdown, renderPilotHandoffMarkdown(manifest));
+  writeJson(files.snapshotJson, snapshot);
+  writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));
+  writeJson(files.riskRegisterJson, riskRegister);
+  writeText(files.riskRegisterMarkdown, renderRiskRegisterMarkdown(riskRegister));
+  writeJson(files.runtimeConfigJson, runtimeConfig);
+  writeJson(files.storageStatusJson, storageStatus);
+  writeJson(files.storageDoctorJson, storageDoctor);
+  writeJson(files.pilotReadinessJson, pilotReadiness);
+  writeJson(files.pilotChecklistJson, pilotChecklist);
+  writeJson(files.opsSummaryJson, opsSummary);
+
+  if (reviewPack) {
+    writeJson(files.gateReviewPackJson, reviewPack);
+    writeText(files.gateReviewPackMarkdown, renderGateReviewPackMarkdown(reviewPack));
+  }
+
+  if (approvalPack) {
+    writeJson(files.gateApprovalPackJson, approvalPack);
+    writeText(files.gateApprovalPackMarkdown, renderGateReviewPackMarkdown(approvalPack.reviewPack));
+  }
 
   writeJson(manifestPath, manifest);
 

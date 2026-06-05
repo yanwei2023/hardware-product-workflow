@@ -51,6 +51,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 归档包包含：
 
+- 试点交接页 `pilot-handoff.md`；
 - 项目快照 JSON/Markdown；
 - 风险台账 JSON/Markdown；
 - 当前阶段门审核包 JSON/Markdown；
