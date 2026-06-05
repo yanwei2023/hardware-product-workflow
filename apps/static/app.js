@@ -413,6 +413,7 @@ function renderStorageStatus() {
       </tbody>
     </table>
     <div class="actions">
+      <button class="secondary" onclick="window.open('/ops/summary', '_blank')">打开运维摘要</button>
       <button class="secondary" onclick="createStorageCheckpoint()" ${state.busy ? "disabled" : ""}>创建检查点</button>
       <button class="secondary" onclick="restoreStorageCheckpoint(${jsStringAttr(latestCheckpoint?.filePath || "")})" ${state.busy || !latestCheckpoint ? "disabled" : ""}>恢复最新检查点</button>
       <button class="secondary" onclick="restoreStorageBackup()" ${state.busy || !status.backupExists ? "disabled" : ""}>从备份恢复</button>

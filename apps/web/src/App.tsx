@@ -938,6 +938,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
       </table>
       <div className="actions storage-actions">
         <button className="ghost" onClick={() => openApiPath("/runtime/config")}>打开运行配置</button>
+        <button className="ghost" onClick={() => openApiPath("/ops/summary")}>打开运维摘要</button>
         <button className="ghost" onClick={() => openApiPath("/metrics")}>打开 Metrics</button>
         <button
           className="ghost"

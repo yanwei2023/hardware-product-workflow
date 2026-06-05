@@ -180,6 +180,28 @@ test("runtime network endpoint reports local and LAN access hints", async () => 
   assert.equal(result.body.warnings.some((item) => item.code === "LOOPBACK_ONLY"), true);
 });
 
+test("ops summary endpoint aggregates pilot operations status", async () => {
+  await dispatch("/missing-route-for-ops-summary");
+  const result = await dispatch("/ops/summary");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.ready, true);
+  assert.equal(result.body.service, "hardware-flow-api");
+  assert.equal(result.body.runtime.host, "127.0.0.1");
+  assert.match(result.body.runtime.staticMode, /^(react|static)$/);
+  assert.equal(result.body.network.lanMode, false);
+  assert.equal(typeof result.body.http.total, "number");
+  assert.equal(typeof result.body.http.clientErrors, "number");
+  assert.equal(typeof result.body.http.byMethod, "object");
+  assert.equal(result.body.storage.valid, true);
+  assert.equal(result.body.pilot.project.id, "project-smart-controller");
+  assert.equal(result.body.pilot.gate.id, "gate-evt_exit");
+  assert.equal(result.body.pilot.checklistSummary.requiredTotal > 0, true);
+  assert.equal(result.body.pilot.links.metrics, "/metrics");
+  assert.equal(result.body.warnings.some((item) => item.code === "LOOPBACK_ONLY"), true);
+  assert.equal(result.body.nextActions.some((item) => item.includes("pilot:check")), true);
+});
+
 test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   const result = await dispatch("/metrics");
 

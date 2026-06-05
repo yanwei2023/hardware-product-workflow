@@ -332,6 +332,93 @@ export function getRuntimeNetworkStatus() {
   };
 }
 
+export function getOpsSummaryStatus() {
+  const readiness = getReadinessStatus();
+  const runtimeConfig = getRuntimeConfigStatus();
+  const runtimeNetwork = getRuntimeNetworkStatus();
+  const storageStatus = getStorageStatus();
+  const pilotReadiness = getPilotReadinessStatus();
+  const avgDurationMs = requestCounters.total ? requestCounters.durationMsTotal / requestCounters.total : 0;
+  const warnings = [
+    ...(runtimeNetwork.warnings || []),
+    ...(pilotReadiness.warnings || []),
+  ];
+  const blockers = [
+    ...(readiness.ready ? [] : [{ code: "SERVICE_NOT_READY", message: "服务或本地数据未就绪" }]),
+    ...(pilotReadiness.blockers || []),
+  ];
+
+  if (runtimeConfig.staticMode !== "react") {
+    warnings.push({
+      code: "STATIC_FALLBACK",
+      message: "当前正在使用无构建备用工作台；试点前建议运行 npm run web:build 以启用 React 工作台。",
+    });
+  }
+  if (requestCounters.errors > 0) {
+    warnings.push({
+      code: "HTTP_5XX_SEEN",
+      message: `当前进程已记录 ${requestCounters.errors} 个 HTTP 5xx 响应，请结合访问日志和请求 ID 排查。`,
+    });
+  }
+
+  return {
+    ready: blockers.length === 0,
+    generatedAt: new Date().toISOString(),
+    service: readiness.service,
+    packageName: readiness.packageName,
+    version: readiness.version,
+    runtime: {
+      nodeEnv: runtimeConfig.nodeEnv,
+      host: runtimeConfig.host,
+      port: runtimeConfig.port,
+      staticMode: runtimeConfig.staticMode,
+      accessLogEnabled: runtimeConfig.accessLogEnabled,
+      shuttingDown: runtimeConfig.shuttingDown,
+      uptimeSeconds: Number(process.uptime().toFixed(3)),
+    },
+    network: {
+      lanMode: runtimeNetwork.lanMode,
+      localUrls: runtimeNetwork.localUrls,
+      lanUrls: runtimeNetwork.lanUrls,
+      warnings: runtimeNetwork.warnings,
+    },
+    http: {
+      total: requestCounters.total,
+      clientErrors: requestCounters.clientErrors,
+      serverErrors: requestCounters.errors,
+      avgDurationMs: Number(avgDurationMs.toFixed(2)),
+      maxDurationMs: Number(requestCounters.durationMsMax.toFixed(2)),
+      byMethod: Object.fromEntries(requestCounters.byMethod.entries()),
+    },
+    storage: {
+      valid: readiness.storage.valid,
+      exists: readiness.storage.exists,
+      storePath: storageStatus.storePath,
+      updatedAt: storageStatus.updatedAt,
+      backupExists: storageStatus.backupExists,
+      backupValid: readiness.storage.backupValid,
+      latestCheckpoint: storageStatus.checkpoints?.[0] || null,
+    },
+    pilot: {
+      ready: pilotReadiness.ready,
+      project: pilotReadiness.project,
+      gate: pilotReadiness.gate,
+      checklistSummary: pilotReadiness.checklist?.summary || null,
+      commands: pilotReadiness.commands,
+      links: pilotReadiness.links,
+    },
+    blockers,
+    warnings,
+    nextActions: blockers.length
+      ? blockers.map((item) => item.message)
+      : [
+          "运行 npm run pilot:check 做试点前完整验证。",
+          "试点开始前创建数据检查点。",
+          "需要局域网访问时使用 npm run start:lan 启动。",
+        ],
+  };
+}
+
 function pilotChecklistItem({
   key,
   title,
@@ -3096,6 +3183,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/runtime/network") {
       return writeJson(res, 200, getRuntimeNetworkStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/ops/summary") {
+      return writeJson(res, 200, getOpsSummaryStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/metrics") {
