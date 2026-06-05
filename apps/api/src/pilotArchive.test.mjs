@@ -41,6 +41,10 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.commands.check, "npm run pilot:check");
   assert.equal(manifest.commands.rehearse, "npm run pilot:rehearse");
   assert.equal(manifest.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
+  assert.equal(manifest.dataProtection.storePath, process.env.HARDWARE_FLOW_STORE_PATH);
+  assert.ok(manifest.dataProtection.backupPath.endsWith("store.json.bak"));
+  assert.equal(manifest.dataProtection.storeDoctorCommand, "npm run store:doctor");
+  assert.equal(manifest.dataProtection.restoreBackupCommand, "npm run store:restore-backup");
   assert.equal(Array.isArray(manifest.checklist.requiredPending), true);
   assert.equal(manifest.checklist.requiredPending.some((item) => item.key === "checkpoint"), true);
   assert.equal(manifest.checklist.requiredPending.every((item) => item.title && item.action), true);
@@ -69,6 +73,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /\/ops\/summary/);
   assert.match(handoffMarkdown, /试点命令/);
   assert.match(handoffMarkdown, /npm run pilot:rehearse/);
+  assert.match(handoffMarkdown, /数据保护和回滚/);
+  assert.match(handoffMarkdown, /npm run store:doctor/);
+  assert.match(handoffMarkdown, /npm run store:restore-backup/);
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
   assert.match(handoffMarkdown, /未完成必需项/);
   assert.match(handoffMarkdown, /试点前创建数据检查点/);

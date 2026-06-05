@@ -10,6 +10,7 @@ console.log(
       readiness: result.manifest.readiness,
       operations: result.manifest.operations,
       commands: result.manifest.commands,
+      dataProtection: result.manifest.dataProtection,
       checklist: result.manifest.checklist,
       diagnostics: result.manifest.diagnostics,
       files: result.manifest.files,

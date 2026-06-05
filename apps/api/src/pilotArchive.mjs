@@ -60,6 +60,8 @@ function renderPilotHandoffMarkdown(manifest) {
   const commandRows = Object.entries(manifest.commands || {})
     .map(([label, command]) => `| ${label} | \`${command}\` |`)
     .join("\n");
+  const dataProtection = manifest.dataProtection || {};
+  const latestCheckpoint = dataProtection.latestCheckpoint;
 
   return `# 内部试点交接页
 
@@ -104,6 +106,16 @@ ${commandRows}
 ## 未完成必需项
 
 ${requiredPendingRows}
+
+## 数据保护和回滚
+
+- Store：\`${dataProtection.storePath || "-"}\`
+- 备份：${dataProtection.backupExists ? "READY" : "MISSING"}${dataProtection.backupPath ? `（\`${dataProtection.backupPath}\`）` : ""}
+- 备份校验：${dataProtection.backupValid ? "READY" : dataProtection.backupExists ? "BLOCKED" : "-"}
+- 最近检查点：${latestCheckpoint ? `\`${latestCheckpoint.fileName}\`（${latestCheckpoint.updatedAt || "-"}）` : "暂无"}
+- 最近检查点路径：\`${latestCheckpoint?.filePath || "-"}\`
+- 备份恢复命令：\`${dataProtection.restoreBackupCommand || "-"}\`
+- 检查命令：\`${dataProtection.storeDoctorCommand || "-"}\`
 
 ## PostgreSQL 导入包
 
@@ -259,6 +271,16 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       nextActions: opsSummary.nextActions || [],
     },
     commands: pilotReadiness.commands || {},
+    dataProtection: {
+      storePath: storageStatus.storePath,
+      backupPath: storageStatus.backupPath || storageDoctor.backupPath,
+      backupExists: storageStatus.backupExists,
+      backupValid: storageDoctor.backupValid,
+      latestCheckpoint: storageStatus.checkpoints?.[0] || null,
+      checkpointCount: storageStatus.checkpoints?.length || 0,
+      storeDoctorCommand: "npm run store:doctor",
+      restoreBackupCommand: "npm run store:restore-backup",
+    },
     checklist: {
       requiredPending: requiredPendingChecklistItems,
     },
