@@ -129,8 +129,22 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
+  assert.equal(result.body.links.checklist, "/pilot/checklist");
+  assert.equal(result.body.checklist.summary.requiredTotal > 0, true);
   assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");
   assert.equal(result.body.warnings.some((item) => item.code === "GATE_BLOCKED"), true);
+});
+
+test("pilot checklist endpoint reports workflow trial steps", async () => {
+  const result = await dispatch("/pilot/checklist");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.projectId, "project-smart-controller");
+  assert.equal(result.body.currentGateId, "gate-evt_exit");
+  assert.equal(result.body.summary.total, result.body.items.length);
+  assert.equal(result.body.items.some((item) => item.key === "checkpoint" && item.severity === "REQUIRED"), true);
+  assert.equal(result.body.items.some((item) => item.key === "agent_drafts" && item.status === "PENDING"), true);
+  assert.equal(result.body.items.some((item) => item.key === "risk_workflow" && item.action.includes("风险")), true);
 });
 
 test("runtime config endpoint reports non-secret deployment settings", async () => {

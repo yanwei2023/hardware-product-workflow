@@ -26,6 +26,7 @@ const statusText: Record<string, string> = {
   HUMAN_APPROVED: "人类已批准",
   AGENT_DRAFT_READY: "草稿待审",
   NEEDS_AGENT_REVISION: "需要修改",
+  PENDING: "待处理",
   PENDING_REVIEW: "待审核",
   NEEDS_REVISION: "需要修改",
   REJECTED: "已驳回",
@@ -777,10 +778,35 @@ function PilotReadiness({ pilotReadiness }: any) {
       </section>
       <div className="actions">
         <button className="ghost" onClick={() => openApiPath("/pilot/readiness")}>打开就绪 JSON</button>
+        <button className="ghost" onClick={() => openApiPath("/pilot/checklist")}>打开演练清单</button>
         {pilotReadiness.links?.projectSnapshot ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.projectSnapshot)}>项目快照</button> : null}
         {pilotReadiness.links?.riskRegister ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.riskRegister)}>风险台账</button> : null}
         {pilotReadiness.links?.gateReviewPack ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.gateReviewPack)}>阶段门审核包</button> : null}
       </div>
+      {pilotReadiness.checklist ? (
+        <section className="subpanel">
+          <h3>试点演练清单</h3>
+          <div className="runtime-grid pilot-grid">
+            <Metric label="总项" value={pilotReadiness.checklist.summary?.total || 0} />
+            <Metric label="已完成" value={pilotReadiness.checklist.summary?.done || 0} />
+            <Metric label="必需完成" value={`${pilotReadiness.checklist.summary?.requiredDone || 0}/${pilotReadiness.checklist.summary?.requiredTotal || 0}`} />
+            <Metric label="待处理" value={pilotReadiness.checklist.summary?.pending || 0} />
+          </div>
+          <table className="compact-table">
+            <thead><tr><th>状态</th><th>事项</th><th>进度</th><th>下一步</th></tr></thead>
+            <tbody>
+              {pilotReadiness.checklist.items?.map((item: any) => (
+                <tr key={item.key}>
+                  <td>{badge(item.status)}<br /><span className="muted">{item.severity}</span></td>
+                  <td><strong>{item.title}</strong><br /><span className="muted">{item.detail}</span></td>
+                  <td>{item.total ? `${item.done || 0}/${item.total}` : item.done || 0}</td>
+                  <td>{item.action || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
       <table className="storage-table">
         <tbody>
           <tr><th>检查命令</th><td>{pilotReadiness.commands?.check || "-"}</td></tr>

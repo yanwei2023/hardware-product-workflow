@@ -332,6 +332,170 @@ export function getRuntimeNetworkStatus() {
   };
 }
 
+function pilotChecklistItem({
+  key,
+  title,
+  status,
+  severity = "RECOMMENDED",
+  done = 0,
+  total = 1,
+  detail = "",
+  action = "",
+} = {}) {
+  return {
+    key,
+    title,
+    status,
+    severity,
+    done,
+    total,
+    detail,
+    action,
+  };
+}
+
+export function getPilotChecklistStatus() {
+  const project = currentProject();
+  const gate = currentGate();
+  const snapshot = project ? getProjectSnapshot(project.id) : null;
+  const reviewPack = gate ? getGateReviewPack(gate.id) : null;
+  const storageStatus = getStorageStatus();
+  const phaseWorkPackages = project
+    ? store.workPackages.filter((item) => item.projectId === project.id && item.phaseId === project.currentPhaseId)
+    : [];
+  const rolePairs = project ? store.rolePairs.filter((item) => item.projectId === project.id) : [];
+  const agentReadyWorkPackages = phaseWorkPackages.filter((workPackage) =>
+    store.artifactVersions.some(
+      (artifact) =>
+        artifact.workPackageId === workPackage.id &&
+        (artifact.status === "PENDING_REVIEW" || artifact.status === "APPROVED" || artifact.status === "LOCKED"),
+    ),
+  );
+  const reviewedWorkPackages = phaseWorkPackages.filter((workPackage) =>
+    store.reviews.some(
+      (review) =>
+        review.workPackageId === workPackage.id &&
+        (review.decision === "APPROVE" || review.decision === "APPROVE_WITH_CONDITIONS"),
+    ),
+  );
+  const requiredEvidenceCount = reviewPack?.summary?.requiredEvidenceCount || 0;
+  const readyEvidenceCount = reviewPack?.summary?.readyEvidenceCount || 0;
+  const hasBlockingRiskWorkflow = (snapshot?.risks || []).some(
+    (risk) =>
+      risk.blocksGate &&
+      (risk.status === "ACCEPTED" ||
+        risk.status === "CLOSED" ||
+        risk.mitigationOwnerUserId ||
+        risk.mitigationDueAt ||
+        risk.mitigation),
+  );
+
+  const items = [
+    pilotChecklistItem({
+      key: "checkpoint",
+      title: "试点前创建数据检查点",
+      status: storageStatus.checkpoints?.length ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: storageStatus.checkpoints?.length ? 1 : 0,
+      detail: storageStatus.checkpoints?.length
+        ? `最近检查点：${storageStatus.checkpoints[0].fileName}`
+        : "尚未创建显式检查点。",
+      action: "项目 -> 本地数据状态 -> 创建检查点",
+    }),
+    pilotChecklistItem({
+      key: "role_owners",
+      title: "角色负责人已分配",
+      status: rolePairs.length > 0 && rolePairs.every((item) => item.humanUserId) ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: rolePairs.filter((item) => item.humanUserId).length,
+      total: rolePairs.length,
+      detail: `${rolePairs.filter((item) => item.humanUserId).length}/${rolePairs.length} 个角色已有负责人。`,
+      action: "项目 -> 当前项目角色配对",
+    }),
+    pilotChecklistItem({
+      key: "schedule",
+      title: "当前阶段工作包设置截止日期",
+      status: phaseWorkPackages.length > 0 && phaseWorkPackages.every((item) => item.dueAt) ? "DONE" : "PENDING",
+      done: phaseWorkPackages.filter((item) => item.dueAt).length,
+      total: phaseWorkPackages.length,
+      detail: `${phaseWorkPackages.filter((item) => item.dueAt).length}/${phaseWorkPackages.length} 个当前阶段工作包已有截止日期。`,
+      action: "工作包 -> 计划 -> 保存截止日期",
+    }),
+    pilotChecklistItem({
+      key: "agent_drafts",
+      title: "当前阶段生成 Agent 草稿",
+      status: phaseWorkPackages.length > 0 && agentReadyWorkPackages.length === phaseWorkPackages.length ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: agentReadyWorkPackages.length,
+      total: phaseWorkPackages.length,
+      detail: `${agentReadyWorkPackages.length}/${phaseWorkPackages.length} 个当前阶段工作包已有可审核草稿。`,
+      action: "工作包 -> Agent 生成",
+    }),
+    pilotChecklistItem({
+      key: "human_reviews",
+      title: "人类审核阶段门证据",
+      status: requiredEvidenceCount > 0 && readyEvidenceCount >= requiredEvidenceCount ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: readyEvidenceCount,
+      total: requiredEvidenceCount,
+      detail: `阶段门证据 ${readyEvidenceCount}/${requiredEvidenceCount} 已就绪；当前阶段已审核工作包 ${reviewedWorkPackages.length}/${phaseWorkPackages.length}。`,
+      action: "工作包 -> 批准/有条件批准",
+    }),
+    pilotChecklistItem({
+      key: "risk_workflow",
+      title: "阻塞风险已有处置动作",
+      status: hasBlockingRiskWorkflow || (snapshot?.summary?.openHighRiskCount || 0) === 0 ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: hasBlockingRiskWorkflow || (snapshot?.summary?.openHighRiskCount || 0) === 0 ? 1 : 0,
+      detail: hasBlockingRiskWorkflow
+        ? "至少一个阻塞风险已有接受、关闭或缓解计划。"
+        : "仍有高风险未接受、关闭或设置缓解计划。",
+      action: "风险 -> 保存缓解计划/接受/关闭",
+    }),
+    pilotChecklistItem({
+      key: "notifications",
+      title: "通知链路已触发",
+      status: (snapshot?.summary?.notificationCount || 0) > 0 ? "DONE" : "PENDING",
+      done: snapshot?.summary?.notificationCount || 0,
+      detail: `当前项目通知 ${snapshot?.summary?.notificationCount || 0} 条。`,
+      action: "执行 Agent 生成、审核、分配负责人或风险动作",
+    }),
+    pilotChecklistItem({
+      key: "audit",
+      title: "审计链路已记录",
+      status: (snapshot?.summary?.auditEventCount || 0) > 0 ? "DONE" : "PENDING",
+      severity: "REQUIRED",
+      done: snapshot?.summary?.auditEventCount || 0,
+      detail: `当前项目审计事件 ${snapshot?.summary?.auditEventCount || 0} 条。`,
+      action: "审计 -> 搜索关键操作",
+    }),
+    pilotChecklistItem({
+      key: "archive",
+      title: "生成试点归档包",
+      status: "PENDING",
+      detail: "运行 pilot:archive 后会在 /tmp/hardware-flow-pilot-archive 生成归档材料。",
+      action: "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive",
+    }),
+  ];
+  const requiredItems = items.filter((item) => item.severity === "REQUIRED");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    projectId: project?.id || null,
+    currentPhaseId: project?.currentPhaseId || null,
+    currentGateId: gate?.id || null,
+    summary: {
+      total: items.length,
+      done: items.filter((item) => item.status === "DONE").length,
+      requiredTotal: requiredItems.length,
+      requiredDone: requiredItems.filter((item) => item.status === "DONE").length,
+      blocked: items.filter((item) => item.status === "BLOCKED").length,
+      pending: items.filter((item) => item.status === "PENDING").length,
+    },
+    items,
+  };
+}
+
 export function getStorageDoctorStatus() {
   const storePath = getStorePath();
   const backupPath = getBackupPath(storePath);
@@ -377,6 +541,7 @@ export function getPilotReadinessStatus() {
   const readiness = getReadinessStatus();
   const snapshot = project ? getProjectSnapshot(project.id) : null;
   const reviewPack = gate ? getGateReviewPack(gate.id) : null;
+  const checklist = getPilotChecklistStatus();
   const blockers = [];
   const warnings = [];
 
@@ -454,6 +619,7 @@ export function getPilotReadinessStatus() {
     summary: snapshot?.summary || null,
     blockers,
     warnings,
+    checklist,
     commands: {
       check: "npm run pilot:check",
       archive: "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive",
@@ -461,6 +627,7 @@ export function getPilotReadinessStatus() {
     },
     links: {
       readiness: "/pilot/readiness",
+      checklist: "/pilot/checklist",
       health: "/health",
       ready: "/ready",
       metrics: "/metrics",
@@ -2917,6 +3084,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/readiness") {
       return writeJson(res, 200, getPilotReadinessStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/checklist") {
+      return writeJson(res, 200, getPilotChecklistStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/runtime/config") {
