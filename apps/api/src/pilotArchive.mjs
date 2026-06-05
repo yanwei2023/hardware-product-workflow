@@ -22,6 +22,16 @@ import {
   renderRiskRegisterMarkdown,
 } from "./server.mjs";
 
+const firstPilotBoundaries = [
+  "用户登录和单点登录不作为第一轮内部试点验收项。",
+  "PostgreSQL 运行时读写不作为第一轮内部试点验收项，当前仅提供导出、导入包和 preflight。",
+  "文件上传和附件存储不作为第一轮内部试点验收项。",
+  "真实大模型调用和异步 Agent 队列不作为第一轮内部试点验收项。",
+  "飞书、企业微信或邮件通知不作为第一轮内部试点验收项。",
+  "生产级 TLS、反向代理、数据库备份和灾备不作为第一轮内部试点验收项。",
+  "多人高并发编辑冲突处理不作为第一轮内部试点验收项。",
+];
+
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -62,6 +72,7 @@ function renderPilotHandoffMarkdown(manifest) {
     .join("\n");
   const dataProtection = manifest.dataProtection || {};
   const latestCheckpoint = dataProtection.latestCheckpoint;
+  const boundaryRows = (manifest.boundaries || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外边界。";
 
   return `# 内部试点交接页
 
@@ -116,6 +127,10 @@ ${requiredPendingRows}
 - 最近检查点路径：\`${latestCheckpoint?.filePath || "-"}\`
 - 备份恢复命令：\`${dataProtection.restoreBackupCommand || "-"}\`
 - 检查命令：\`${dataProtection.storeDoctorCommand || "-"}\`
+
+## 第一轮试点边界
+
+${boundaryRows}
 
 ## PostgreSQL 导入包
 
@@ -271,6 +286,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       nextActions: opsSummary.nextActions || [],
     },
     commands: pilotReadiness.commands || {},
+    boundaries: firstPilotBoundaries,
     dataProtection: {
       storePath: storageStatus.storePath,
       backupPath: storageStatus.backupPath || storageDoctor.backupPath,

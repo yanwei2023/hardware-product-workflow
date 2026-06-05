@@ -41,6 +41,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.commands.check, "npm run pilot:check");
   assert.equal(manifest.commands.rehearse, "npm run pilot:rehearse");
   assert.equal(manifest.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
+  assert.equal(Array.isArray(manifest.boundaries), true);
+  assert.equal(manifest.boundaries.some((item) => item.includes("用户登录")), true);
+  assert.equal(manifest.boundaries.some((item) => item.includes("PostgreSQL 运行时读写")), true);
   assert.equal(manifest.dataProtection.storePath, process.env.HARDWARE_FLOW_STORE_PATH);
   assert.ok(manifest.dataProtection.backupPath.endsWith("store.json.bak"));
   assert.equal(manifest.dataProtection.storeDoctorCommand, "npm run store:doctor");
@@ -76,6 +79,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /数据保护和回滚/);
   assert.match(handoffMarkdown, /npm run store:doctor/);
   assert.match(handoffMarkdown, /npm run store:restore-backup/);
+  assert.match(handoffMarkdown, /第一轮试点边界/);
+  assert.match(handoffMarkdown, /用户登录和单点登录不作为第一轮内部试点验收项/);
+  assert.match(handoffMarkdown, /PostgreSQL 运行时读写不作为第一轮内部试点验收项/);
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
   assert.match(handoffMarkdown, /未完成必需项/);
   assert.match(handoffMarkdown, /试点前创建数据检查点/);
