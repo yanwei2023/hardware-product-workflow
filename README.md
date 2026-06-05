@@ -93,6 +93,7 @@ http://localhost:5173
 ```text
 docs/quick-use.md
 docs/lan-deployment.md
+docs/internal-pilot.md
 docs/postgres-migration.md
 ```
 
@@ -119,3 +120,4 @@ docs/postgres-migration.md
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
 - `apps/api/src/postgresMapper.mjs`、`postgresExportReport.mjs`、`postgresImportBundle.mjs` 和相关 CLI 脚本提供 JSON store 到 PostgreSQL rows/seed SQL、导入包、导入包自检和数据库 preflight 的迁移准备工具。
 - `npm run release:check` 会执行完整测试、前端构建、smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查，适合提交或发布前运行。
+- `npm run pilot:check` 会在 `release:check` 后追加 PostgreSQL 导入包 preflight，适合每次内部试点前运行。

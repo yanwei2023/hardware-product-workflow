@@ -158,6 +158,14 @@ npm run release:check
 
 该命令会执行完整测试、React 构建、API smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查。
 
+内部试点前建议运行：
+
+```text
+npm run pilot:check
+```
+
+试点角色、验收标准、回滚和边界请看 `docs/internal-pilot.md`。
+
 ## 创建新项目
 
 在页面左侧进入“项目管理”，填写项目名称和产品线，点击“按标准模板创建”。
