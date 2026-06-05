@@ -7,6 +7,7 @@ const state = {
   storageDoctor: null,
   runtimeNetwork: null,
   pilotReadiness: null,
+  opsSummary: null,
   importValidation: null,
   importSnapshotRaw: "",
   users: [],
@@ -130,13 +131,14 @@ async function withBusy(action) {
 }
 
 async function loadProject() {
-  const [project, users, storageStatus, storageDoctor, runtimeNetwork, pilotReadiness] = await Promise.all([
+  const [project, users, storageStatus, storageDoctor, runtimeNetwork, pilotReadiness, opsSummary] = await Promise.all([
     api("/projects/demo"),
     api("/users/demo"),
     api("/storage/status"),
     api("/storage/doctor"),
     api("/runtime/network"),
     api("/pilot/readiness"),
+    api("/ops/summary"),
   ]);
   state.project = project;
   state.users = users.users;
@@ -144,6 +146,7 @@ async function loadProject() {
   state.storageDoctor = storageDoctor;
   state.runtimeNetwork = runtimeNetwork;
   state.pilotReadiness = pilotReadiness;
+  state.opsSummary = opsSummary;
   const gate = activeGate();
   const [actionItems, notifications, gateReviewPack] = await Promise.all([
     api(`/users/${state.actorUserId}/action-items`),
@@ -654,6 +657,8 @@ function renderPilotReadinessSummary() {
   const blockers = readiness.blockers || [];
   const warnings = readiness.warnings || [];
   const commands = readiness.commands || {};
+  const ops = state.opsSummary;
+  const http = ops?.http || {};
 
   return `
     <article class="panel pilot-summary">
@@ -670,6 +675,14 @@ function renderPilotReadinessSummary() {
         <div class="metric-block"><span>阻塞</span><strong>${escapeHtml(blockers.length)}</strong></div>
         <div class="metric-block"><span>提醒</span><strong>${escapeHtml(warnings.length)}</strong></div>
       </div>
+      ${ops ? `
+        <div class="grid cols-4 pilot-ops-grid">
+          <div class="metric-block"><span>HTTP 请求</span><strong>${escapeHtml(http.total || 0)}</strong></div>
+          <div class="metric-block"><span>HTTP 4xx</span><strong>${escapeHtml(http.clientErrors || 0)}</strong></div>
+          <div class="metric-block"><span>HTTP 5xx</span><strong>${escapeHtml(http.serverErrors || 0)}</strong></div>
+          <div class="metric-block"><span>平均/最大耗时</span><strong>${escapeHtml(http.avgDurationMs || 0)}ms / ${escapeHtml(http.maxDurationMs || 0)}ms</strong></div>
+        </div>
+      ` : ""}
       <div class="pilot-summary-grid">
         <section>
           <h4>阻塞</h4>
@@ -704,9 +717,18 @@ function renderPilotReadinessSummary() {
           `).join("") : `<li><strong>READY</strong><span>必需试点项已完成。</span></li>`}
         </ul>
       </section>
+      ${ops?.nextActions?.length ? `
+        <section class="pilot-required-list">
+          <h4>运维下一步</h4>
+          <ul class="compact-list">
+            ${ops.nextActions.map((item) => `<li><span>${escapeHtml(item)}</span>${renderCopyableText(item)}</li>`).join("")}
+          </ul>
+        </section>
+      ` : ""}
       <div class="actions">
         <button class="ghost" onclick="window.open('/pilot/readiness', '_blank')">打开就绪 JSON</button>
         <button class="ghost" onclick="window.open('/pilot/checklist', '_blank')">打开演练清单</button>
+        <button class="ghost" onclick="window.open('/ops/summary', '_blank')">打开运维摘要</button>
       </div>
     </article>
   `;
