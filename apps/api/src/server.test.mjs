@@ -347,6 +347,29 @@ test("storage checkpoint endpoint creates and restores a named checkpoint", asyn
   assert.equal(project.body.projectSummaries.some((item) => item.name === "临时试点项目"), false);
 });
 
+test("demo reset endpoint requires explicit confirmation and persists reset", async () => {
+  const denied = await dispatch("/demo/reset", { method: "POST", body: JSON.stringify({}) });
+  assert.equal(denied.status, 400);
+  assert.equal(denied.body.error, "重置演示数据需要 confirm: true");
+
+  const created = await dispatch("/projects", {
+    method: "POST",
+    body: JSON.stringify({ name: "待重置试点项目", productLine: "Pilot" }),
+  });
+  assert.equal(created.status, 201);
+
+  const reset = await dispatch("/demo/reset", {
+    method: "POST",
+    body: JSON.stringify({ confirm: true }),
+  });
+  assert.equal(reset.status, 200);
+  assert.equal(reset.body.project.id, "project-smart-controller");
+  assert.equal(reset.body.projectSummaries.some((item) => item.name === "待重置试点项目"), false);
+
+  const storage = await dispatch("/storage/status");
+  assert.equal(storage.body.backupExists, true);
+});
+
 test("project endpoint returns the current workflow snapshot", async () => {
   const result = await dispatch("/projects/demo");
 

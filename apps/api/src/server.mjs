@@ -3214,8 +3214,11 @@ export const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {
-      store = createDemoStore();
-      return writeJson(res, 200, getActiveProjectView());
+      const body = await readJson(req);
+      if (body.confirm !== true) {
+        return writeJson(res, 400, validationError("重置演示数据需要 confirm: true").body);
+      }
+      return writeJson(res, 200, resetDemoStore());
     }
 
     if (req.method === "GET" && url.pathname === "/projects/demo") {

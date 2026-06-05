@@ -30,7 +30,7 @@
 | `GET` | `/storage/status` | 查看当前 JSON 存储文件与项目统计 |
 | `GET` | `/storage/doctor` | 检查当前 JSON 存储文件结构与引用完整性 |
 | `POST` | `/storage/restore-backup` | 显式确认后从 `.bak` 恢复当前 JSON 存储 |
-| `POST` | `/demo/reset` | 重置演示数据 |
+| `POST` | `/demo/reset` | 显式确认后重置演示数据 |
 | `GET` | `/projects/demo` | 查看演示项目状态 |
 | `GET` | `/projects/:id/snapshot` | 导出项目快照 JSON |
 | `GET` | `/projects/:id/snapshot.md` | 导出项目快照 Markdown |

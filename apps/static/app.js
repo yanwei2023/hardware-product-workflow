@@ -1649,8 +1649,14 @@ q("#actorUser").addEventListener("change", (event) => {
   withBusy(loadProject);
 });
 q("#resetDemo").addEventListener("click", async () => {
+  if (!confirm("重置后会恢复内置演示数据，并覆盖当前本地数据。确定继续？")) {
+    return;
+  }
   await withBusy(async () => {
-    await api("/demo/reset", { method: "POST" });
+    await api("/demo/reset", {
+      method: "POST",
+      body: JSON.stringify({ confirm: true }),
+    });
     state.selectedWorkPackageId = null;
     await loadProject();
   });

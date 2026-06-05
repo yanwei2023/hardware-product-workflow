@@ -993,7 +993,10 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
           onClick={() => {
             if (!window.confirm("重置后会恢复内置演示数据，并覆盖当前本地数据。确定继续？")) return;
             runAction("演示数据已重置", async () => {
-              await api("/demo/reset", { method: "POST" });
+              await api("/demo/reset", {
+                method: "POST",
+                body: JSON.stringify({ confirm: true }),
+              });
               setSelectedWorkPackageId(null);
             });
           }}
