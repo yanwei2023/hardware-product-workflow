@@ -38,6 +38,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(typeof manifest.operations.httpClientErrors, "number");
   assert.equal(typeof manifest.operations.storageReady, "boolean");
   assert.equal(Array.isArray(manifest.operations.nextActions), true);
+  assert.equal(manifest.commands.check, "npm run pilot:check");
+  assert.equal(manifest.commands.rehearse, "npm run pilot:rehearse");
+  assert.equal(manifest.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
   assert.equal(Array.isArray(manifest.checklist.requiredPending), true);
   assert.equal(manifest.checklist.requiredPending.some((item) => item.key === "checkpoint"), true);
   assert.equal(manifest.checklist.requiredPending.every((item) => item.title && item.action), true);
@@ -64,6 +67,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   const handoffMarkdown = fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8");
   assert.match(handoffMarkdown, /内部试点交接页/);
   assert.match(handoffMarkdown, /\/ops\/summary/);
+  assert.match(handoffMarkdown, /试点命令/);
+  assert.match(handoffMarkdown, /npm run pilot:rehearse/);
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
   assert.match(handoffMarkdown, /未完成必需项/);
   assert.match(handoffMarkdown, /试点前创建数据检查点/);

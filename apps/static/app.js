@@ -726,6 +726,7 @@ function renderPilotReadinessSummary() {
           <h4>试点命令</h4>
           <div class="pilot-command-list">
             ${renderCopyableText(commands.check, commands.check || "检查命令")}
+            ${renderCopyableText(commands.rehearse, commands.rehearse || "演练命令")}
             ${renderCopyableText(commands.archive, commands.archive || "归档命令")}
             ${renderCopyableText(commands.startLan, commands.startLan || "局域网启动")}
           </div>

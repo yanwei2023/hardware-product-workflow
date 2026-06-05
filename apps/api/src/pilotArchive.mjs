@@ -57,6 +57,9 @@ function renderPilotHandoffMarkdown(manifest) {
     .map(([label, filePath]) => `| ${label} | \`${filePath}\` |`)
     .join("\n");
   const nextActions = (operations.nextActions || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外动作。";
+  const commandRows = Object.entries(manifest.commands || {})
+    .map(([label, command]) => `| ${label} | \`${command}\` |`)
+    .join("\n");
 
   return `# 内部试点交接页
 
@@ -91,6 +94,12 @@ function renderPilotHandoffMarkdown(manifest) {
 ## 下一步动作
 
 ${nextActions}
+
+## 试点命令
+
+| 名称 | 命令 |
+| --- | --- |
+${commandRows}
 
 ## 未完成必需项
 
@@ -249,6 +258,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       networkReady: opsSummary.network?.ready || false,
       nextActions: opsSummary.nextActions || [],
     },
+    commands: pilotReadiness.commands || {},
     checklist: {
       requiredPending: requiredPendingChecklistItems,
     },

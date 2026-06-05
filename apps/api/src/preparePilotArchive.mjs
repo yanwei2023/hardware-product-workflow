@@ -9,6 +9,7 @@ console.log(
       manifestPath: result.manifestPath,
       readiness: result.manifest.readiness,
       operations: result.manifest.operations,
+      commands: result.manifest.commands,
       checklist: result.manifest.checklist,
       diagnostics: result.manifest.diagnostics,
       files: result.manifest.files,

@@ -722,6 +722,7 @@ export function getPilotReadinessStatus() {
     checklist,
     commands: {
       check: "npm run pilot:check",
+      rehearse: "npm run pilot:rehearse",
       archive: "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive",
       startLan: "npm run start:lan",
     },

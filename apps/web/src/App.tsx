@@ -873,6 +873,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
       <table className="storage-table">
         <tbody>
           <CommandRow command={pilotReadiness.commands?.check} label="检查命令" />
+          <CommandRow command={pilotReadiness.commands?.rehearse} label="演练命令" />
           <CommandRow command={pilotReadiness.commands?.archive} label="归档命令" />
           <CommandRow command={pilotReadiness.commands?.startLan} label="局域网启动" />
         </tbody>
