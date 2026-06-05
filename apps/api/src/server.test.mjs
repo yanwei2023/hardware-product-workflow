@@ -133,6 +133,9 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
   assert.equal(result.body.links.opsSummary, "/ops/summary");
   assert.equal(result.body.links.checklist, "/pilot/checklist");
+  assert.equal(result.body.links.metrics, "/metrics");
+  assert.equal(result.body.links.storageStatus, "/storage/status");
+  assert.equal(result.body.links.storageDoctor, "/storage/doctor");
   assert.equal(result.body.checklist.summary.requiredTotal > 0, true);
   assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");
   assert.equal(result.body.warnings.some((item) => item.code === "GATE_BLOCKED"), true);

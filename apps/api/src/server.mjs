@@ -734,6 +734,7 @@ export function getPilotReadinessStatus() {
       metrics: "/metrics",
       runtimeConfig: "/runtime/config",
       runtimeNetwork: "/runtime/network",
+      storageStatus: "/storage/status",
       storageDoctor: "/storage/doctor",
       projectSnapshot: project ? `/projects/${project.id}/snapshot.md` : null,
       riskRegister: project ? `/projects/${project.id}/risk-register.md` : null,

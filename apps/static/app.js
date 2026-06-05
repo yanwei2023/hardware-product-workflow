@@ -755,6 +755,9 @@ function renderPilotReadinessSummary() {
         <button class="ghost" onclick="window.open('/pilot/readiness', '_blank')">打开就绪 JSON</button>
         <button class="ghost" onclick="window.open('/pilot/checklist', '_blank')">打开演练清单</button>
         <button class="ghost" onclick="window.open('/ops/summary', '_blank')">打开运维摘要</button>
+        <button class="ghost" onclick="window.open('/metrics', '_blank')">Metrics</button>
+        <button class="ghost" onclick="window.open('/storage/status', '_blank')">Store 状态</button>
+        <button class="ghost" onclick="window.open('/storage/doctor', '_blank')">Store Doctor</button>
       </div>
     </article>
   `;

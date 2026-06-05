@@ -90,6 +90,8 @@ http://localhost:3001/ready
 http://localhost:3001/pilot/readiness
 http://localhost:3001/pilot/checklist
 http://localhost:3001/ops/summary
+http://localhost:3001/storage/status
+http://localhost:3001/storage/doctor
 http://localhost:3001/runtime/network
 http://localhost:3001/runtime/config
 http://localhost:3001/metrics

@@ -82,12 +82,14 @@ HOST=0.0.0.0 PORT=3100 npm start
 http://localhost:3001/health
 http://localhost:3001/ready
 http://localhost:3001/ops/summary
+http://localhost:3001/storage/status
+http://localhost:3001/storage/doctor
 http://localhost:3001/runtime/network
 http://localhost:3001/runtime/config
 http://localhost:3001/metrics
 ```
 
-`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/ops/summary` 会聚合服务、网络、HTTP 错误计数、store、试点阶段门和下一步动作；`/runtime/network` 会列出本机访问地址、可尝试的局域网 URL、当前是否 LAN 模式，以及是否只监听本机地址；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/ops/summary` 会聚合服务、网络、HTTP 错误计数、store、试点阶段门和下一步动作；`/storage/status` 和 `/storage/doctor` 用于检查数据文件、备份和检查点；`/runtime/network` 会列出本机访问地址、可尝试的局域网 URL、当前是否 LAN 模式，以及是否只监听本机地址；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
 
 页面“项目 -> 本地数据状态 -> 访问地址”也会显示这些地址。如果看到 `LOOPBACK_ONLY` 提醒，说明当前不是局域网监听模式，需要用 `npm run start:lan` 重新启动。
 
