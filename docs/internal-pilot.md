@@ -26,10 +26,30 @@ npm run pilot:check
 
 - 完整单元测试、React 构建、API smoke 和 store doctor；
 - PostgreSQL schema/migration/export/import bundle 校验；
+- 生成一份试点归档包到 `/tmp/hardware-flow-pilot-archive`；
 - diff 空白检查；
 - PostgreSQL 导入包 preflight。
 
 如果没有配置 `DATABASE_URL` 或本机没有 `psql`，preflight 会报告 blockers，但不会让试点检查失败。当前试点仍使用 JSON store 持久化；这些 blockers 只表示 PostgreSQL 运行时切换尚未完成。
+
+## 试点归档包
+
+内部评审会或会后归档前，可以手动生成一份完整材料包：
+
+```text
+npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
+```
+
+归档包包含：
+
+- 项目快照 JSON/Markdown；
+- 风险台账 JSON/Markdown；
+- 当前阶段门审核包 JSON/Markdown；
+- 最近一次阶段门批准包 JSON/Markdown（如果已批准）；
+- runtime config、storage status、storage doctor；
+- PostgreSQL 导入包和 `pilot-archive-manifest.json`。
+
+`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、storage 校验结果和 PostgreSQL 导入包校验结果，方便试点负责人快速判断这份材料是否可交付。
 
 ## 启动方式
 

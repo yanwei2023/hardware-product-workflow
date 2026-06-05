@@ -519,7 +519,7 @@ function attachAccessLog(req, res, url) {
   });
 }
 
-function renderGateReviewPackMarkdown(pack) {
+export function renderGateReviewPackMarkdown(pack) {
   const evidenceRows = pack.evidence
     .map(
       (item) =>
@@ -574,7 +574,7 @@ ${blockerRows}
 `;
 }
 
-function renderProjectSnapshotMarkdown(snapshot) {
+export function renderProjectSnapshotMarkdown(snapshot) {
   const phaseRows = snapshot.phases
     .map((phase) => `| ${phase.sequence} | ${phase.name} | ${phase.status} |`)
     .join("\n");
@@ -765,7 +765,7 @@ ${draft}
 `;
 }
 
-function renderRiskRegisterMarkdown(register) {
+export function renderRiskRegisterMarkdown(register) {
   const riskRows = register.risks.length
     ? register.risks
         .map(

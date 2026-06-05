@@ -14,7 +14,7 @@
     "dev:api": "npm --workspace apps/api run dev",
     "check": "npm test && npm run web:build && npm run smoke && npm run store:doctor && npm run db:migration-check && npm run db:schema-check && npm run db:export-report && npm run db:export-rows -- /tmp/hardware-flow-postgres-rows.json && npm run db:export-seed -- /tmp/hardware-flow-postgres-seed.sql && npm run db:prepare-import -- /tmp/hardware-flow-postgres-import && npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import",
     "release:check": "npm run check && git diff --check",
-    "pilot:check": "npm run release:check && npm run db:preflight -- /tmp/hardware-flow-postgres-import",
+    "pilot:check": "npm run release:check && npm run pilot:archive -- /tmp/hardware-flow-pilot-archive && npm run db:preflight -- /tmp/hardware-flow-postgres-import",
     "test": "node --test apps/api/src/*.test.mjs",
     "smoke": "node apps/api/src/smoke.mjs",
     "store:doctor": "node apps/api/src/storeDoctor.mjs",
@@ -30,6 +30,7 @@
     "db:verify-import-bundle": "node apps/api/src/verifyPostgresImportBundle.mjs",
     "db:preflight": "node apps/api/src/postgresPreflightCli.mjs",
     "db:schema-check": "node apps/api/src/postgresSchemaCheck.mjs",
+    "pilot:archive": "node apps/api/src/preparePilotArchive.mjs",
     "agent:sample": "python3 agents/worker/worker.py"
   }
 }
