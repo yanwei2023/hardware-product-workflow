@@ -38,6 +38,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(typeof manifest.operations.httpClientErrors, "number");
   assert.equal(typeof manifest.operations.storageReady, "boolean");
   assert.equal(Array.isArray(manifest.operations.nextActions), true);
+  assert.equal(Array.isArray(manifest.checklist.requiredPending), true);
+  assert.equal(manifest.checklist.requiredPending.some((item) => item.key === "checkpoint"), true);
+  assert.equal(manifest.checklist.requiredPending.every((item) => item.title && item.action), true);
   assert.equal(manifest.diagnostics.readiness, "/pilot/readiness");
   assert.equal(manifest.diagnostics.opsSummary, "/ops/summary");
   assert.equal(manifest.diagnostics.metrics, "/metrics");
@@ -62,6 +65,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /内部试点交接页/);
   assert.match(handoffMarkdown, /\/ops\/summary/);
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
+  assert.match(handoffMarkdown, /未完成必需项/);
+  assert.match(handoffMarkdown, /试点前创建数据检查点/);
+  assert.match(handoffMarkdown, /下一步：项目 -> 本地数据状态 -> 创建检查点/);
   assert.match(handoffMarkdown, /postgres-import\/postgres-import-manifest\.json/);
   assert.match(handoffMarkdown, /表计数：/);
   assert.match(handoffMarkdown, /一次性命令：`psql "\$DATABASE_URL" -f schemas\/database\.sql && psql "\$DATABASE_URL" -f /);

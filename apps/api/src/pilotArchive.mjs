@@ -43,6 +43,13 @@ function renderPilotHandoffMarkdown(manifest) {
       .map(([label, count]) => `${label}=${count}`)
       .join(", ") || "-";
   const postgresErrors = (postgresImport.errors || []).map((item) => `- ${item}`).join("\n") || "- 无";
+  const requiredPendingRows =
+    (manifest.checklist?.requiredPending || [])
+      .map(
+        (item) =>
+          `- ${item.title}：${item.done}/${item.total}，${item.detail}${item.action ? ` 下一步：${item.action}` : ""}`,
+      )
+      .join("\n") || "- 无未完成必需项。";
   const diagnosticsRows = Object.entries(manifest.diagnostics || {})
     .map(([label, endpoint]) => `| ${label} | \`${endpoint}\` |`)
     .join("\n");
@@ -84,6 +91,10 @@ function renderPilotHandoffMarkdown(manifest) {
 ## 下一步动作
 
 ${nextActions}
+
+## 未完成必需项
+
+${requiredPendingRows}
 
 ## PostgreSQL 导入包
 
@@ -165,6 +176,17 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   const storageDoctor = getStorageDoctorStatus();
   const pilotReadiness = getPilotReadinessStatus();
   const pilotChecklist = getPilotChecklistStatus();
+  const requiredPendingChecklistItems = (pilotChecklist.items || [])
+    .filter((item) => item.severity === "REQUIRED" && item.status !== "DONE")
+    .map((item) => ({
+      key: item.key,
+      title: item.title,
+      status: item.status,
+      done: item.done,
+      total: item.total,
+      detail: item.detail,
+      action: item.action,
+    }));
   const opsSummary = getOpsSummaryStatus();
   const sourceStore = loadStoreFromDisk() || createDemoStore();
 
@@ -226,6 +248,9 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       storageReady: opsSummary.storage?.ready || false,
       networkReady: opsSummary.network?.ready || false,
       nextActions: opsSummary.nextActions || [],
+    },
+    checklist: {
+      requiredPending: requiredPendingChecklistItems,
     },
     diagnostics: {
       readiness: pilotReadiness.links?.readiness || "/pilot/readiness",
