@@ -237,7 +237,22 @@ h3 {
   border: 1px solid #a9dbc6;
   border-radius: 6px;
   color: #176044;
+  display: grid;
+  gap: 4px;
   padding: 10px 12px;
+}
+
+.message strong {
+  font-size: 13px;
+}
+
+.message span {
+  line-height: 1.45;
+}
+
+.message-detail {
+  color: inherit;
+  opacity: 0.78;
 }
 
 .message.error {

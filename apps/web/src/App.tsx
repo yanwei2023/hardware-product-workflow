@@ -64,6 +64,13 @@ const apiBase = import.meta.env.VITE_API_BASE || "";
 
 type ApiRequestOptions = RequestInit & { allowError?: boolean };
 
+type UiMessage = {
+  kind: "success" | "error";
+  text: string;
+  requestId?: string | null;
+  serviceVersion?: string | null;
+};
+
 class ApiError extends Error {
   requestId: string | null;
   serviceVersion: string | null;
@@ -76,11 +83,20 @@ class ApiError extends Error {
   }
 }
 
-function apiErrorMessage(error: unknown) {
+function successMessage(text: string): UiMessage {
+  return { kind: "success", text };
+}
+
+function errorMessage(error: unknown): UiMessage {
   if (error instanceof ApiError) {
-    return error.requestId ? `${error.message} · 请求ID ${error.requestId}` : error.message;
+    return {
+      kind: "error",
+      text: error.message,
+      requestId: error.requestId,
+      serviceVersion: error.serviceVersion,
+    };
   }
-  return error instanceof Error ? error.message : String(error);
+  return { kind: "error", text: error instanceof Error ? error.message : String(error) };
 }
 
 async function api(path: string, options: ApiRequestOptions = {}) {
@@ -183,7 +199,7 @@ export function App() {
   const [selectedWorkPackageId, setSelectedWorkPackageId] = useState<string | null>(null);
   const [notificationFilter, setNotificationFilter] = useState("ALL");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<UiMessage | null>(null);
 
   const activePhase = useMemo(
     () => state.project?.phases.find((phase: any) => phase.id === state.project.project.currentPhaseId),
@@ -242,13 +258,13 @@ export function App() {
   async function runAction(label: string, action: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
-    setMessage("");
+    setMessage(null);
     try {
       await action();
       await load();
-      setMessage(label);
+      setMessage(successMessage(label));
     } catch (error) {
-      setMessage(apiErrorMessage(error));
+      setMessage(errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -260,15 +276,15 @@ export function App() {
   }
 
   useEffect(() => {
-    load().catch((error) => setMessage(apiErrorMessage(error)));
+    load().catch((error) => setMessage(errorMessage(error)));
   }, []);
 
   useEffect(() => {
-    load(actorUserId).catch((error) => setMessage(apiErrorMessage(error)));
+    load(actorUserId).catch((error) => setMessage(errorMessage(error)));
   }, [actorUserId]);
 
   useEffect(() => {
-    reloadNotifications().catch((error) => setMessage(apiErrorMessage(error)));
+    reloadNotifications().catch((error) => setMessage(errorMessage(error)));
   }, [notificationFilter]);
 
   if (!state.project) {
@@ -313,7 +329,19 @@ export function App() {
           </div>
         </header>
 
-        {message ? <div className={message.includes("错误") || message.includes("无权") ? "message error" : "message"}>{message}</div> : null}
+        {message ? (
+          <div className={message.kind === "error" ? "message error" : "message"} role={message.kind === "error" ? "alert" : "status"}>
+            <strong>{message.kind === "error" ? "操作失败" : "操作完成"}</strong>
+            <span>{message.text}</span>
+            {message.requestId || message.serviceVersion ? (
+              <small className="message-detail">
+                {message.requestId ? `请求ID ${message.requestId}` : ""}
+                {message.requestId && message.serviceVersion ? " · " : ""}
+                {message.serviceVersion ? `版本 ${message.serviceVersion}` : ""}
+              </small>
+            ) : null}
+          </div>
+        ) : null}
 
         {view === "overview" ? (
           <Overview
