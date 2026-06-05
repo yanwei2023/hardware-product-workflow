@@ -32,6 +32,16 @@ const firstPilotBoundaries = [
   "多人高并发编辑冲突处理不作为第一轮内部试点验收项。",
 ];
 
+const firstPilotAcceptanceCriteria = [
+  "参与者可以独立完成工作包生成、审核、风险处理和阶段门批准。",
+  "待办和通知能帮助成员找到自己下一步动作。",
+  "阶段门审核包可以直接用于一次内部评审会。",
+  "项目快照和 Markdown 导出足够用于会后归档。",
+  "审计记录能回答“谁在什么时候做了什么”。",
+  "npm run pilot:check 通过，且 /ready 返回 200。",
+  "试点期间没有出现数据文件损坏；如出现，能通过 .bak 恢复。",
+];
+
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -72,6 +82,7 @@ function renderPilotHandoffMarkdown(manifest) {
     .join("\n");
   const dataProtection = manifest.dataProtection || {};
   const latestCheckpoint = dataProtection.latestCheckpoint;
+  const acceptanceRows = (manifest.acceptanceCriteria || []).map((item) => `- ${item}`).join("\n") || "- 暂无验收标准。";
   const boundaryRows = (manifest.boundaries || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外边界。";
 
   return `# 内部试点交接页
@@ -127,6 +138,10 @@ ${requiredPendingRows}
 - 最近检查点路径：\`${latestCheckpoint?.filePath || "-"}\`
 - 备份恢复命令：\`${dataProtection.restoreBackupCommand || "-"}\`
 - 检查命令：\`${dataProtection.storeDoctorCommand || "-"}\`
+
+## 第一轮验收标准
+
+${acceptanceRows}
 
 ## 第一轮试点边界
 
@@ -286,6 +301,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       nextActions: opsSummary.nextActions || [],
     },
     commands: pilotReadiness.commands || {},
+    acceptanceCriteria: firstPilotAcceptanceCriteria,
     boundaries: firstPilotBoundaries,
     dataProtection: {
       storePath: storageStatus.storePath,
