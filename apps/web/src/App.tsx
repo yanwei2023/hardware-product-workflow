@@ -179,6 +179,18 @@ function openApiPath(path: string) {
   window.open(`${apiBase}${path}`, "_blank", "noopener,noreferrer");
 }
 
+async function copyText(text: string) {
+  if (!navigator.clipboard?.writeText) {
+    window.open(text, "_blank", "noopener,noreferrer");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    window.open(text, "_blank", "noopener,noreferrer");
+  }
+}
+
 export function App() {
   const [state, setState] = useState<ApiState>({
     project: null,
@@ -885,12 +897,12 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <div className="network-list">
           <div>
             <strong>本机访问</strong>
-            {(runtimeNetwork?.localUrls || []).map((url: string) => <button className="link-button" key={url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{url}</button>)}
+            {(runtimeNetwork?.localUrls || []).map((url: string) => <NetworkUrl key={url} url={url} />)}
           </div>
           <div>
             <strong>局域网访问</strong>
             {(runtimeNetwork?.lanUrls || []).length ? runtimeNetwork.lanUrls.map((url: string) => (
-              <button className="link-button" key={url} onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{url}</button>
+              <NetworkUrl key={url} url={url} />
             )) : <span className="muted">未发现可用 IPv4 地址</span>}
           </div>
         </div>
@@ -1021,6 +1033,23 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         </section>
       ) : null}
     </>
+  );
+}
+
+function NetworkUrl({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    await copyText(url);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className="network-url">
+      <button className="link-button" onClick={() => window.open(url, "_blank", "noopener,noreferrer")}>{url}</button>
+      <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制"}</button>
+    </div>
   );
 }
 

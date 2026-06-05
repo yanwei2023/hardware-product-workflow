@@ -411,6 +411,19 @@ h3 {
   font-size: 12px;
 }
 
+.network-url {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.network-url .link-button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
 .network-warnings {
   margin-top: 12px;
 }
@@ -602,6 +615,7 @@ h3 {
   .audit-filters,
   .content-grid,
   .network-list,
+  .network-url,
   .split,
   .evidence-form {
     grid-template-columns: 1fr;
