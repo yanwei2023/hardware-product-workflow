@@ -9,6 +9,7 @@ console.log(
       manifestPath: result.manifestPath,
       readiness: result.manifest.readiness,
       operations: result.manifest.operations,
+      diagnostics: result.manifest.diagnostics,
       files: result.manifest.files,
       postgresImport: result.manifest.postgresImport,
     },
