@@ -9,6 +9,8 @@ import {
   getDemoProject,
   getGateApprovalPack,
   getGateReviewPack,
+  getPilotChecklistStatus,
+  getPilotReadinessStatus,
   getProjectRiskRegister,
   getProjectSnapshot,
   getRuntimeConfigStatus,
@@ -82,6 +84,8 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   const runtimeConfig = getRuntimeConfigStatus();
   const storageStatus = getStorageStatus();
   const storageDoctor = getStorageDoctorStatus();
+  const pilotReadiness = getPilotReadinessStatus();
+  const pilotChecklist = getPilotChecklistStatus();
   const sourceStore = loadStoreFromDisk() || createDemoStore();
 
   const files = {
@@ -92,6 +96,8 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     runtimeConfigJson: path.join(resolvedOutputDir, "runtime-config.json"),
     storageStatusJson: path.join(resolvedOutputDir, "storage-status.json"),
     storageDoctorJson: path.join(resolvedOutputDir, "storage-doctor.json"),
+    pilotReadinessJson: path.join(resolvedOutputDir, "pilot-readiness.json"),
+    pilotChecklistJson: path.join(resolvedOutputDir, "pilot-checklist.json"),
   };
 
   writeJson(files.snapshotJson, snapshot);
@@ -101,6 +107,8 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeJson(files.runtimeConfigJson, runtimeConfig);
   writeJson(files.storageStatusJson, storageStatus);
   writeJson(files.storageDoctorJson, storageDoctor);
+  writeJson(files.pilotReadinessJson, pilotReadiness);
+  writeJson(files.pilotChecklistJson, pilotChecklist);
 
   if (reviewPack) {
     files.gateReviewPackJson = path.join(resolvedOutputDir, "gate-review-pack.json");
@@ -137,6 +145,9 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       currentGateStatus: reviewPack?.gate?.status || null,
       currentGateReadiness: reviewPack?.readiness?.status || null,
       blockerCount: reviewPack?.summary?.blockerCount || 0,
+      checklistRequiredDone: pilotChecklist.summary.requiredDone,
+      checklistRequiredTotal: pilotChecklist.summary.requiredTotal,
+      checklistPending: pilotChecklist.summary.pending,
     },
     files: Object.fromEntries(Object.entries(files).map(([key, filePath]) => [key, relative(resolvedOutputDir, filePath)])),
     postgresImport: {

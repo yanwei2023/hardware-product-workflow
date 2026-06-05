@@ -23,12 +23,17 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.project.id.length > 0, true);
   assert.equal(manifest.readiness.storageValid, true);
   assert.equal(manifest.readiness.postgresImportValid, true);
+  assert.equal(manifest.readiness.checklistRequiredTotal > 0, true);
   assert.equal(manifest.files.snapshotJson, "project-snapshot.json");
   assert.equal(manifest.files.riskRegisterMarkdown, "risk-register.md");
   assert.equal(manifest.files.gateReviewPackMarkdown, "gate-review-pack.md");
+  assert.equal(manifest.files.pilotReadinessJson, "pilot-readiness.json");
+  assert.equal(manifest.files.pilotChecklistJson, "pilot-checklist.json");
   assert.equal(manifest.postgresImport.manifestPath, "postgres-import/postgres-import-manifest.json");
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotReadinessJson)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotChecklistJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.postgresImport.manifestPath)), true);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);

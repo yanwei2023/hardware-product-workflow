@@ -55,10 +55,11 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 - 风险台账 JSON/Markdown；
 - 当前阶段门审核包 JSON/Markdown；
 - 最近一次阶段门批准包 JSON/Markdown（如果已批准）；
+- 试点就绪状态和试点演练清单 JSON；
 - runtime config、storage status、storage doctor；
 - PostgreSQL 导入包和 `pilot-archive-manifest.json`。
 
-`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、storage 校验结果和 PostgreSQL 导入包校验结果，方便试点负责人快速判断这份材料是否可交付。
+`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、storage 校验结果和 PostgreSQL 导入包校验结果，方便试点负责人快速判断这份材料是否可交付。
 
 ## 启动方式
 
