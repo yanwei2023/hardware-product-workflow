@@ -42,6 +42,20 @@ const firstPilotAcceptanceCriteria = [
   "试点期间没有出现数据文件损坏；如出现，能通过 .bak 恢复。",
 ];
 
+const pilotIssueReportFields = [
+  "发生时间",
+  "报告人和角色",
+  "页面或 API 路径",
+  "请求 ID",
+  "服务版本",
+  "复现步骤",
+  "预期结果",
+  "实际结果",
+  "是否影响阶段门或数据完整性",
+  "已尝试的诊断端点",
+  "是否需要回滚",
+];
+
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -84,6 +98,7 @@ function renderPilotHandoffMarkdown(manifest) {
   const latestCheckpoint = dataProtection.latestCheckpoint;
   const acceptanceRows = (manifest.acceptanceCriteria || []).map((item) => `- ${item}`).join("\n") || "- 暂无验收标准。";
   const boundaryRows = (manifest.boundaries || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外边界。";
+  const issueReport = manifest.issueReport || {};
 
   return `# 内部试点交接页
 
@@ -139,6 +154,12 @@ ${requiredPendingRows}
 - 备份恢复命令：\`${dataProtection.restoreBackupCommand || "-"}\`
 - 检查命令：\`${dataProtection.storeDoctorCommand || "-"}\`
 
+## 试点问题上报
+
+- 上报模板：\`${issueReport.templatePath || "-"}\`
+- 严重度规则：${issueReport.severityGuide || "-"}
+- 必填字段：${(issueReport.requiredFields || []).join("、") || "-"}
+
 ## 第一轮验收标准
 
 ${acceptanceRows}
@@ -170,6 +191,52 @@ ${diagnosticsRows}
 | 名称 | 文件 |
 | --- | --- |
 ${fileRows}
+`;
+}
+
+function renderPilotIssueReportMarkdown(manifest) {
+  const diagnosticsRows = Object.entries(manifest.diagnostics || {})
+    .map(([label, endpoint]) => `- ${label}: \`${endpoint}\``)
+    .join("\n");
+  const fieldRows = (manifest.issueReport?.requiredFields || [])
+    .map((field) => `- ${field}: `)
+    .join("\n");
+  const dataProtection = manifest.dataProtection || {};
+
+  return `# 内部试点问题上报模板
+
+> 试点成员遇到阻塞、数据异常、页面报错或流程疑问时，复制本模板填写。页面顶部错误提示中的请求 ID、服务版本和发生时间请原样保留。
+
+## 基本信息
+
+${fieldRows}
+
+## 严重度
+
+- S1：数据损坏、无法启动、阶段门错误放行或无法回滚。
+- S2：核心流程阻塞，包括工作包生成、审核、风险处理、阶段门批准或导出失败。
+- S3：页面可用性、文案、性能、局域网访问或非关键导出问题。
+
+## 现场诊断
+
+优先打开以下端点并把结果随问题一起归档：
+
+${diagnosticsRows}
+
+## 数据保护
+
+- Store: \`${dataProtection.storePath || "-"}\`
+- 备份: \`${dataProtection.backupPath || "-"}\`
+- 最近检查点: \`${dataProtection.latestCheckpoint?.filePath || "-"}\`
+- 检查命令: \`${dataProtection.storeDoctorCommand || "-"}\`
+- 回滚命令: \`${dataProtection.restoreBackupCommand || "-"}\`
+
+## 处理记录
+
+- 临时处置:
+- 负责人:
+- 下一步:
+- 是否已进入待办或风险台账:
 `;
 }
 
@@ -253,6 +320,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     pilotReadinessJson: path.join(resolvedOutputDir, "pilot-readiness.json"),
     pilotChecklistJson: path.join(resolvedOutputDir, "pilot-checklist.json"),
     opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
+    issueReportMarkdown: path.join(resolvedOutputDir, "pilot-issue-report.md"),
   };
 
   if (reviewPack) {
@@ -303,6 +371,11 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     commands: pilotReadiness.commands || {},
     acceptanceCriteria: firstPilotAcceptanceCriteria,
     boundaries: firstPilotBoundaries,
+    issueReport: {
+      templatePath: "pilot-issue-report.md",
+      severityGuide: "S1 数据/放行/回滚风险，S2 核心流程阻塞，S3 可用性或非关键问题。",
+      requiredFields: pilotIssueReportFields,
+    },
     dataProtection: {
       storePath: storageStatus.storePath,
       backupPath: storageStatus.backupPath || storageDoctor.backupPath,
@@ -338,6 +411,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   };
 
   writeText(files.handoffMarkdown, renderPilotHandoffMarkdown(manifest));
+  writeText(files.issueReportMarkdown, renderPilotIssueReportMarkdown(manifest));
   writeJson(files.snapshotJson, snapshot);
   writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));
   writeJson(files.riskRegisterJson, riskRegister);

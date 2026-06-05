@@ -51,7 +51,8 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 归档包包含：
 
-- 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包和 `psql` 执行命令；
+- 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、试点问题上报、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包和 `psql` 执行命令；
+- 试点问题上报模板 `pilot-issue-report.md`，用于记录请求 ID、服务版本、复现步骤、影响范围、诊断端点和是否需要回滚；
 - 项目快照 JSON/Markdown；
 - 风险台账 JSON/Markdown；
 - 当前阶段门审核包 JSON/Markdown；
@@ -61,7 +62,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 - runtime config、storage status、storage doctor；
 - PostgreSQL 导入包和 `pilot-archive-manifest.json`。
 
-`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、试点命令、未完成必需项、数据保护/回滚状态、第一轮验收标准、第一轮试点边界、运维摘要 ready 状态、storage 校验结果和 PostgreSQL 导入包校验结果，并汇总运维阻塞/警告数量、HTTP 错误计数、下一步动作、常用诊断端点和 `psql` 导入命令，方便试点负责人快速判断这份材料是否可交付。
+`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、试点命令、未完成必需项、数据保护/回滚状态、试点问题上报字段、第一轮验收标准、第一轮试点边界、运维摘要 ready 状态、storage 校验结果和 PostgreSQL 导入包校验结果，并汇总运维阻塞/警告数量、HTTP 错误计数、下一步动作、常用诊断端点和 `psql` 导入命令，方便试点负责人快速判断这份材料是否可交付。
 
 ## 启动方式
 
@@ -104,6 +105,7 @@ http://localhost:3001/metrics
 页面“项目 -> 试点就绪总览”会聚合服务状态、本地 store、当前阶段门阻塞、证据齐备度、风险、审计、通知以及常用导出入口。试点负责人可以先看这个面板判断是否可以组织内部评审或试用。
 其中“试点演练清单”会按当前项目数据列出检查点、角色负责人、工作包排期、Agent 草稿、人类审核、风险处置、通知、审计和归档包等事项的 DONE/PENDING 状态；未完成的必需项也会出现在就绪提醒中，可作为试点主持人的现场脚本。
 如果页面操作失败，顶部会以红色提示显示错误内容、请求 ID 和服务版本；试点参与者反馈问题时应一并截图或复制请求 ID。
+归档包中的 `pilot-issue-report.md` 可以直接作为现场问题模板。S1 代表数据损坏、无法启动、阶段门错误放行或无法回滚；S2 代表工作包生成、审核、风险处理、阶段门批准或导出等核心流程阻塞；S3 代表页面可用性、文案、性能、局域网访问或非关键导出问题。
 
 试点开始前，建议在“项目 -> 本地数据状态”点击“创建检查点”，标签可使用 `pilot-start` 或当天会议名。检查点是当前 JSON store 的显式副本，适合在试点前后做可控回滚。
 

@@ -31,6 +31,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.files.pilotReadinessJson, "pilot-readiness.json");
   assert.equal(manifest.files.pilotChecklistJson, "pilot-checklist.json");
   assert.equal(manifest.files.opsSummaryJson, "ops-summary.json");
+  assert.equal(manifest.files.issueReportMarkdown, "pilot-issue-report.md");
   assert.equal(manifest.readiness.opsSummaryReady, true);
   assert.equal(typeof manifest.operations.blockerCount, "number");
   assert.equal(typeof manifest.operations.warningCount, "number");
@@ -47,6 +48,10 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(Array.isArray(manifest.boundaries), true);
   assert.equal(manifest.boundaries.some((item) => item.includes("用户登录")), true);
   assert.equal(manifest.boundaries.some((item) => item.includes("PostgreSQL 运行时读写")), true);
+  assert.equal(manifest.issueReport.templatePath, "pilot-issue-report.md");
+  assert.equal(manifest.issueReport.requiredFields.includes("请求 ID"), true);
+  assert.equal(manifest.issueReport.requiredFields.includes("是否需要回滚"), true);
+  assert.match(manifest.issueReport.severityGuide, /S1/);
   assert.equal(manifest.dataProtection.storePath, process.env.HARDWARE_FLOW_STORE_PATH);
   assert.ok(manifest.dataProtection.backupPath.endsWith("store.json.bak"));
   assert.equal(manifest.dataProtection.storeDoctorCommand, "npm run store:doctor");
@@ -72,6 +77,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotReadinessJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotChecklistJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.opsSummaryJson)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.issueReportMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.postgresImport.manifestPath)), true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(outputDir, manifest.files.opsSummaryJson), "utf8")).pilot.links.metrics, "/metrics");
   const handoffMarkdown = fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8");
@@ -82,6 +88,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /数据保护和回滚/);
   assert.match(handoffMarkdown, /npm run store:doctor/);
   assert.match(handoffMarkdown, /npm run store:restore-backup/);
+  assert.match(handoffMarkdown, /试点问题上报/);
+  assert.match(handoffMarkdown, /pilot-issue-report\.md/);
+  assert.match(handoffMarkdown, /请求 ID/);
   assert.match(handoffMarkdown, /第一轮验收标准/);
   assert.match(handoffMarkdown, /参与者可以独立完成工作包生成、审核、风险处理和阶段门批准/);
   assert.match(handoffMarkdown, /npm run pilot:check 通过，且 \/ready 返回 200/);
@@ -97,6 +106,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /一次性命令：`psql "\$DATABASE_URL" -f schemas\/database\.sql && psql "\$DATABASE_URL" -f /);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
+  const issueReportMarkdown = fs.readFileSync(path.join(outputDir, "pilot-issue-report.md"), "utf8");
+  assert.match(issueReportMarkdown, /内部试点问题上报模板/);
+  assert.match(issueReportMarkdown, /页面顶部错误提示中的请求 ID/);
+  assert.match(issueReportMarkdown, /S1：数据损坏/);
+  assert.match(issueReportMarkdown, /\/ops\/summary/);
+  assert.match(issueReportMarkdown, /是否已进入待办或风险台账/);
 
   fs.rmSync(outputDir, { recursive: true, force: true });
 });
