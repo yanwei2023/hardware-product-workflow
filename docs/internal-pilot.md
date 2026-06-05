@@ -60,7 +60,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 - runtime config、storage status、storage doctor；
 - PostgreSQL 导入包和 `pilot-archive-manifest.json`。
 
-`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、运维摘要 ready 状态、storage 校验结果和 PostgreSQL 导入包校验结果，并汇总运维阻塞/警告数量、HTTP 错误计数和下一步动作，方便试点负责人快速判断这份材料是否可交付。
+`pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、运维摘要 ready 状态、storage 校验结果和 PostgreSQL 导入包校验结果，并汇总运维阻塞/警告数量、HTTP 错误计数、下一步动作和常用诊断端点，方便试点负责人快速判断这份材料是否可交付。
 
 ## 启动方式
 

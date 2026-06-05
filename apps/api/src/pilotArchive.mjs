@@ -163,6 +163,16 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       networkReady: opsSummary.network?.ready || false,
       nextActions: opsSummary.nextActions || [],
     },
+    diagnostics: {
+      readiness: pilotReadiness.links?.readiness || "/pilot/readiness",
+      checklist: pilotReadiness.links?.checklist || "/pilot/checklist",
+      opsSummary: pilotReadiness.links?.opsSummary || "/ops/summary",
+      metrics: pilotReadiness.links?.metrics || "/metrics",
+      runtimeConfig: pilotReadiness.links?.runtimeConfig || "/runtime/config",
+      runtimeNetwork: pilotReadiness.links?.runtimeNetwork || "/runtime/network",
+      storageStatus: pilotReadiness.links?.storageStatus || "/storage/status",
+      storageDoctor: pilotReadiness.links?.storageDoctor || "/storage/doctor",
+    },
     files: Object.fromEntries(Object.entries(files).map(([key, filePath]) => [key, relative(resolvedOutputDir, filePath)])),
     postgresImport: {
       outputDir: relative(resolvedOutputDir, postgresImport.outputDir),

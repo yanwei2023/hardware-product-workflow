@@ -37,6 +37,11 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(typeof manifest.operations.httpClientErrors, "number");
   assert.equal(typeof manifest.operations.storageReady, "boolean");
   assert.equal(Array.isArray(manifest.operations.nextActions), true);
+  assert.equal(manifest.diagnostics.readiness, "/pilot/readiness");
+  assert.equal(manifest.diagnostics.opsSummary, "/ops/summary");
+  assert.equal(manifest.diagnostics.metrics, "/metrics");
+  assert.equal(manifest.diagnostics.storageStatus, "/storage/status");
+  assert.equal(manifest.diagnostics.storageDoctor, "/storage/doctor");
   assert.equal(manifest.postgresImport.manifestPath, "postgres-import/postgres-import-manifest.json");
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
