@@ -978,7 +978,8 @@ function writeJson(res, statusCode, body) {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type,x-request-id",
+    "access-control-expose-headers": "x-request-id,x-service-version",
     "x-service-version": serviceMetadata.version,
     ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
   });
@@ -989,6 +990,9 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
   res.writeHead(statusCode, {
     "content-type": contentType,
     "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
+    "access-control-allow-headers": "content-type,x-request-id",
+    "access-control-expose-headers": "x-request-id,x-service-version",
     "x-service-version": serviceMetadata.version,
     ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
   });

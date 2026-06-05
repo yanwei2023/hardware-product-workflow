@@ -94,6 +94,8 @@ test("health endpoint reports the active project", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.headers["x-request-id"], "request-health-test");
   assert.match(result.headers["x-service-version"], /^\d+\.\d+\.\d+/);
+  assert.equal(result.headers["access-control-allow-headers"], "content-type,x-request-id");
+  assert.equal(result.headers["access-control-expose-headers"], "x-request-id,x-service-version");
   assert.equal(result.body.ok, true);
   assert.equal(result.body.activeProjectId, "project-smart-controller");
   assert.equal(result.body.projectCount, 1);
@@ -212,6 +214,8 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.headers["content-type"], /text\/plain/);
   assert.match(result.headers["x-service-version"], /^\d+\.\d+\.\d+/);
   assert.match(result.headers["x-request-id"], /^[0-9a-f-]+$/);
+  assert.equal(result.headers["access-control-allow-headers"], "content-type,x-request-id");
+  assert.equal(result.headers["access-control-expose-headers"], "x-request-id,x-service-version");
   assert.match(result.body, /# TYPE hardware_flow_ready gauge/);
   assert.match(result.body, /hardware_flow_ready 1/);
   assert.match(result.body, /# TYPE hardware_flow_shutting_down gauge/);

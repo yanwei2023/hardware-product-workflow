@@ -91,7 +91,7 @@ http://localhost:3001/metrics
 
 页面“项目 -> 本地数据状态 -> 访问地址”也会显示这些地址。如果看到 `LOOPBACK_ONLY` 提醒，说明当前不是局域网监听模式，需要用 `npm run start:lan` 重新启动。
 
-所有响应会带 `x-service-version` 和 `x-request-id`。如果调用方传入 `x-request-id`，服务端会原样返回；否则服务端生成一个，方便对齐访问日志和前端报错。
+所有响应会带 `x-service-version` 和 `x-request-id`。如果调用方传入 `x-request-id`，服务端会原样返回；否则服务端生成一个。跨端口页面也可以通过 CORS 读取这两个响应头，方便对齐访问日志和前端报错。
 
 ## 数据文件
 

@@ -63,7 +63,7 @@
 | `POST` | `/notifications/:id/read` | 将站内通知标记为已读 |
 | `POST` | `/users/:id/notifications/read` | 将指定用户在当前项目中的全部通知标记为已读 |
 
-所有 API 响应都会带上 `x-service-version`；请求未提供 `x-request-id` 时服务端会生成一个，请求提供时会透传，便于把前端报错、访问日志和后端响应串起来。
+所有 API 响应都会带上 `x-service-version`；请求未提供 `x-request-id` 时服务端会生成一个，请求提供时会透传。CORS 会允许并暴露 `x-request-id` 和 `x-service-version`，便于把前端报错、访问日志和后端响应串起来。
 
 `/ops/summary` 会聚合 `/ready`、`/runtime/config`、`/runtime/network`、`/storage/status`、HTTP 计数和试点就绪状态，适合内部试点主持人在现场快速判断服务、网络、store、阶段门和下一步动作。
 
