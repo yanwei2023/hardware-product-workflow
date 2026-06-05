@@ -853,12 +853,35 @@ function PilotReadiness({ pilotReadiness }: any) {
       ) : null}
       <table className="storage-table">
         <tbody>
-          <tr><th>检查命令</th><td>{pilotReadiness.commands?.check || "-"}</td></tr>
-          <tr><th>归档命令</th><td>{pilotReadiness.commands?.archive || "-"}</td></tr>
-          <tr><th>局域网启动</th><td>{pilotReadiness.commands?.startLan || "-"}</td></tr>
+          <CommandRow command={pilotReadiness.commands?.check} label="检查命令" />
+          <CommandRow command={pilotReadiness.commands?.archive} label="归档命令" />
+          <CommandRow command={pilotReadiness.commands?.startLan} label="局域网启动" />
         </tbody>
       </table>
     </>
+  );
+}
+
+function CommandRow({ command, label }: { command?: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    if (!command) return;
+    await copyText(command);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <tr>
+      <th>{label}</th>
+      <td>
+        <div className="command-copy">
+          <code>{command || "-"}</code>
+          <button className="ghost" disabled={!command} onClick={onCopy}>{copied ? "已复制" : "复制"}</button>
+        </div>
+      </td>
+    </tr>
   );
 }
 
