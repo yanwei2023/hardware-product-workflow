@@ -52,8 +52,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.opsSummaryJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.postgresImport.manifestPath)), true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(outputDir, manifest.files.opsSummaryJson), "utf8")).pilot.links.metrics, "/metrics");
-  assert.match(fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8"), /内部试点交接页/);
-  assert.match(fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8"), /\/ops\/summary/);
+  const handoffMarkdown = fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8");
+  assert.match(handoffMarkdown, /内部试点交接页/);
+  assert.match(handoffMarkdown, /\/ops\/summary/);
+  assert.match(handoffMarkdown, /PostgreSQL 导入包/);
+  assert.match(handoffMarkdown, /postgres-import\/postgres-import-manifest\.json/);
+  assert.match(handoffMarkdown, /表计数：/);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
 

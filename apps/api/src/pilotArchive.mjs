@@ -37,6 +37,12 @@ function relative(outputDir, filePath) {
 function renderPilotHandoffMarkdown(manifest) {
   const readiness = manifest.readiness;
   const operations = manifest.operations;
+  const postgresImport = manifest.postgresImport || {};
+  const postgresCounts =
+    Object.entries(postgresImport.counts || {})
+      .map(([label, count]) => `${label}=${count}`)
+      .join(", ") || "-";
+  const postgresErrors = (postgresImport.errors || []).map((item) => `- ${item}`).join("\n") || "- 无";
   const diagnosticsRows = Object.entries(manifest.diagnostics || {})
     .map(([label, endpoint]) => `| ${label} | \`${endpoint}\` |`)
     .join("\n");
@@ -78,6 +84,15 @@ function renderPilotHandoffMarkdown(manifest) {
 ## 下一步动作
 
 ${nextActions}
+
+## PostgreSQL 导入包
+
+- 状态：${postgresImport.valid ? "READY" : "BLOCKED"}
+- 目录：\`${postgresImport.outputDir || "-"}\`
+- Manifest：\`${postgresImport.manifestPath || "-"}\`
+- 表计数：${postgresCounts}
+- 错误：
+${postgresErrors}
 
 ## 诊断端点
 
