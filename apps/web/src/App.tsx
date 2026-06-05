@@ -179,15 +179,23 @@ function openApiPath(path: string) {
   window.open(`${apiBase}${path}`, "_blank", "noopener,noreferrer");
 }
 
+function fallbackCopyText(text: string) {
+  if (/^https?:\/\//i.test(text)) {
+    window.open(text, "_blank", "noopener,noreferrer");
+    return;
+  }
+  window.prompt("复制以下内容", text);
+}
+
 async function copyText(text: string) {
   if (!navigator.clipboard?.writeText) {
-    window.open(text, "_blank", "noopener,noreferrer");
+    fallbackCopyText(text);
     return;
   }
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    window.open(text, "_blank", "noopener,noreferrer");
+    fallbackCopyText(text);
   }
 }
 

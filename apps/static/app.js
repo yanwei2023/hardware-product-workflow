@@ -503,16 +503,24 @@ async function copyNetworkUrl(url) {
   await copyTextValue(url, `已复制访问地址：${url}`);
 }
 
+function fallbackCopyTextValue(value) {
+  if (/^https?:\/\//i.test(value)) {
+    window.open(value, "_blank");
+    return;
+  }
+  window.prompt("复制以下内容", value);
+}
+
 async function copyTextValue(value, message = "已复制。") {
   if (!navigator.clipboard?.writeText) {
-    window.open(value, "_blank");
+    fallbackCopyTextValue(value);
     return;
   }
   try {
     await navigator.clipboard.writeText(value);
     setMessage(successMessage(message));
   } catch {
-    window.open(value, "_blank");
+    fallbackCopyTextValue(value);
   }
 }
 
