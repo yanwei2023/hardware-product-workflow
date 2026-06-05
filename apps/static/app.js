@@ -403,7 +403,8 @@ function renderStorageStatus() {
   }
   const doctorErrors = doctor?.errors || [];
   const backupErrors = doctor?.backupErrors || [];
-  const latestCheckpoint = status.checkpoints?.[0] || null;
+  const checkpoints = status.checkpoints || [];
+  const latestCheckpoint = checkpoints[0] || null;
 
   return `
     ${renderRuntimeNetwork()}
@@ -430,6 +431,23 @@ function renderStorageStatus() {
       <button class="secondary" onclick="restoreStorageCheckpoint(${jsStringAttr(latestCheckpoint?.filePath || "")})" ${state.busy || !latestCheckpoint ? "disabled" : ""}>恢复最新检查点</button>
       <button class="secondary" onclick="restoreStorageBackup()" ${state.busy || !status.backupExists ? "disabled" : ""}>从备份恢复</button>
     </div>
+    <section class="subpanel">
+      <h4>最近检查点</h4>
+      ${checkpoints.length ? `
+        <ul class="checkpoint-list">
+          ${checkpoints.slice(0, 5).map((checkpoint) => `
+            <li>
+              <div>
+                <strong>${escapeHtml(checkpoint.fileName)}</strong>
+                <span class="muted">${escapeHtml(checkpoint.updatedAt || "-")} · ${escapeHtml(checkpoint.sizeBytes || 0)} bytes</span>
+                ${renderCopyableText(checkpoint.filePath)}
+              </div>
+              <button class="secondary" onclick="restoreStorageCheckpoint(${jsStringAttr(checkpoint.filePath)})" ${state.busy ? "disabled" : ""}>恢复</button>
+            </li>
+          `).join("")}
+        </ul>
+      ` : `<p class="muted">暂无检查点。试点开始前建议创建 pilot-start 检查点。</p>`}
+    </section>
     ${doctorErrors.length ? `
       <section class="subpanel">
         <h4>数据问题</h4>
@@ -544,7 +562,7 @@ async function restoreStorageCheckpoint(checkpointPath) {
   if (!checkpointPath) {
     return;
   }
-  if (!confirm("将用最新检查点覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) {
+  if (!confirm("将用所选检查点覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) {
     return;
   }
 

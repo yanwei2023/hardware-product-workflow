@@ -498,6 +498,29 @@ h3 {
   padding-bottom: 10px;
 }
 
+.checkpoint-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkpoint-list li {
+  align-items: start;
+  border-bottom: 1px solid #edf1f5;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 10px;
+}
+
+.checkpoint-list li > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .table-stack {
   display: grid;
   gap: 5px;
@@ -663,6 +686,7 @@ h3 {
   .content-grid,
   .command-copy,
   .copyable-text,
+  .checkpoint-list li,
   .network-list,
   .network-url,
   .split,

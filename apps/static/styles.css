@@ -464,6 +464,29 @@ textarea {
   overflow-wrap: anywhere;
 }
 
+.checkpoint-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkpoint-list li {
+  align-items: start;
+  border-bottom: 1px solid #edf1f5;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 10px;
+}
+
+.checkpoint-list li > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .compact-list {
   display: grid;
   gap: 8px;
@@ -581,6 +604,7 @@ textarea {
   .grid.cols-4,
   .grid.cols-3,
   .copyable-text,
+  .checkpoint-list li,
   .inline-form,
   .network-list,
   .network-summary,

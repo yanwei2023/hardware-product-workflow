@@ -977,11 +977,24 @@ function CommandRow({ command, label }: { command?: string; label: string }) {
 function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetrics, runtimeNetwork, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
   const doctorErrors = storageDoctor?.errors || [];
   const backupErrors = storageDoctor?.backupErrors || [];
-  const latestCheckpoint = storageStatus?.checkpoints?.[0] || null;
+  const checkpoints = storageStatus?.checkpoints || [];
+  const latestCheckpoint = checkpoints[0] || null;
   const metric = (name: string) => runtimeMetrics?.[name] ?? 0;
 
   if (!storageStatus) {
     return <p className="muted">本地数据状态加载中。</p>;
+  }
+
+  function restoreCheckpoint(checkpoint: any) {
+    if (!checkpoint) return;
+    if (!window.confirm(`将用检查点 ${checkpoint.fileName} 覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？`)) return;
+    runAction("已从检查点恢复本地数据", async () => {
+      await api("/storage/restore-checkpoint", {
+        method: "POST",
+        body: JSON.stringify({ confirm: true, checkpointPath: checkpoint.filePath }),
+      });
+      setSelectedWorkPackageId(null);
+    });
   }
 
   return (
@@ -1071,6 +1084,23 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
           </tr>
         </tbody>
       </table>
+      <section className="subpanel">
+        <h3>最近检查点</h3>
+        {checkpoints.length ? (
+          <ul className="checkpoint-list">
+            {checkpoints.slice(0, 5).map((checkpoint: any) => (
+              <li key={checkpoint.filePath}>
+                <div>
+                  <strong>{checkpoint.fileName}</strong>
+                  <span className="muted">{checkpoint.updatedAt || "-"} · {checkpoint.sizeBytes || 0} bytes</span>
+                  <CopyableText value={checkpoint.filePath} />
+                </div>
+                <button className="ghost" disabled={busy} onClick={() => restoreCheckpoint(checkpoint)}>恢复</button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="muted">暂无检查点。试点开始前建议创建 `pilot-start` 检查点。</p>}
+      </section>
       <div className="actions storage-actions">
         <button className="ghost" onClick={() => openApiPath("/runtime/config")}>打开运行配置</button>
         <button className="ghost" onClick={() => openApiPath("/ops/summary")}>打开运维摘要</button>
@@ -1093,15 +1123,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
           className="ghost"
           disabled={busy || !latestCheckpoint}
           onClick={() => {
-            if (!latestCheckpoint) return;
-            if (!window.confirm(`将用检查点 ${latestCheckpoint.fileName} 覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？`)) return;
-            runAction("已从检查点恢复本地数据", async () => {
-              await api("/storage/restore-checkpoint", {
-                method: "POST",
-                body: JSON.stringify({ confirm: true, checkpointPath: latestCheckpoint.filePath }),
-              });
-              setSelectedWorkPackageId(null);
-            });
+            restoreCheckpoint(latestCheckpoint);
           }}
         >
           恢复最新检查点
