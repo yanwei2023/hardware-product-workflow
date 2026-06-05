@@ -9,6 +9,7 @@ import {
   getDemoProject,
   getGateApprovalPack,
   getGateReviewPack,
+  getOpsSummaryStatus,
   getPilotChecklistStatus,
   getPilotReadinessStatus,
   getProjectRiskRegister,
@@ -86,6 +87,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   const storageDoctor = getStorageDoctorStatus();
   const pilotReadiness = getPilotReadinessStatus();
   const pilotChecklist = getPilotChecklistStatus();
+  const opsSummary = getOpsSummaryStatus();
   const sourceStore = loadStoreFromDisk() || createDemoStore();
 
   const files = {
@@ -98,6 +100,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     storageDoctorJson: path.join(resolvedOutputDir, "storage-doctor.json"),
     pilotReadinessJson: path.join(resolvedOutputDir, "pilot-readiness.json"),
     pilotChecklistJson: path.join(resolvedOutputDir, "pilot-checklist.json"),
+    opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
   };
 
   writeJson(files.snapshotJson, snapshot);
@@ -109,6 +112,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeJson(files.storageDoctorJson, storageDoctor);
   writeJson(files.pilotReadinessJson, pilotReadiness);
   writeJson(files.pilotChecklistJson, pilotChecklist);
+  writeJson(files.opsSummaryJson, opsSummary);
 
   if (reviewPack) {
     files.gateReviewPackJson = path.join(resolvedOutputDir, "gate-review-pack.json");
@@ -142,6 +146,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     readiness: {
       storageValid: storageDoctor.valid,
       postgresImportValid: postgresImport.verification.valid,
+      opsSummaryReady: opsSummary.ready,
       currentGateStatus: reviewPack?.gate?.status || null,
       currentGateReadiness: reviewPack?.readiness?.status || null,
       blockerCount: reviewPack?.summary?.blockerCount || 0,
