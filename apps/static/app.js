@@ -404,14 +404,14 @@ function renderStorageStatus() {
     <table class="table">
       <tbody>
         <tr><th>健康状态</th><td>${doctor ? statusBadge(doctor.valid ? "READY" : "BLOCKED") : "-"}</td></tr>
-        <tr><th>数据文件</th><td>${escapeHtml(status.storePath)}</td></tr>
+        <tr><th>数据文件</th><td>${renderCopyableText(status.storePath)}</td></tr>
         <tr><th>文件状态</th><td>${status.exists ? "存在" : "不存在"}</td></tr>
         <tr><th>文件大小</th><td>${escapeHtml(status.sizeBytes)} bytes</td></tr>
         <tr><th>更新时间</th><td>${escapeHtml(status.updatedAt || "-")}</td></tr>
-        <tr><th>备份文件</th><td>${escapeHtml(status.backupPath || doctor?.backupPath || "-")}</td></tr>
+        <tr><th>备份文件</th><td>${renderCopyableText(status.backupPath || doctor?.backupPath)}</td></tr>
         <tr><th>备份状态</th><td>${status.backupExists ? `${doctor?.backupValid ? statusBadge("READY") : statusBadge("BLOCKED")} · ${escapeHtml(status.backupSizeBytes)} bytes` : "暂无备份"}</td></tr>
         <tr><th>备份时间</th><td>${escapeHtml(status.backupUpdatedAt || "-")}</td></tr>
-        <tr><th>最近检查点</th><td>${latestCheckpoint ? `${escapeHtml(latestCheckpoint.fileName)} · ${escapeHtml(latestCheckpoint.updatedAt || "-")}` : "暂无检查点"}</td></tr>
+        <tr><th>最近检查点</th><td>${latestCheckpoint ? renderCopyableText(latestCheckpoint.filePath, `${latestCheckpoint.fileName} · ${latestCheckpoint.updatedAt || "-"}`) : "暂无检查点"}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
         <tr><th>批准包归档</th><td>${escapeHtml(status.gateApprovalPackCount || 0)}</td></tr>
@@ -481,16 +481,32 @@ function renderNetworkUrl(url) {
   `;
 }
 
+function renderCopyableText(value, label = value) {
+  if (!value) {
+    return "-";
+  }
+  return `
+    <div class="copyable-text">
+      <span>${escapeHtml(label)}</span>
+      <button class="secondary" onclick="copyTextValue(${jsStringAttr(value)})">复制</button>
+    </div>
+  `;
+}
+
 async function copyNetworkUrl(url) {
+  await copyTextValue(url, `已复制访问地址：${url}`);
+}
+
+async function copyTextValue(value, message = "已复制。") {
   if (!navigator.clipboard?.writeText) {
-    window.open(url, "_blank");
+    window.open(value, "_blank");
     return;
   }
   try {
-    await navigator.clipboard.writeText(url);
-    setMessage(successMessage(`已复制访问地址：${url}`));
+    await navigator.clipboard.writeText(value);
+    setMessage(successMessage(message));
   } catch {
-    window.open(url, "_blank");
+    window.open(value, "_blank");
   }
 }
 
