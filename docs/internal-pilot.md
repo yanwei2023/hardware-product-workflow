@@ -26,11 +26,20 @@ npm run pilot:check
 
 - 完整单元测试、React 构建、API smoke 和 store doctor；
 - PostgreSQL schema/migration/export/import bundle 校验；
+- 使用临时 store 自动执行一遍 EVT 内部试点演练；
 - 生成一份试点归档包到 `/tmp/hardware-flow-pilot-archive`；
 - diff 空白检查；
 - PostgreSQL 导入包 preflight。
 
 如果没有配置 `DATABASE_URL` 或本机没有 `psql`，preflight 会报告 blockers，但不会让试点检查失败。当前试点仍使用 JSON store 持久化；这些 blockers 只表示 PostgreSQL 运行时切换尚未完成。
+
+如果只想单独验证试点主流程，不运行完整构建和数据库检查：
+
+```text
+npm run pilot:rehearse
+```
+
+该命令使用临时 store，不会修改 `data/demo-store.json`。它会自动创建检查点、设置当前阶段截止日期、模拟无效 Agent 输出、生成并审核 EVT 工作包、补充证据、处理风险、确认清单必需项完成，并批准 EVT Exit 阶段门。
 
 ## 试点归档包
 
