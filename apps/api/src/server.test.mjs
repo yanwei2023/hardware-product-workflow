@@ -131,6 +131,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
+  assert.equal(result.body.links.opsSummary, "/ops/summary");
   assert.equal(result.body.links.checklist, "/pilot/checklist");
   assert.equal(result.body.checklist.summary.requiredTotal > 0, true);
   assert.equal(result.body.links.gateReviewPack, "/gates/gate-evt_exit/review-pack.md");

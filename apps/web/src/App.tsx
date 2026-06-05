@@ -823,6 +823,7 @@ function PilotReadiness({ pilotReadiness }: any) {
       <div className="actions">
         <button className="ghost" onClick={() => openApiPath("/pilot/readiness")}>打开就绪 JSON</button>
         <button className="ghost" onClick={() => openApiPath("/pilot/checklist")}>打开演练清单</button>
+        {pilotReadiness.links?.opsSummary ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.opsSummary)}>运维摘要</button> : null}
         {pilotReadiness.links?.projectSnapshot ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.projectSnapshot)}>项目快照</button> : null}
         {pilotReadiness.links?.riskRegister ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.riskRegister)}>风险台账</button> : null}
         {pilotReadiness.links?.gateReviewPack ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.gateReviewPack)}>阶段门审核包</button> : null}

@@ -730,6 +730,7 @@ export function getPilotReadinessStatus() {
       checklist: "/pilot/checklist",
       health: "/health",
       ready: "/ready",
+      opsSummary: "/ops/summary",
       metrics: "/metrics",
       runtimeConfig: "/runtime/config",
       runtimeNetwork: "/runtime/network",
