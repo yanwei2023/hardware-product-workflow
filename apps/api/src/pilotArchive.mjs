@@ -93,6 +93,9 @@ ${nextActions}
 - 表计数：${postgresCounts}
 - 错误：
 ${postgresErrors}
+- 建表命令：\`${postgresImport.psql?.createSchema || "-"}\`
+- 导入命令：\`${postgresImport.psql?.importSeed || "-"}\`
+- 一次性命令：\`${postgresImport.psql?.oneShot || "-"}\`
 
 ## 诊断端点
 
@@ -141,6 +144,7 @@ function writePostgresImportBundle(outputDir, store) {
   return {
     outputDir: postgresDir,
     manifestPath,
+    psql: manifest.psql,
     verification: verifyPostgresImportBundle(postgresDir),
   };
 }
@@ -240,6 +244,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       valid: postgresImport.verification.valid,
       counts: postgresImport.verification.counts,
       errors: postgresImport.verification.errors,
+      psql: postgresImport.psql,
     },
   };
 

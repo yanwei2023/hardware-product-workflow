@@ -44,6 +44,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.diagnostics.storageStatus, "/storage/status");
   assert.equal(manifest.diagnostics.storageDoctor, "/storage/doctor");
   assert.equal(manifest.postgresImport.manifestPath, "postgres-import/postgres-import-manifest.json");
+  assert.equal(manifest.postgresImport.psql.requiredEnv, "DATABASE_URL");
+  assert.equal(manifest.postgresImport.psql.createSchema, "psql \"$DATABASE_URL\" -f schemas/database.sql");
+  assert.equal(
+    manifest.postgresImport.psql.importSeed,
+    `psql "$DATABASE_URL" -f ${path.join(outputDir, "postgres-import", "postgres-seed.sql")}`,
+  );
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
@@ -58,6 +64,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
   assert.match(handoffMarkdown, /postgres-import\/postgres-import-manifest\.json/);
   assert.match(handoffMarkdown, /表计数：/);
+  assert.match(handoffMarkdown, /一次性命令：`psql "\$DATABASE_URL" -f schemas\/database\.sql && psql "\$DATABASE_URL" -f /);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
 
