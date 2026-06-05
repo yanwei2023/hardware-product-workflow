@@ -8,6 +8,7 @@ console.log(
       outputDir: result.outputDir,
       manifestPath: result.manifestPath,
       readiness: result.manifest.readiness,
+      operations: result.manifest.operations,
       files: result.manifest.files,
       postgresImport: result.manifest.postgresImport,
     },
