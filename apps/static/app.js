@@ -147,8 +147,9 @@ async function loadProject() {
   state.actionItems = actionItems;
   state.notifications = notifications;
   state.gateReviewPack = gateReviewPack;
-  if (!state.selectedWorkPackageId) {
-    state.selectedWorkPackageId = workPackagesForActivePhase()[0]?.id || null;
+  const activeWorkPackages = workPackagesForActivePhase();
+  if (!activeWorkPackages.some((item) => item.id === state.selectedWorkPackageId)) {
+    state.selectedWorkPackageId = activeWorkPackages[0]?.id || null;
   }
   q("#projectMeta").textContent = `${state.project.project.name} · 当前阶段 ${activePhase()?.name || "-"}`;
   renderActorSelector();

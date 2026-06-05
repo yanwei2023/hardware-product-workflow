@@ -252,7 +252,11 @@ export function App() {
       runtimeNetwork,
       runtimeMetrics: parsePrometheusMetrics(metricsText),
     });
-    setSelectedWorkPackageId((current) => current || project.workPackages.find((item: any) => item.phaseId === phase?.id)?.id || null);
+    setSelectedWorkPackageId((current) => {
+      const activeWorkPackages = project.workPackages.filter((item: any) => item.phaseId === phase?.id);
+      const currentIsActive = activeWorkPackages.some((item: any) => item.id === current);
+      return currentIsActive ? current : activeWorkPackages[0]?.id || null;
+    });
   }
 
   async function runAction(label: string, action: () => Promise<void>) {
