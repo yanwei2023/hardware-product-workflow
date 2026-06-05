@@ -12,6 +12,7 @@ type ApiState = {
   storageDoctor: any | null;
   readiness: any | null;
   pilotReadiness: any | null;
+  opsSummary: any | null;
   runtimeConfig: any | null;
   runtimeNetwork: any | null;
   runtimeMetrics: Record<string, number> | null;
@@ -210,6 +211,7 @@ export function App() {
     storageDoctor: null,
     readiness: null,
     pilotReadiness: null,
+    opsSummary: null,
     runtimeConfig: null,
     runtimeNetwork: null,
     runtimeMetrics: null,
@@ -239,13 +241,14 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, opsSummary, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
       api("/storage/doctor"),
       api("/ready", { allowError: true }),
       api("/pilot/readiness"),
+      api("/ops/summary"),
       api("/runtime/config"),
       api("/runtime/network"),
       apiText("/metrics"),
@@ -268,6 +271,7 @@ export function App() {
       storageDoctor,
       readiness,
       pilotReadiness,
+      opsSummary,
       runtimeConfig,
       runtimeNetwork,
       runtimeMetrics: parsePrometheusMetrics(metricsText),
@@ -388,6 +392,7 @@ export function App() {
             storageDoctor={state.storageDoctor}
             readiness={state.readiness}
             pilotReadiness={state.pilotReadiness}
+            opsSummary={state.opsSummary}
             runtimeConfig={state.runtimeConfig}
             runtimeNetwork={state.runtimeNetwork}
             runtimeMetrics={state.runtimeMetrics}
@@ -545,6 +550,7 @@ function Overview({ actionItems, activeGate, highOpenRisks, notifications, phase
 function Projects({
   actorUserId,
   busy,
+  opsSummary,
   pilotReadiness,
   project,
   readiness,
@@ -730,7 +736,7 @@ function Projects({
       </article>
       <article className="panel span-3">
         <h2>试点就绪总览</h2>
-        <PilotReadiness pilotReadiness={pilotReadiness} />
+        <PilotReadiness opsSummary={opsSummary} pilotReadiness={pilotReadiness} />
       </article>
       <article className="panel span-3">
         <h2>本地数据状态</h2>
@@ -787,7 +793,7 @@ function Projects({
   );
 }
 
-function PilotReadiness({ pilotReadiness }: any) {
+function PilotReadiness({ opsSummary, pilotReadiness }: any) {
   if (!pilotReadiness) {
     return <p className="muted">试点就绪状态加载中。</p>;
   }
@@ -860,6 +866,7 @@ function PilotReadiness({ pilotReadiness }: any) {
           </table>
         </section>
       ) : null}
+      <PilotOpsSummary opsSummary={opsSummary} />
       <table className="storage-table">
         <tbody>
           <CommandRow command={pilotReadiness.commands?.check} label="检查命令" />
@@ -868,6 +875,57 @@ function PilotReadiness({ pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotOpsSummary({ opsSummary }: any) {
+  if (!opsSummary) {
+    return (
+      <section className="subpanel">
+        <h3>运维摘要</h3>
+        <p className="muted">运维摘要加载中。</p>
+      </section>
+    );
+  }
+
+  const checks = [
+    ["运维状态", opsSummary.ready ? "READY" : "BLOCKED"],
+    ["网络", opsSummary.network?.lanMode ? "LAN" : "LOOPBACK"],
+    ["HTTP 4xx", opsSummary.http?.clientErrors || 0],
+    ["HTTP 5xx", opsSummary.http?.serverErrors || 0],
+    ["Store", opsSummary.storage?.valid ? "READY" : "BLOCKED"],
+    ["提醒", opsSummary.warnings?.length || 0],
+  ];
+
+  return (
+    <section className="subpanel">
+      <h3>运维摘要</h3>
+      <div className="runtime-grid pilot-grid">
+        {checks.map(([label, value]) => (
+          <Metric key={String(label)} label={label} value={String(value).match(/^[A-Z_]+$/) ? badge(String(value)) : value} />
+        ))}
+      </div>
+      <section className="split ops-split">
+        <div>
+          <h3>下一步动作</h3>
+          <ul className="compact-list">
+            {opsSummary.nextActions?.length ? opsSummary.nextActions.map((item: string, index: number) => (
+              <li key={`${item}-${index}`}>
+                <CopyableText value={item} />
+              </li>
+            )) : <li><strong>READY</strong><span>暂无额外动作。</span></li>}
+          </ul>
+        </div>
+        <div>
+          <h3>运维提醒</h3>
+          <ul className="compact-list">
+            {opsSummary.warnings?.length ? opsSummary.warnings.slice(0, 5).map((item: any) => (
+              <li key={item.code}><strong>{item.code}</strong><span>{item.message}</span></li>
+            )) : <li><strong>READY</strong><span>没有额外提醒。</span></li>}
+          </ul>
+        </div>
+      </section>
+    </section>
   );
 }
 
