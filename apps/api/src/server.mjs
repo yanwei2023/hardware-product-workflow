@@ -9,7 +9,17 @@ import {
   loadArtifactTemplateByType,
 } from "./artifactTemplateStore.mjs";
 import { validateArtifactMarkdown } from "./artifactValidator.mjs";
-import { deleteStoreFromDisk, getBackupPath, getStorePath, loadStoreFromDisk, restoreStoreFromBackup, saveStoreToDisk } from "./persistence.mjs";
+import {
+  createStoreCheckpoint,
+  deleteStoreFromDisk,
+  getBackupPath,
+  getStorePath,
+  listStoreCheckpoints,
+  loadStoreFromDisk,
+  restoreStoreFromBackup,
+  restoreStoreFromCheckpoint,
+  saveStoreToDisk,
+} from "./persistence.mjs";
 import {
   canAcceptRisk,
   canCloseRisk,
@@ -246,6 +256,7 @@ export function getStorageStatus() {
     backupSizeBytes: backupStat?.size || 0,
     updatedAt: stat?.mtime?.toISOString() || null,
     backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
+    checkpoints: listStoreCheckpoints({ storePath }).slice(0, 8),
     ...runtimeSummary,
   };
 }
@@ -550,6 +561,86 @@ export function restoreStorageBackup(body = {}) {
       doctor: getStorageDoctorStatus(),
     },
   };
+}
+
+export function createStorageCheckpoint(body = {}) {
+  const label = body.label || "pilot";
+  try {
+    const checkpoint = createStoreCheckpoint({ storePath: getStorePath(), label });
+    return {
+      statusCode: 201,
+      body: {
+        created: true,
+        ...checkpoint,
+        storageStatus: getStorageStatus(),
+      },
+    };
+  } catch (error) {
+    return {
+      statusCode: 422,
+      body: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+export function restoreStorageCheckpoint(body = {}) {
+  if (body.confirm !== true) {
+    return validationError("恢复检查点需要 confirm: true");
+  }
+  if (!body.checkpointPath) {
+    return validationError("checkpointPath 不能为空");
+  }
+
+  const allowedCheckpoint = listStoreCheckpoints({ storePath: getStorePath() })
+    .find((item) => item.filePath === body.checkpointPath || item.fileName === body.checkpointPath);
+  if (!allowedCheckpoint) {
+    return {
+      statusCode: 404,
+      body: {
+        error: `checkpoint file not found or not allowed: ${body.checkpointPath}`,
+      },
+    };
+  }
+
+  const checkpointValidation = validateStoreFile(allowedCheckpoint.filePath);
+  if (!checkpointValidation.valid) {
+    return {
+      statusCode: checkpointValidation.exists ? 422 : 404,
+      body: {
+        error: checkpointValidation.exists ? "检查点文件无效，不能恢复" : "检查点文件不存在",
+        checkpointPath: allowedCheckpoint.filePath,
+        errors: checkpointValidation.errors,
+      },
+    };
+  }
+
+  try {
+    const restoreResult = restoreStoreFromCheckpoint({
+      storePath: getStorePath(),
+      checkpointPath: allowedCheckpoint.filePath,
+    });
+    store = loadStoreFromDisk() || createDemoStore();
+    ensureStoreShape();
+
+    return {
+      statusCode: 200,
+      body: {
+        restored: true,
+        ...restoreResult,
+        storageStatus: getStorageStatus(),
+        doctor: getStorageDoctorStatus(),
+      },
+    };
+  } catch (error) {
+    return {
+      statusCode: 404,
+      body: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
 }
 
 export function resetDemoStore() {
@@ -2652,6 +2743,16 @@ async function handleStorageRestoreBackup(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleCreateStorageCheckpoint(req, res) {
+  const result = createStorageCheckpoint(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleRestoreStorageCheckpoint(req, res) {
+  const result = restoreStorageCheckpoint(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleValidateProjectImport(req, res) {
   const result = validateProjectSnapshotImport(await readJson(req));
   return writeJson(res, result.valid ? 200 : 422, result);
@@ -2784,6 +2885,14 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/storage/restore-backup") {
       return await handleStorageRestoreBackup(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/storage/checkpoints") {
+      return await handleCreateStorageCheckpoint(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/storage/restore-checkpoint") {
+      return await handleRestoreStorageCheckpoint(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/demo/reset") {

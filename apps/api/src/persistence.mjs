@@ -18,6 +18,57 @@ export function getPreRestorePath(storePath = getStorePath(), restoredAt = new D
   return `${storePath}.pre-restore-${timestamp}.bak`;
 }
 
+function safeLabel(label = "") {
+  return String(label).trim().replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+}
+
+export function getCheckpointPath(storePath = getStorePath(), createdAt = new Date(), label = "") {
+  const timestamp = createdAt.toISOString().replace(/[:.]/g, "-");
+  const suffix = safeLabel(label);
+  return `${storePath}.checkpoint-${timestamp}${suffix ? `-${suffix}` : ""}.json`;
+}
+
+function checkpointPrefix(storePath = getStorePath()) {
+  return `${path.basename(storePath)}.checkpoint-`;
+}
+
+export function listStoreCheckpoints({ storePath = getStorePath() } = {}) {
+  const dir = path.dirname(storePath);
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  return fs.readdirSync(dir)
+    .filter((fileName) => fileName.startsWith(checkpointPrefix(storePath)) && fileName.endsWith(".json"))
+    .map((fileName) => {
+      const filePath = path.join(dir, fileName);
+      const stat = fs.statSync(filePath);
+      return {
+        fileName,
+        filePath,
+        sizeBytes: stat.size,
+        createdAt: stat.birthtime?.toISOString() || stat.mtime.toISOString(),
+        updatedAt: stat.mtime.toISOString(),
+      };
+    })
+    .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+
+export function createStoreCheckpoint({ storePath = getStorePath(), label = "", createdAt = new Date() } = {}) {
+  if (!fs.existsSync(storePath)) {
+    throw new Error(`store file not found: ${storePath}`);
+  }
+
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
+  const checkpointPath = getCheckpointPath(storePath, createdAt, label);
+  fs.copyFileSync(storePath, checkpointPath);
+  return {
+    storePath,
+    checkpointPath,
+    label: safeLabel(label),
+  };
+}
+
 export function loadStoreFromDisk() {
   const storePath = getStorePath();
   if (!fs.existsSync(storePath)) {
@@ -85,6 +136,32 @@ export function restoreStoreFromBackup({ storePath = getStorePath(), restoredAt 
   return {
     storePath,
     backupPath,
+    preRestorePath,
+  };
+}
+
+export function restoreStoreFromCheckpoint({ storePath = getStorePath(), checkpointPath, restoredAt = new Date() } = {}) {
+  const checkpoints = listStoreCheckpoints({ storePath });
+  const checkpoint = checkpoints.find((item) => item.filePath === checkpointPath || item.fileName === checkpointPath);
+  if (!checkpoint) {
+    throw new Error(`checkpoint file not found or not allowed: ${checkpointPath}`);
+  }
+
+  fs.mkdirSync(path.dirname(storePath), { recursive: true });
+  const checkpointContent = fs.readFileSync(checkpoint.filePath, "utf8");
+  const tempPath = `${storePath}.${process.pid}.checkpoint-restore.tmp`;
+  const preRestorePath = fs.existsSync(storePath) ? getPreRestorePath(storePath, restoredAt) : null;
+
+  if (preRestorePath) {
+    fs.copyFileSync(storePath, preRestorePath);
+  }
+
+  fs.writeFileSync(tempPath, checkpointContent);
+  fs.renameSync(tempPath, storePath);
+
+  return {
+    storePath,
+    checkpointPath: checkpoint.filePath,
     preRestorePath,
   };
 }

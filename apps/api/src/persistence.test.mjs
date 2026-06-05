@@ -4,11 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  createStoreCheckpoint,
   deleteStoreFromDisk,
   getBackupPath,
   getPreRestorePath,
+  listStoreCheckpoints,
   loadStoreFromDisk,
   restoreStoreFromBackup,
+  restoreStoreFromCheckpoint,
   saveStoreToDisk,
 } from "./persistence.mjs";
 
@@ -101,5 +104,29 @@ test("restoreStoreFromBackup restores backup content and preserves the current s
 test("restoreStoreFromBackup rejects missing backups", () => {
   withTempStore(({ storePath }) => {
     assert.throws(() => restoreStoreFromBackup({ storePath }), /backup store file not found/);
+  });
+});
+
+test("store checkpoints can be listed and restored", () => {
+  withTempStore(({ storePath }) => {
+    const firstStore = { activeProjectId: "project-first", projects: [{ id: "project-first" }] };
+    const secondStore = { activeProjectId: "project-second", projects: [{ id: "project-second" }] };
+
+    saveStoreToDisk(firstStore);
+    const checkpoint = createStoreCheckpoint({
+      storePath,
+      label: "pilot start",
+      createdAt: new Date("2026-05-26T09:00:00.000Z"),
+    });
+    saveStoreToDisk(secondStore);
+
+    assert.match(checkpoint.checkpointPath, /checkpoint-2026-05-26T09-00-00-000Z-pilot-start\.json$/);
+    assert.equal(listStoreCheckpoints({ storePath }).length, 1);
+
+    const result = restoreStoreFromCheckpoint({ storePath, checkpointPath: checkpoint.checkpointPath });
+
+    assert.deepEqual(loadStoreFromDisk(), firstStore);
+    assert.equal(result.checkpointPath, checkpoint.checkpointPath);
+    assert.ok(result.preRestorePath.endsWith(".bak"));
   });
 });

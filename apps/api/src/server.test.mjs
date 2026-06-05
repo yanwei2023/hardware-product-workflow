@@ -267,6 +267,35 @@ test("storage backup restore endpoint reloads the restored store", async () => {
   assert.equal(project.body.project.name, "恢复后的演示项目");
 });
 
+test("storage checkpoint endpoint creates and restores a named checkpoint", async () => {
+  const checkpointResult = await dispatch("/storage/checkpoints", {
+    method: "POST",
+    body: JSON.stringify({ label: "pilot-start" }),
+  });
+
+  assert.equal(checkpointResult.status, 201);
+  assert.equal(checkpointResult.body.created, true);
+  assert.match(checkpointResult.body.checkpointPath, /checkpoint-.*pilot-start\.json$/);
+  assert.equal(checkpointResult.body.storageStatus.checkpoints.length, 1);
+
+  await dispatch("/projects", {
+    method: "POST",
+    body: JSON.stringify({ name: "临时试点项目", productLine: "Pilot" }),
+  });
+
+  const restoreResult = await dispatch("/storage/restore-checkpoint", {
+    method: "POST",
+    body: JSON.stringify({ confirm: true, checkpointPath: checkpointResult.body.checkpointPath }),
+  });
+
+  assert.equal(restoreResult.status, 200);
+  assert.equal(restoreResult.body.restored, true);
+  assert.equal(restoreResult.body.doctor.valid, true);
+
+  const project = await dispatch("/projects/demo");
+  assert.equal(project.body.projectSummaries.some((item) => item.name === "临时试点项目"), false);
+});
+
 test("project endpoint returns the current workflow snapshot", async () => {
   const result = await dispatch("/projects/demo");
 

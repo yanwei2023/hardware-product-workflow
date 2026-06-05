@@ -790,6 +790,7 @@ function PilotReadiness({ pilotReadiness }: any) {
 function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetrics, setSelectedWorkPackageId, storageDoctor, storageStatus }: any) {
   const doctorErrors = storageDoctor?.errors || [];
   const backupErrors = storageDoctor?.backupErrors || [];
+  const latestCheckpoint = storageStatus?.checkpoints?.[0] || null;
   const metric = (name: string) => runtimeMetrics?.[name] ?? 0;
 
   if (!storageStatus) {
@@ -847,11 +848,43 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
             </td>
           </tr>
           <tr><th>备份时间</th><td>{storageStatus.backupUpdatedAt || "-"}</td></tr>
+          <tr><th>最近检查点</th><td>{latestCheckpoint ? `${latestCheckpoint.fileName} · ${latestCheckpoint.updatedAt}` : "暂无检查点"}</td></tr>
         </tbody>
       </table>
       <div className="actions storage-actions">
         <button className="ghost" onClick={() => openApiPath("/runtime/config")}>打开运行配置</button>
         <button className="ghost" onClick={() => openApiPath("/metrics")}>打开 Metrics</button>
+        <button
+          className="ghost"
+          disabled={busy}
+          onClick={() => {
+            const label = window.prompt("输入检查点标签", "pilot-start");
+            if (label === null) return;
+            runAction("本地数据检查点已创建", () => api("/storage/checkpoints", {
+              method: "POST",
+              body: JSON.stringify({ label }),
+            }));
+          }}
+        >
+          创建检查点
+        </button>
+        <button
+          className="ghost"
+          disabled={busy || !latestCheckpoint}
+          onClick={() => {
+            if (!latestCheckpoint) return;
+            if (!window.confirm(`将用检查点 ${latestCheckpoint.fileName} 覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？`)) return;
+            runAction("已从检查点恢复本地数据", async () => {
+              await api("/storage/restore-checkpoint", {
+                method: "POST",
+                body: JSON.stringify({ confirm: true, checkpointPath: latestCheckpoint.filePath }),
+              });
+              setSelectedWorkPackageId(null);
+            });
+          }}
+        >
+          恢复最新检查点
+        </button>
         <button
           className="ghost"
           disabled={busy || !storageStatus.backupExists}
