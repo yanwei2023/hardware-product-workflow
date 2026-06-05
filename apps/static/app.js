@@ -59,12 +59,41 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function jsStringAttr(value) {
+  return escapeHtml(JSON.stringify(String(value ?? "")));
+}
+
 function statusBadge(status) {
   return `<span class="status ${status}">${statusText[status] || status}</span>`;
 }
 
 function setMessage(message, type = "info") {
-  q("#message").innerHTML = message ? `<div class="message ${type}">${escapeHtml(message)}</div>` : "";
+  if (!message) {
+    q("#message").innerHTML = "";
+    return;
+  }
+  const detail = [message.requestId ? `请求ID ${message.requestId}` : "", message.serviceVersion ? `版本 ${message.serviceVersion}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  q("#message").innerHTML = `
+    <div class="message ${type}" role="${type === "error" ? "alert" : "status"}">
+      <strong>${type === "error" ? "操作失败" : "操作完成"}</strong>
+      <span>${escapeHtml(message.text || message)}</span>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </div>
+  `;
+}
+
+function successMessage(text) {
+  return { text };
+}
+
+function errorMessage(error) {
+  return {
+    text: error.message || String(error),
+    requestId: error.requestId || null,
+    serviceVersion: error.serviceVersion || null,
+  };
 }
 
 async function api(path, options = {}) {
@@ -76,6 +105,8 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(body.error || JSON.stringify(body));
     error.body = body;
+    error.requestId = response.headers.get("x-request-id");
+    error.serviceVersion = response.headers.get("x-service-version");
     throw error;
   }
   return body;
@@ -89,7 +120,7 @@ async function withBusy(action) {
   try {
     await action();
   } catch (error) {
-    setMessage(error.body ? JSON.stringify(error.body, null, 2) : error.message, "error");
+    setMessage(errorMessage(error), "error");
   } finally {
     state.busy = false;
     render();
@@ -361,6 +392,7 @@ function renderStorageStatus() {
   }
   const doctorErrors = doctor?.errors || [];
   const backupErrors = doctor?.backupErrors || [];
+  const latestCheckpoint = status.checkpoints?.[0] || null;
 
   return `
     <table class="table">
@@ -373,6 +405,7 @@ function renderStorageStatus() {
         <tr><th>备份文件</th><td>${escapeHtml(status.backupPath || doctor?.backupPath || "-")}</td></tr>
         <tr><th>备份状态</th><td>${status.backupExists ? `${doctor?.backupValid ? statusBadge("READY") : statusBadge("BLOCKED")} · ${escapeHtml(status.backupSizeBytes)} bytes` : "暂无备份"}</td></tr>
         <tr><th>备份时间</th><td>${escapeHtml(status.backupUpdatedAt || "-")}</td></tr>
+        <tr><th>最近检查点</th><td>${latestCheckpoint ? `${escapeHtml(latestCheckpoint.fileName)} · ${escapeHtml(latestCheckpoint.updatedAt || "-")}` : "暂无检查点"}</td></tr>
         <tr><th>项目数</th><td>${escapeHtml(status.projectCount)}</td></tr>
         <tr><th>审计事件</th><td>${escapeHtml(status.auditEventCount)}</td></tr>
         <tr><th>批准包归档</th><td>${escapeHtml(status.gateApprovalPackCount || 0)}</td></tr>
@@ -380,6 +413,8 @@ function renderStorageStatus() {
       </tbody>
     </table>
     <div class="actions">
+      <button class="secondary" onclick="createStorageCheckpoint()" ${state.busy ? "disabled" : ""}>创建检查点</button>
+      <button class="secondary" onclick="restoreStorageCheckpoint(${jsStringAttr(latestCheckpoint?.filePath || "")})" ${state.busy || !latestCheckpoint ? "disabled" : ""}>恢复最新检查点</button>
       <button class="secondary" onclick="restoreStorageBackup()" ${state.busy || !status.backupExists ? "disabled" : ""}>从备份恢复</button>
     </div>
     ${doctorErrors.length ? `
@@ -397,6 +432,41 @@ function renderStorageStatus() {
   `;
 }
 
+async function createStorageCheckpoint() {
+  const label = prompt("输入检查点标签", "pilot-start");
+  if (label === null) {
+    return;
+  }
+
+  await withBusy(async () => {
+    await api("/storage/checkpoints", {
+      method: "POST",
+      body: JSON.stringify({ label }),
+    });
+    await loadProject();
+    setMessage(successMessage("本地数据检查点已创建。"));
+  });
+}
+
+async function restoreStorageCheckpoint(checkpointPath) {
+  if (!checkpointPath) {
+    return;
+  }
+  if (!confirm("将用最新检查点覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) {
+    return;
+  }
+
+  await withBusy(async () => {
+    await api("/storage/restore-checkpoint", {
+      method: "POST",
+      body: JSON.stringify({ confirm: true, checkpointPath }),
+    });
+    state.selectedWorkPackageId = null;
+    await loadProject();
+    setMessage(successMessage("已从检查点恢复本地数据。"));
+  });
+}
+
 async function restoreStorageBackup() {
   if (!confirm("将用 .bak 备份覆盖当前数据文件，并在恢复前保留当前文件副本。确定继续？")) {
     return;
@@ -409,7 +479,7 @@ async function restoreStorageBackup() {
     });
     state.selectedWorkPackageId = null;
     await loadProject();
-    setMessage("已从备份恢复本地数据。");
+    setMessage(successMessage("已从备份恢复本地数据。"));
   });
 }
 

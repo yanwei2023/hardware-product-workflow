@@ -224,9 +224,23 @@ textarea {
 
 .message {
   border-radius: 8px;
+  display: grid;
+  gap: 4px;
   margin-bottom: 14px;
   padding: 12px;
   white-space: pre-wrap;
+}
+
+.message strong {
+  font-size: 13px;
+}
+
+.message span {
+  line-height: 1.45;
+}
+
+.message small {
+  opacity: 0.78;
 }
 
 .message.error {
