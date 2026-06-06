@@ -887,6 +887,7 @@ function PilotReadiness({ opsSummary, pilotLaunch, pilotReadiness }: any) {
       ) : null}
       <PilotRunbook steps={pilotReadiness.runbookSteps} />
       <PilotAcceptance acceptanceCriteria={pilotReadiness.acceptanceCriteria} boundaries={pilotReadiness.boundaries} />
+      <PilotRollbackCard rollbackCard={pilotReadiness.rollbackCard} links={pilotReadiness.links} />
       <PilotIssueReport issueReport={pilotReadiness.issueReport} links={pilotReadiness.links} />
       <PilotOpsSummary opsSummary={opsSummary} />
       <table className="storage-table">
@@ -1057,6 +1058,55 @@ function PilotAcceptance({ acceptanceCriteria, boundaries }: any) {
           ))}
         </ul>
       </div>
+    </section>
+  );
+}
+
+function PilotRollbackCard({ rollbackCard, links }: any) {
+  const [copied, setCopied] = useState(false);
+
+  if (!rollbackCard) {
+    return null;
+  }
+
+  const template = [
+    "# 内部试点回滚卡片",
+    "",
+    rollbackCard.severityGuide || "",
+    "",
+    "## 执行步骤",
+    ...(rollbackCard.steps || []).map((item: string, index: number) => `${index + 1}. ${item}`),
+    "",
+    "## 必留证据",
+    ...(rollbackCard.requiredEvidence || []).map((item: string) => `- ${item}`),
+    "",
+    "## 诊断端点",
+    ...[links?.storageDoctor, links?.opsSummary, links?.launch, links?.ready].filter(Boolean).map((endpoint: string) => `- ${endpoint}`),
+  ].join("\n");
+
+  async function onCopy() {
+    await copyText(template);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <section className="subpanel">
+      <div className="panel-heading">
+        <div>
+          <h3>回滚卡片</h3>
+          <p className="muted">{rollbackCard.severityGuide}</p>
+        </div>
+        <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制卡片"}</button>
+      </div>
+      <ol className="runbook-list">
+        {(rollbackCard.steps || []).map((item: string, index: number) => (
+          <li key={item}>
+            <strong>{String(index + 1).padStart(2, "0")}</strong>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

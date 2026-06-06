@@ -50,3 +50,23 @@ export const pilotIssueReport = {
     "是否需要回滚",
   ],
 };
+
+export const pilotRollbackCard = {
+  templateName: "pilot-rollback-card.md",
+  severityGuide: "S1 数据损坏、无法启动、阶段门错误放行或无法回滚时立即执行；S2/S3 先记录问题并确认是否影响阶段门。",
+  steps: [
+    "暂停试点操作，记录当前页面、请求 ID、服务版本和发生时间。",
+    "打开 /storage/doctor 和 /ops/summary，确认 store、备份、检查点和 HTTP 5xx 状态。",
+    "若存在试点前检查点，优先恢复检查点；页面路径：项目 -> 本地数据状态 -> 最近检查点 -> 恢复。",
+    "若没有可用检查点但 .bak 有效，执行 npm run store:restore-backup 或页面按钮“从备份恢复”。",
+    "恢复后重新打开 /ready、/pilot/launch 和项目页面，确认服务、阶段门和数据摘要恢复到预期状态。",
+    "把 pre-restore 备份路径、恢复来源和问题上报模板一起归档。",
+  ],
+  requiredEvidence: [
+    "请求 ID 和服务版本",
+    "恢复来源：checkpoint 或 .bak",
+    "恢复前保留的 pre-restore 备份路径",
+    "/storage/doctor 结果",
+    "/pilot/launch 结果",
+  ],
+};

@@ -140,6 +140,9 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.issueReport.requiredFields.includes("请求 ID"), true);
   assert.equal(result.body.issueReport.requiredFields.includes("是否需要回滚"), true);
   assert.match(result.body.issueReport.severityGuide, /S1/);
+  assert.equal(result.body.rollbackCard.templateName, "pilot-rollback-card.md");
+  assert.equal(result.body.rollbackCard.steps.some((item) => item.includes("/storage/doctor")), true);
+  assert.equal(result.body.rollbackCard.requiredEvidence.includes("恢复来源：checkpoint 或 .bak"), true);
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
   assert.equal(result.body.links.opsSummary, "/ops/summary");

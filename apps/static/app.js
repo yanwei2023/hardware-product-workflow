@@ -691,6 +691,18 @@ function renderPilotReadinessSummary() {
   const commands = readiness.commands || {};
   const ops = state.opsSummary;
   const http = ops?.http || {};
+  const rollbackCard = readiness.rollbackCard || null;
+  const rollbackMarkdown = rollbackCard ? [
+    "# 内部试点回滚卡片",
+    "",
+    rollbackCard.severityGuide || "",
+    "",
+    "## 执行步骤",
+    ...(rollbackCard.steps || []).map((item, index) => `${index + 1}. ${item}`),
+    "",
+    "## 必留证据",
+    ...(rollbackCard.requiredEvidence || []).map((item) => `- ${item}`),
+  ].join("\n") : "";
 
   return `
     <article class="panel pilot-summary">
@@ -756,6 +768,20 @@ function renderPilotReadinessSummary() {
           <ul class="compact-list">
             ${ops.nextActions.map((item) => `<li><span>${escapeHtml(item)}</span>${renderCopyableText(item)}</li>`).join("")}
           </ul>
+        </section>
+      ` : ""}
+      ${rollbackCard ? `
+        <section class="pilot-required-list">
+          <div class="detail-head">
+            <div>
+              <h4>回滚卡片</h4>
+              <p class="muted">${escapeHtml(rollbackCard.severityGuide || "")}</p>
+            </div>
+            <button class="secondary" onclick="copyTextValue(${jsStringAttr(rollbackMarkdown)})">复制卡片</button>
+          </div>
+          <ol class="runbook-list">
+            ${(rollbackCard.steps || []).map((item, index) => `<li><strong>${String(index + 1).padStart(2, "0")}</strong><span>${escapeHtml(item)}</span></li>`).join("")}
+          </ol>
         </section>
       ` : ""}
       <div class="actions">

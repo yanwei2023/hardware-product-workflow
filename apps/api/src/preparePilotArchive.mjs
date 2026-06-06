@@ -13,6 +13,7 @@ console.log(
       commands: result.manifest.commands,
       brief: result.manifest.files.briefMarkdown,
       launchSummary: result.manifest.files.pilotLaunchJson,
+      rollbackCard: result.manifest.files.rollbackCardMarkdown,
       acceptanceCriteria: result.manifest.acceptanceCriteria,
       boundaries: result.manifest.boundaries,
       runbookSteps: result.manifest.runbookSteps,

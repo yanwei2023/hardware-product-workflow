@@ -4,7 +4,7 @@ import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
 import { assertValidPostgresExport } from "./postgresExportReport.mjs";
 import { buildPostgresImportManifest, verifyPostgresImportBundle } from "./postgresImportBundle.mjs";
 import { mapStoreToPostgresRows, renderPostgresSeedSql } from "./postgresMapper.mjs";
-import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport } from "./pilotPlan.mjs";
+import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport, pilotRollbackCard } from "./pilotPlan.mjs";
 import {
   createDemoStore,
   getDemoProject,
@@ -259,6 +259,43 @@ ${diagnosticsRows}
 `;
 }
 
+function renderPilotRollbackCardMarkdown(manifest) {
+  const rollback = manifest.rollbackCard || {};
+  const dataProtection = manifest.dataProtection || {};
+  const steps = (rollback.steps || []).map((item, index) => `${index + 1}. ${item}`).join("\n") || "暂无回滚步骤。";
+  const evidenceRows = (rollback.requiredEvidence || []).map((item) => `- ${item}`).join("\n") || "- 暂无证据要求。";
+
+  return `# 内部试点回滚卡片
+
+> ${rollback.severityGuide || "出现数据、放行或恢复风险时使用。"}
+
+## 当前数据保护
+
+- Store: \`${dataProtection.storePath || "-"}\`
+- 备份: \`${dataProtection.backupPath || "-"}\`
+- 备份状态: ${dataProtection.backupExists ? dataProtection.backupValid ? "READY" : "BLOCKED" : "MISSING"}
+- 最近检查点: \`${dataProtection.latestCheckpoint?.filePath || "-"}\`
+- 检查点数量: ${dataProtection.checkpointCount || 0}
+- 检查命令: \`${dataProtection.storeDoctorCommand || "-"}\`
+- 备份恢复命令: \`${dataProtection.restoreBackupCommand || "-"}\`
+
+## 执行步骤
+
+${steps}
+
+## 必留证据
+
+${evidenceRows}
+
+## 诊断端点
+
+- /storage/doctor
+- /ops/summary
+- /pilot/launch
+- /ready
+`;
+}
+
 function writePostgresImportBundle(outputDir, store) {
   const postgresDir = path.join(outputDir, "postgres-import");
   const schemaPath = "schemas/database.sql";
@@ -343,6 +380,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     pilotChecklistJson: path.join(resolvedOutputDir, "pilot-checklist.json"),
     opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
     issueReportMarkdown: path.join(resolvedOutputDir, "pilot-issue-report.md"),
+    rollbackCardMarkdown: path.join(resolvedOutputDir, "pilot-rollback-card.md"),
   };
 
   if (reviewPack) {
@@ -406,6 +444,12 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       severityGuide: pilotIssueReport.severityGuide,
       requiredFields: pilotIssueReport.requiredFields,
     },
+    rollbackCard: {
+      templatePath: pilotRollbackCard.templateName,
+      severityGuide: pilotRollbackCard.severityGuide,
+      steps: pilotRollbackCard.steps,
+      requiredEvidence: pilotRollbackCard.requiredEvidence,
+    },
     dataProtection: {
       storePath: storageStatus.storePath,
       backupPath: storageStatus.backupPath || storageDoctor.backupPath,
@@ -444,6 +488,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeText(files.handoffMarkdown, renderPilotHandoffMarkdown(manifest));
   writeText(files.briefMarkdown, renderPilotBriefMarkdown(manifest));
   writeText(files.issueReportMarkdown, renderPilotIssueReportMarkdown(manifest));
+  writeText(files.rollbackCardMarkdown, renderPilotRollbackCardMarkdown(manifest));
   writeJson(files.snapshotJson, snapshot);
   writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));
   writeJson(files.riskRegisterJson, riskRegister);
