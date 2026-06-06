@@ -320,11 +320,25 @@ export function getRuntimeNetworkStatus() {
       message: "未发现可用于局域网访问的 IPv4 地址，请确认网络连接。",
     });
   }
+  const ready = lanMode && networkInterfaces.length > 0;
+  const preferredUrl = ready ? lanUrls[0] : localUrls[0];
+  const shareableUrls = ready ? lanUrls : localUrls;
+  const shareText = [
+    "内部试点访问地址",
+    `推荐地址：${preferredUrl}`,
+    `监听模式：${lanMode ? "LAN" : "本机"}`,
+    ready ? "同一局域网成员可直接打开推荐地址。" : "当前仅适合本机访问；局域网试点请使用 npm run start:lan 重新启动。",
+    "诊断：/runtime/network、/ready、/pilot/launch",
+  ].join("\n");
 
   return {
     host,
     port,
+    ready,
     lanMode,
+    preferredUrl,
+    shareableUrls,
+    shareText,
     localUrls,
     lanUrls,
     networkInterfaces,
@@ -378,7 +392,10 @@ export function getOpsSummaryStatus() {
       uptimeSeconds: Number(process.uptime().toFixed(3)),
     },
     network: {
+      ready: runtimeNetwork.ready,
       lanMode: runtimeNetwork.lanMode,
+      preferredUrl: runtimeNetwork.preferredUrl,
+      shareableUrls: runtimeNetwork.shareableUrls,
       localUrls: runtimeNetwork.localUrls,
       lanUrls: runtimeNetwork.lanUrls,
       warnings: runtimeNetwork.warnings,

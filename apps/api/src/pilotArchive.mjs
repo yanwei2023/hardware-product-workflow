@@ -387,7 +387,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       httpServerErrors: opsSummary.http?.serverErrors || 0,
       httpClientErrors: opsSummary.http?.clientErrors || 0,
       storageReady: opsSummary.storage?.valid || false,
-      networkReady: (opsSummary.network?.warnings || []).length === 0,
+      networkReady: opsSummary.network?.ready || false,
       nextActions: opsSummary.nextActions || [],
     },
     launch: {

@@ -473,9 +473,15 @@ function renderRuntimeNetwork() {
       <h4>访问地址</h4>
       <div class="network-summary">
         <div><span>监听模式</span><strong>${network.lanMode ? "LAN" : "本机"}</strong></div>
+        <div><span>网络状态</span><strong>${network.ready ? "READY" : "BLOCKED"}</strong></div>
         <div><span>监听地址</span><strong>${escapeHtml(`${network.host}:${network.port}`)}</strong></div>
         <div><span>局域网地址</span><strong>${escapeHtml(network.lanUrls?.length || 0)}</strong></div>
         <div><span>启动命令</span><strong>${escapeHtml(network.command || "-")}</strong></div>
+      </div>
+      <div class="network-share">
+        <strong>推荐地址</strong>
+        ${network.preferredUrl ? renderNetworkUrl(network.preferredUrl) : `<span class="muted">暂无推荐地址</span>`}
+        ${renderCopyableText(network.shareText, network.shareText || "暂无可复制邀请文本")}
       </div>
       <div class="network-list">
         <div>

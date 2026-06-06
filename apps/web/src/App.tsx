@@ -1255,9 +1255,15 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <h3>访问地址</h3>
         <div className="runtime-grid">
           <Metric label="监听模式" value={runtimeNetwork?.lanMode ? "LAN" : "本机"} />
+          <Metric label="网络状态" value={runtimeNetwork?.ready ? "READY" : "BLOCKED"} />
           <Metric label="监听地址" value={runtimeNetwork ? `${runtimeNetwork.host}:${runtimeNetwork.port}` : "-"} />
           <Metric label="局域网地址" value={runtimeNetwork?.lanUrls?.length || 0} />
           <Metric label="启动命令" value={runtimeNetwork?.command || "-"} />
+        </div>
+        <div className="network-share">
+          <strong>推荐地址</strong>
+          {runtimeNetwork?.preferredUrl ? <NetworkUrl url={runtimeNetwork.preferredUrl} /> : <span className="muted">暂无推荐地址</span>}
+          {renderCopyableText(runtimeNetwork?.shareText, runtimeNetwork?.shareText || "暂无可复制邀请文本")}
         </div>
         <div className="network-list">
           <div>

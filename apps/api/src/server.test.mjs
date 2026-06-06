@@ -210,7 +210,12 @@ test("runtime network endpoint reports local and LAN access hints", async () => 
   assert.equal(result.status, 200);
   assert.equal(result.body.host, "127.0.0.1");
   assert.equal(result.body.port, 3001);
+  assert.equal(result.body.ready, false);
   assert.equal(result.body.lanMode, false);
+  assert.equal(result.body.preferredUrl, "http://localhost:3001");
+  assert.deepEqual(result.body.shareableUrls, ["http://localhost:3001", "http://127.0.0.1:3001"]);
+  assert.match(result.body.shareText, /内部试点访问地址/);
+  assert.match(result.body.shareText, /npm run start:lan/);
   assert.deepEqual(result.body.localUrls, ["http://localhost:3001", "http://127.0.0.1:3001"]);
   assert.equal(Array.isArray(result.body.lanUrls), true);
   assert.equal(Array.isArray(result.body.networkInterfaces), true);
@@ -227,7 +232,9 @@ test("ops summary endpoint aggregates pilot operations status", async () => {
   assert.equal(result.body.service, "hardware-flow-api");
   assert.equal(result.body.runtime.host, "127.0.0.1");
   assert.match(result.body.runtime.staticMode, /^(react|static)$/);
+  assert.equal(result.body.network.ready, false);
   assert.equal(result.body.network.lanMode, false);
+  assert.equal(result.body.network.preferredUrl, "http://localhost:3001");
   assert.equal(typeof result.body.http.total, "number");
   assert.equal(typeof result.body.http.clientErrors, "number");
   assert.equal(typeof result.body.http.byMethod, "object");

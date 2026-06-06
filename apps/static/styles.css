@@ -435,6 +435,12 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.network-share {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
 .network-list > div {
   display: grid;
   gap: 6px;
@@ -607,6 +613,7 @@ textarea {
   .checkpoint-list li,
   .inline-form,
   .network-list,
+  .network-share,
   .network-summary,
   .network-url,
   .pilot-summary-grid,

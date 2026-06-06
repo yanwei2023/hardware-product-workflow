@@ -459,6 +459,12 @@ h3 {
   margin-top: 12px;
 }
 
+.network-share {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .network-list > div {
   display: grid;
   gap: 6px;
@@ -743,6 +749,7 @@ h3 {
   .checkpoint-list li,
   .issue-report-grid,
   .network-list,
+  .network-share,
   .network-url,
   .panel-heading,
   .runbook-list li,
