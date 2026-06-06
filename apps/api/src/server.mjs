@@ -620,6 +620,20 @@ export function getReadinessStatus() {
   };
 }
 
+const pilotIssueReportFields = [
+  "发生时间",
+  "报告人和角色",
+  "页面或 API 路径",
+  "请求 ID",
+  "服务版本",
+  "复现步骤",
+  "预期结果",
+  "实际结果",
+  "是否影响阶段门或数据完整性",
+  "已尝试的诊断端点",
+  "是否需要回滚",
+];
+
 export function getPilotReadinessStatus() {
   const project = currentProject();
   const gate = currentGate();
@@ -725,6 +739,11 @@ export function getPilotReadinessStatus() {
       rehearse: "npm run pilot:rehearse",
       archive: "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive",
       startLan: "npm run start:lan",
+    },
+    issueReport: {
+      templateName: "pilot-issue-report.md",
+      severityGuide: "S1 数据/放行/回滚风险，S2 核心流程阻塞，S3 可用性或非关键问题。",
+      requiredFields: pilotIssueReportFields,
     },
     links: {
       readiness: "/pilot/readiness",

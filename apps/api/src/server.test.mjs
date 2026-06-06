@@ -130,6 +130,10 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.commands.check, "npm run pilot:check");
   assert.equal(result.body.commands.rehearse, "npm run pilot:rehearse");
   assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
+  assert.equal(result.body.issueReport.templateName, "pilot-issue-report.md");
+  assert.equal(result.body.issueReport.requiredFields.includes("请求 ID"), true);
+  assert.equal(result.body.issueReport.requiredFields.includes("是否需要回滚"), true);
+  assert.match(result.body.issueReport.severityGuide, /S1/);
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
   assert.equal(result.body.links.opsSummary, "/ops/summary");

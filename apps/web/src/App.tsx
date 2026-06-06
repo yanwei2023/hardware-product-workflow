@@ -869,6 +869,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
           </table>
         </section>
       ) : null}
+      <PilotIssueReport issueReport={pilotReadiness.issueReport} links={pilotReadiness.links} />
       <PilotOpsSummary opsSummary={opsSummary} />
       <table className="storage-table">
         <tbody>
@@ -879,6 +880,63 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotIssueReport({ issueReport, links }: any) {
+  const [copied, setCopied] = useState(false);
+
+  if (!issueReport) {
+    return null;
+  }
+
+  const diagnostics = [
+    links?.readiness,
+    links?.checklist,
+    links?.opsSummary,
+    links?.metrics,
+    links?.storageStatus,
+    links?.storageDoctor,
+  ].filter(Boolean);
+  const template = [
+    "# 内部试点问题上报",
+    "",
+    ...(issueReport.requiredFields || []).map((field: string) => `- ${field}: `),
+    "",
+    "## 严重度",
+    issueReport.severityGuide || "",
+    "",
+    "## 诊断端点",
+    ...diagnostics.map((endpoint: string) => `- ${endpoint}`),
+    "",
+    "## 处理记录",
+    "- 临时处置: ",
+    "- 负责人: ",
+    "- 下一步: ",
+  ].join("\n");
+
+  async function onCopy() {
+    await copyText(template);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <section className="subpanel">
+      <div className="panel-heading">
+        <div>
+          <h3>现场问题上报</h3>
+          <p className="muted">{issueReport.severityGuide}</p>
+        </div>
+        <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制模板"}</button>
+      </div>
+      <div className="issue-report-grid">
+        {(issueReport.requiredFields || []).map((field: string) => (
+          <span key={field}>{field}</span>
+        ))}
+      </div>
+      <p className="muted">页面报错时优先保留请求 ID、服务版本和发生时间；必要时同步打开诊断端点。</p>
+    </section>
   );
 }
 
