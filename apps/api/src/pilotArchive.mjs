@@ -166,6 +166,52 @@ ${fileRows}
 `;
 }
 
+function renderPilotBriefMarkdown(manifest) {
+  const blockers = manifest.operations?.blockerCount
+    ? [`- 运维阻塞：${manifest.operations.blockerCount}`]
+    : ["- 无运维阻塞"];
+  const warnings = manifest.operations?.warningCount
+    ? [`- 运维提醒：${manifest.operations.warningCount}`]
+    : ["- 无运维提醒"];
+  const nextActions = (manifest.operations?.nextActions || []).map((item) => `- ${item}`);
+  const commandRows = Object.entries(manifest.commands || {}).map(([label, command]) => `- ${label}: ${command}`);
+  const diagnosticRows = Object.entries(manifest.diagnostics || {}).map(([label, endpoint]) => `- ${label}: ${endpoint}`);
+
+  return `# 内部试点现场简报
+
+生成时间：${manifest.generatedAt}
+
+- 项目：${manifest.project.name}（${manifest.project.id}）
+- 当前阶段：${manifest.project.currentPhaseName || manifest.project.currentPhaseId}
+- 当前阶段门：${manifest.project.currentGateName || manifest.project.currentGateId || "-"}
+- 阶段门状态：${manifest.readiness.currentGateReadiness || manifest.readiness.currentGateStatus || "-"}
+- 试点必需项：${manifest.readiness.checklistRequiredDone}/${manifest.readiness.checklistRequiredTotal}
+- 试点待处理：${manifest.readiness.checklistPending}
+- Store：${manifest.readiness.storageValid ? "READY" : "BLOCKED"}
+- PostgreSQL 导入包：${manifest.readiness.postgresImportValid ? "READY" : "BLOCKED"}
+
+## 阻塞
+
+${blockers.join("\n")}
+
+## 提醒
+
+${warnings.join("\n")}
+
+## 下一步
+
+${nextActions.length ? nextActions.join("\n") : "- 暂无额外动作。"}
+
+## 命令
+
+${commandRows.length ? commandRows.join("\n") : "- 暂无命令。"}
+
+## 诊断链接
+
+${diagnosticRows.length ? diagnosticRows.join("\n") : "- 暂无诊断链接。"}
+`;
+}
+
 function renderPilotIssueReportMarkdown(manifest) {
   const diagnosticsRows = Object.entries(manifest.diagnostics || {})
     .map(([label, endpoint]) => `- ${label}: \`${endpoint}\``)
@@ -282,6 +328,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
 
   const files = {
     handoffMarkdown: path.join(resolvedOutputDir, "pilot-handoff.md"),
+    briefMarkdown: path.join(resolvedOutputDir, "pilot-brief.md"),
     snapshotJson: path.join(resolvedOutputDir, "project-snapshot.json"),
     snapshotMarkdown: path.join(resolvedOutputDir, "project-snapshot.md"),
     riskRegisterJson: path.join(resolvedOutputDir, "risk-register.json"),
@@ -384,6 +431,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   };
 
   writeText(files.handoffMarkdown, renderPilotHandoffMarkdown(manifest));
+  writeText(files.briefMarkdown, renderPilotBriefMarkdown(manifest));
   writeText(files.issueReportMarkdown, renderPilotIssueReportMarkdown(manifest));
   writeJson(files.snapshotJson, snapshot);
   writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));

@@ -10,6 +10,7 @@ console.log(
       readiness: result.manifest.readiness,
       operations: result.manifest.operations,
       commands: result.manifest.commands,
+      brief: result.manifest.files.briefMarkdown,
       acceptanceCriteria: result.manifest.acceptanceCriteria,
       boundaries: result.manifest.boundaries,
       runbookSteps: result.manifest.runbookSteps,

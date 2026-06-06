@@ -25,6 +25,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.readiness.postgresImportValid, true);
   assert.equal(manifest.readiness.checklistRequiredTotal > 0, true);
   assert.equal(manifest.files.handoffMarkdown, "pilot-handoff.md");
+  assert.equal(manifest.files.briefMarkdown, "pilot-brief.md");
   assert.equal(manifest.files.snapshotJson, "project-snapshot.json");
   assert.equal(manifest.files.riskRegisterMarkdown, "risk-register.md");
   assert.equal(manifest.files.gateReviewPackMarkdown, "gate-review-pack.md");
@@ -76,6 +77,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   );
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.briefMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotReadinessJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotChecklistJson)), true);
@@ -110,6 +112,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /postgres-import\/postgres-import-manifest\.json/);
   assert.match(handoffMarkdown, /表计数：/);
   assert.match(handoffMarkdown, /一次性命令：`psql "\$DATABASE_URL" -f schemas\/database\.sql && psql "\$DATABASE_URL" -f /);
+  const briefMarkdown = fs.readFileSync(path.join(outputDir, "pilot-brief.md"), "utf8");
+  assert.match(briefMarkdown, /内部试点现场简报/);
+  assert.match(briefMarkdown, /试点必需项/);
+  assert.match(briefMarkdown, /## 命令/);
+  assert.match(briefMarkdown, /## 诊断链接/);
+  assert.match(briefMarkdown, /npm run pilot:check/);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
   const issueReportMarkdown = fs.readFileSync(path.join(outputDir, "pilot-issue-report.md"), "utf8");
