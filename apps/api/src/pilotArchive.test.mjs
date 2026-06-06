@@ -26,6 +26,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.readiness.checklistRequiredTotal > 0, true);
   assert.equal(manifest.files.handoffMarkdown, "pilot-handoff.md");
   assert.equal(manifest.files.briefMarkdown, "pilot-brief.md");
+  assert.equal(manifest.files.pilotLaunchJson, "pilot-launch-summary.json");
   assert.equal(manifest.files.snapshotJson, "project-snapshot.json");
   assert.equal(manifest.files.riskRegisterMarkdown, "risk-register.md");
   assert.equal(manifest.files.gateReviewPackMarkdown, "gate-review-pack.md");
@@ -38,8 +39,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(typeof manifest.operations.warningCount, "number");
   assert.equal(typeof manifest.operations.httpServerErrors, "number");
   assert.equal(typeof manifest.operations.httpClientErrors, "number");
-  assert.equal(typeof manifest.operations.storageReady, "boolean");
+  assert.equal(manifest.operations.storageReady, true);
+  assert.equal(typeof manifest.operations.networkReady, "boolean");
   assert.equal(Array.isArray(manifest.operations.nextActions), true);
+  assert.equal(manifest.launch.decision, "GO_WITH_CAUTION");
+  assert.equal(manifest.launch.canStart, true);
+  assert.equal(manifest.launch.requiredPending > 0, true);
   assert.equal(manifest.commands.check, "npm run pilot:check");
   assert.equal(manifest.commands.rehearse, "npm run pilot:rehearse");
   assert.equal(manifest.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
@@ -64,6 +69,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.checklist.requiredPending.some((item) => item.key === "checkpoint"), true);
   assert.equal(manifest.checklist.requiredPending.every((item) => item.title && item.action), true);
   assert.equal(manifest.diagnostics.readiness, "/pilot/readiness");
+  assert.equal(manifest.diagnostics.launch, "/pilot/launch");
   assert.equal(manifest.diagnostics.opsSummary, "/ops/summary");
   assert.equal(manifest.diagnostics.metrics, "/metrics");
   assert.equal(manifest.diagnostics.storageStatus, "/storage/status");
@@ -78,6 +84,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.briefMarkdown)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotLaunchJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.gateReviewPackMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotReadinessJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.pilotChecklistJson)), true);
@@ -118,6 +125,9 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(briefMarkdown, /## 命令/);
   assert.match(briefMarkdown, /## 诊断链接/);
   assert.match(briefMarkdown, /npm run pilot:check/);
+  const pilotLaunch = JSON.parse(fs.readFileSync(path.join(outputDir, "pilot-launch-summary.json"), "utf8"));
+  assert.equal(pilotLaunch.decision, "GO_WITH_CAUTION");
+  assert.equal(pilotLaunch.criteria.some((item) => item.key === "data_protection"), true);
   assert.match(fs.readFileSync(path.join(outputDir, "project-snapshot.md"), "utf8"), /项目快照/);
   assert.match(fs.readFileSync(path.join(outputDir, "risk-register.md"), "utf8"), /风险台账/);
   const issueReportMarkdown = fs.readFileSync(path.join(outputDir, "pilot-issue-report.md"), "utf8");

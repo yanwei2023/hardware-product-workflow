@@ -12,6 +12,7 @@ import {
   getGateReviewPack,
   getOpsSummaryStatus,
   getPilotChecklistStatus,
+  getPilotLaunchStatus,
   getPilotReadinessStatus,
   getProjectRiskRegister,
   getProjectSnapshot,
@@ -311,6 +312,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   const storageStatus = getStorageStatus();
   const storageDoctor = getStorageDoctorStatus();
   const pilotReadiness = getPilotReadinessStatus();
+  const pilotLaunch = getPilotLaunchStatus();
   const pilotChecklist = getPilotChecklistStatus();
   const requiredPendingChecklistItems = (pilotChecklist.items || [])
     .filter((item) => item.severity === "REQUIRED" && item.status !== "DONE")
@@ -337,6 +339,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     storageStatusJson: path.join(resolvedOutputDir, "storage-status.json"),
     storageDoctorJson: path.join(resolvedOutputDir, "storage-doctor.json"),
     pilotReadinessJson: path.join(resolvedOutputDir, "pilot-readiness.json"),
+    pilotLaunchJson: path.join(resolvedOutputDir, "pilot-launch-summary.json"),
     pilotChecklistJson: path.join(resolvedOutputDir, "pilot-checklist.json"),
     opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
     issueReportMarkdown: path.join(resolvedOutputDir, "pilot-issue-report.md"),
@@ -383,9 +386,16 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       warningCount: opsSummary.warnings?.length || 0,
       httpServerErrors: opsSummary.http?.serverErrors || 0,
       httpClientErrors: opsSummary.http?.clientErrors || 0,
-      storageReady: opsSummary.storage?.ready || false,
-      networkReady: opsSummary.network?.ready || false,
+      storageReady: opsSummary.storage?.valid || false,
+      networkReady: (opsSummary.network?.warnings || []).length === 0,
       nextActions: opsSummary.nextActions || [],
+    },
+    launch: {
+      decision: pilotLaunch.decision,
+      canStart: pilotLaunch.canStart,
+      requiredPending: pilotLaunch.summary.requiredPending,
+      blockers: pilotLaunch.summary.blockers,
+      warnings: pilotLaunch.summary.warnings,
     },
     commands: pilotReadiness.commands || {},
     acceptanceCriteria: firstPilotAcceptanceCriteria,
@@ -411,6 +421,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     },
     diagnostics: {
       readiness: pilotReadiness.links?.readiness || "/pilot/readiness",
+      launch: pilotReadiness.links?.launch || "/pilot/launch",
       checklist: pilotReadiness.links?.checklist || "/pilot/checklist",
       opsSummary: pilotReadiness.links?.opsSummary || "/ops/summary",
       metrics: pilotReadiness.links?.metrics || "/metrics",
@@ -441,6 +452,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeJson(files.storageStatusJson, storageStatus);
   writeJson(files.storageDoctorJson, storageDoctor);
   writeJson(files.pilotReadinessJson, pilotReadiness);
+  writeJson(files.pilotLaunchJson, pilotLaunch);
   writeJson(files.pilotChecklistJson, pilotChecklist);
   writeJson(files.opsSummaryJson, opsSummary);
 

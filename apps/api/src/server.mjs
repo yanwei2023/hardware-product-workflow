@@ -732,6 +732,7 @@ export function getPilotReadinessStatus() {
     runbookSteps: firstPilotRunbookSteps,
     issueReport: pilotIssueReport,
     links: {
+      launch: "/pilot/launch",
       readiness: "/pilot/readiness",
       checklist: "/pilot/checklist",
       health: "/health",
@@ -746,6 +747,97 @@ export function getPilotReadinessStatus() {
       riskRegister: project ? `/projects/${project.id}/risk-register.md` : null,
       gateReviewPack: gate ? `/gates/${gate.id}/review-pack.md` : null,
     },
+  };
+}
+
+export function getPilotLaunchStatus() {
+  const pilotReadiness = getPilotReadinessStatus();
+  const opsSummary = getOpsSummaryStatus();
+  const checklistItems = pilotReadiness.checklist?.items || [];
+  const requiredPending = checklistItems.filter((item) => item.severity === "REQUIRED" && item.status !== "DONE");
+  const seenCodes = new Set();
+  const hardBlockers = [...(pilotReadiness.blockers || []), ...(opsSummary.blockers || [])].filter((item) => {
+    const code = item.code || item.message;
+    if (seenCodes.has(code)) return false;
+    seenCodes.add(code);
+    return true;
+  });
+  const warnings = [...(pilotReadiness.warnings || []), ...(opsSummary.warnings || [])].filter((item) => {
+    const code = item.code || item.message;
+    if (seenCodes.has(code)) return false;
+    seenCodes.add(code);
+    return true;
+  });
+  const decision = hardBlockers.length ? "NO_GO" : requiredPending.length || warnings.length ? "GO_WITH_CAUTION" : "GO";
+  const checkpointItem = checklistItems.find((item) => item.key === "checkpoint");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    decision,
+    canStart: decision !== "NO_GO",
+    project: pilotReadiness.project,
+    gate: pilotReadiness.gate,
+    summary: {
+      requiredDone: pilotReadiness.checklist?.summary?.requiredDone || 0,
+      requiredTotal: pilotReadiness.checklist?.summary?.requiredTotal || 0,
+      requiredPending: requiredPending.length,
+      blockers: hardBlockers.length,
+      warnings: warnings.length,
+      httpServerErrors: opsSummary.http?.serverErrors || 0,
+    },
+    criteria: [
+      {
+        key: "service_data",
+        label: "服务和本地数据可用",
+        status: pilotReadiness.ready ? "PASS" : "FAIL",
+        detail: pilotReadiness.storage?.valid ? "Store 校验通过。" : "Store 未通过校验。",
+      },
+      {
+        key: "required_checklist",
+        label: "必需试点项完成",
+        status: requiredPending.length ? "WARN" : "PASS",
+        detail: `${pilotReadiness.checklist?.summary?.requiredDone || 0}/${pilotReadiness.checklist?.summary?.requiredTotal || 0} 个必需项已完成。`,
+      },
+      {
+        key: "gate_evidence",
+        label: "阶段门证据状态明确",
+        status: pilotReadiness.gate?.blockerCount ? "WARN" : "PASS",
+        detail: `证据 ${pilotReadiness.gate?.readyEvidenceCount || 0}/${pilotReadiness.gate?.requiredEvidenceCount || 0}，阻塞 ${pilotReadiness.gate?.blockerCount || 0}。`,
+      },
+      {
+        key: "data_protection",
+        label: "试点前数据保护",
+        status: checkpointItem?.status === "DONE" ? "PASS" : "WARN",
+        detail: checkpointItem?.detail || "建议试点开始前创建检查点。",
+      },
+      {
+        key: "operations",
+        label: "运维观测无硬阻塞",
+        status: opsSummary.ready ? "PASS" : "FAIL",
+        detail: `HTTP 5xx ${opsSummary.http?.serverErrors || 0}，提醒 ${opsSummary.warnings?.length || 0}。`,
+      },
+    ],
+    blockers: hardBlockers,
+    warnings,
+    requiredPending: requiredPending.map((item) => ({
+      key: item.key,
+      title: item.title,
+      action: item.action,
+    })),
+    commands: pilotReadiness.commands,
+    links: {
+      launch: "/pilot/launch",
+      readiness: pilotReadiness.links?.readiness,
+      checklist: pilotReadiness.links?.checklist,
+      opsSummary: pilotReadiness.links?.opsSummary,
+      metrics: pilotReadiness.links?.metrics,
+      storageDoctor: pilotReadiness.links?.storageDoctor,
+    },
+    nextActions: hardBlockers.length
+      ? hardBlockers.map((item) => item.message)
+      : requiredPending.length
+        ? requiredPending.map((item) => item.action || item.title)
+        : opsSummary.nextActions,
   };
 }
 
@@ -3196,6 +3288,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/readiness") {
       return writeJson(res, 200, getPilotReadinessStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/launch") {
+      return writeJson(res, 200, getPilotLaunchStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/pilot/checklist") {

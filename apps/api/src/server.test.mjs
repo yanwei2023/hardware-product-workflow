@@ -143,6 +143,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.projectSnapshot, "/projects/project-smart-controller/snapshot.md");
   assert.equal(result.body.links.runtimeNetwork, "/runtime/network");
   assert.equal(result.body.links.opsSummary, "/ops/summary");
+  assert.equal(result.body.links.launch, "/pilot/launch");
   assert.equal(result.body.links.checklist, "/pilot/checklist");
   assert.equal(result.body.links.metrics, "/metrics");
   assert.equal(result.body.links.storageStatus, "/storage/status");
@@ -153,6 +154,23 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   const checklistWarning = result.body.warnings.find((item) => item.code === "REQUIRED_CHECKLIST_PENDING");
   assert.equal(checklistWarning.details.some((item) => item.key === "checkpoint"), true);
   assert.equal(checklistWarning.details.some((item) => item.action), true);
+});
+
+test("pilot launch endpoint summarizes go no-go decision", async () => {
+  const result = await dispatch("/pilot/launch");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.project.id, "project-smart-controller");
+  assert.equal(result.body.gate.id, "gate-evt_exit");
+  assert.equal(result.body.canStart, true);
+  assert.equal(result.body.decision, "GO_WITH_CAUTION");
+  assert.equal(result.body.summary.requiredPending > 0, true);
+  assert.equal(result.body.criteria.some((item) => item.key === "required_checklist" && item.status === "WARN"), true);
+  assert.equal(result.body.requiredPending.some((item) => item.key === "checkpoint"), true);
+  assert.equal(result.body.commands.check, "npm run pilot:check");
+  assert.equal(result.body.links.launch, "/pilot/launch");
+  assert.equal(result.body.links.readiness, "/pilot/readiness");
+  assert.equal(result.body.nextActions.length > 0, true);
 });
 
 test("pilot checklist endpoint reports workflow trial steps", async () => {

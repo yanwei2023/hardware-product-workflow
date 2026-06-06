@@ -12,6 +12,7 @@ type ApiState = {
   storageDoctor: any | null;
   readiness: any | null;
   pilotReadiness: any | null;
+  pilotLaunch: any | null;
   opsSummary: any | null;
   runtimeConfig: any | null;
   runtimeNetwork: any | null;
@@ -38,6 +39,14 @@ const statusText: Record<string, string> = {
   PLANNED: "已计划",
   READY: "可通过",
   BLOCKED: "阻塞",
+  GO: "可启动",
+  GO_WITH_CAUTION: "谨慎启动",
+  NO_GO: "暂缓启动",
+  PASS: "通过",
+  FAIL: "失败",
+  WARN: "提醒",
+  YES: "是",
+  NO: "否",
   READ: "已读",
   UNREAD: "未读",
   OVERDUE: "逾期",
@@ -211,6 +220,7 @@ export function App() {
     storageDoctor: null,
     readiness: null,
     pilotReadiness: null,
+    pilotLaunch: null,
     opsSummary: null,
     runtimeConfig: null,
     runtimeNetwork: null,
@@ -241,13 +251,14 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
-    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, opsSummary, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
+    const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, pilotLaunch, opsSummary, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
       api("/storage/status"),
       api("/storage/doctor"),
       api("/ready", { allowError: true }),
       api("/pilot/readiness"),
+      api("/pilot/launch"),
       api("/ops/summary"),
       api("/runtime/config"),
       api("/runtime/network"),
@@ -271,6 +282,7 @@ export function App() {
       storageDoctor,
       readiness,
       pilotReadiness,
+      pilotLaunch,
       opsSummary,
       runtimeConfig,
       runtimeNetwork,
@@ -392,6 +404,7 @@ export function App() {
             storageDoctor={state.storageDoctor}
             readiness={state.readiness}
             pilotReadiness={state.pilotReadiness}
+            pilotLaunch={state.pilotLaunch}
             opsSummary={state.opsSummary}
             runtimeConfig={state.runtimeConfig}
             runtimeNetwork={state.runtimeNetwork}
@@ -551,6 +564,7 @@ function Projects({
   actorUserId,
   busy,
   opsSummary,
+  pilotLaunch,
   pilotReadiness,
   project,
   readiness,
@@ -736,7 +750,7 @@ function Projects({
       </article>
       <article className="panel span-3">
         <h2>试点就绪总览</h2>
-        <PilotReadiness opsSummary={opsSummary} pilotReadiness={pilotReadiness} />
+        <PilotReadiness opsSummary={opsSummary} pilotLaunch={pilotLaunch} pilotReadiness={pilotReadiness} />
       </article>
       <article className="panel span-3">
         <h2>本地数据状态</h2>
@@ -793,7 +807,7 @@ function Projects({
   );
 }
 
-function PilotReadiness({ opsSummary, pilotReadiness }: any) {
+function PilotReadiness({ opsSummary, pilotLaunch, pilotReadiness }: any) {
   if (!pilotReadiness) {
     return <p className="muted">试点就绪状态加载中。</p>;
   }
@@ -816,6 +830,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
           <Metric key={String(label)} label={label} value={String(value).match(/^[A-Z_]+$/) ? badge(String(value)) : value} />
         ))}
       </div>
+      <PilotLaunchSummary pilotLaunch={pilotLaunch} />
       <PilotBrief pilotReadiness={pilotReadiness} />
       <section className="split">
         <div className="subpanel">
@@ -883,6 +898,52 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotLaunchSummary({ pilotLaunch }: any) {
+  if (!pilotLaunch) {
+    return null;
+  }
+
+  const criteria = pilotLaunch.criteria || [];
+  const requiredPending = pilotLaunch.requiredPending || [];
+
+  return (
+    <section className="subpanel pilot-launch">
+      <div className="panel-heading">
+        <div>
+          <h3>启动判定</h3>
+          <p className="muted">试点主持人可先看这里决定是否开跑，再展开下方清单处理细节。</p>
+        </div>
+        {badge(pilotLaunch.decision || "PENDING")}
+      </div>
+      <div className="runtime-grid pilot-grid">
+        <Metric label="可启动" value={pilotLaunch.canStart ? "YES" : "NO"} />
+        <Metric label="必需待处理" value={pilotLaunch.summary?.requiredPending || 0} />
+        <Metric label="硬阻塞" value={pilotLaunch.summary?.blockers || 0} />
+        <Metric label="提醒" value={pilotLaunch.summary?.warnings || 0} />
+      </div>
+      <table className="compact-table">
+        <thead><tr><th>状态</th><th>判定项</th><th>说明</th></tr></thead>
+        <tbody>
+          {criteria.map((item: any) => (
+            <tr key={item.key}>
+              <td>{badge(item.status)}</td>
+              <td><strong>{item.label}</strong></td>
+              <td>{item.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {requiredPending.length ? (
+        <ul className="compact-list">
+          {requiredPending.map((item: any) => (
+            <li key={item.key}><strong>{item.title}</strong><span>{item.action}</span></li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

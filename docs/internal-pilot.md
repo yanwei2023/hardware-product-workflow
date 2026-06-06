@@ -53,6 +53,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 - 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、试点问题上报、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包和 `psql` 执行命令；
 - 现场简报 `pilot-brief.md`，用于会前/会中同步项目、阶段门、必需项、阻塞提醒、命令和诊断链接；
+- 启动判定 `pilot-launch-summary.json`，用于快速判断 `GO`、`GO_WITH_CAUTION` 或 `NO_GO`，并列出硬阻塞、必需待处理项和下一步动作；
 - 试点问题上报模板 `pilot-issue-report.md`，用于记录请求 ID、服务版本、复现步骤、影响范围、诊断端点和是否需要回滚；
 - 项目快照 JSON/Markdown；
 - 风险台账 JSON/Markdown；
@@ -91,6 +92,7 @@ http://本机内网IP:3001
 http://localhost:3001/health
 http://localhost:3001/ready
 http://localhost:3001/pilot/readiness
+http://localhost:3001/pilot/launch
 http://localhost:3001/pilot/checklist
 http://localhost:3001/ops/summary
 http://localhost:3001/storage/status
