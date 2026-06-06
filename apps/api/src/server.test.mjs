@@ -130,6 +130,10 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.commands.check, "npm run pilot:check");
   assert.equal(result.body.commands.rehearse, "npm run pilot:rehearse");
   assert.equal(result.body.commands.archive, "npm run pilot:archive -- /tmp/hardware-flow-pilot-archive");
+  assert.equal(result.body.acceptanceCriteria.some((item) => item.includes("工作包生成")), true);
+  assert.equal(result.body.acceptanceCriteria.some((item) => item.includes("npm run pilot:check")), true);
+  assert.equal(result.body.boundaries.some((item) => item.includes("用户登录")), true);
+  assert.equal(result.body.boundaries.some((item) => item.includes("PostgreSQL 运行时读写")), true);
   assert.equal(result.body.issueReport.templateName, "pilot-issue-report.md");
   assert.equal(result.body.issueReport.requiredFields.includes("请求 ID"), true);
   assert.equal(result.body.issueReport.requiredFields.includes("是否需要回滚"), true);

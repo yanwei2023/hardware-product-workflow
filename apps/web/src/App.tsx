@@ -869,6 +869,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
           </table>
         </section>
       ) : null}
+      <PilotAcceptance acceptanceCriteria={pilotReadiness.acceptanceCriteria} boundaries={pilotReadiness.boundaries} />
       <PilotIssueReport issueReport={pilotReadiness.issueReport} links={pilotReadiness.links} />
       <PilotOpsSummary opsSummary={opsSummary} />
       <table className="storage-table">
@@ -880,6 +881,33 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotAcceptance({ acceptanceCriteria, boundaries }: any) {
+  if (!acceptanceCriteria?.length && !boundaries?.length) {
+    return null;
+  }
+
+  return (
+    <section className="split pilot-acceptance">
+      <div className="subpanel">
+        <h3>第一轮验收标准</h3>
+        <ul className="compact-list">
+          {(acceptanceCriteria || []).map((item: string) => (
+            <li key={item}><strong>ACCEPT</strong><span>{item}</span></li>
+          ))}
+        </ul>
+      </div>
+      <div className="subpanel">
+        <h3>第一轮边界</h3>
+        <ul className="compact-list">
+          {(boundaries || []).map((item: string) => (
+            <li key={item}><strong>OUT</strong><span>{item}</span></li>
+          ))}
+        </ul>
+      </div>
+    </section>
   );
 }
 
