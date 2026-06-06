@@ -69,9 +69,10 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 ## 启动方式
 
-本机试点：
+本机试点（首次建议先丰富演示数据）：
 
 ```text
+npm run demo:enrich
 npm start
 ```
 

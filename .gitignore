@@ -27,3 +27,4 @@ data/*.json
 # Local preview artifacts
 frontend-preview.png
 
+data/*.bak

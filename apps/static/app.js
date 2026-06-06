@@ -238,6 +238,8 @@ function render() {
     gate: "阶段门",
     risks: "风险台账",
     audit: "审计",
+    actions: "我的待办",
+    notifications: "通知",
   }[state.currentView];
 
   document.querySelectorAll(".view").forEach((item) => item.classList.add("hidden"));
@@ -248,6 +250,8 @@ function render() {
   renderWorkPackages();
   renderGate();
   renderRisks();
+  renderActions();
+  renderNotificationsPage();
   renderAudit();
 }
 
@@ -1418,6 +1422,66 @@ function renderBlockerRow(blocker) {
     </tr>
   `;
 }
+
+
+function renderActions() {
+  q("#actionsView").innerHTML = "<article class=\"panel\"><h2>我的待办</h2>" + renderActionItems() + "</article>";
+}
+
+function renderNotificationsPage() {
+  q("#notificationsView").innerHTML =
+    "<article class=\"panel\"><h2>通知</h2>" + renderNotificationsFull() + "</article>";
+}
+
+function renderNotificationsFull() {
+  var notifications = state.notifications;
+  if (!notifications) {
+    return "<p class='muted'>通知加载中。</p>";
+  }
+  var counts = notifications.counts || {};
+  var filters = [
+    ["ALL", "全部", notifications.total || 0],
+    ["UNREAD", "未读", counts.unread || 0],
+    ["ACTION", "行动项", counts.action || 0],
+    ["WARNING", "提醒", counts.warning || 0],
+    ["INFO", "信息", counts.info || 0],
+  ];
+  var statusMap = { UNREAD: "未读", ACTION: "行动", WARNING: "提醒", INFO: "信息", READ: "已读" };
+  var items = (notifications.items || []).map(function(item) {
+    var typeLabel = statusMap[item.type] || item.type;
+    var dateLabel = item.createdAt || "";
+    var escapedTitle = escapeHtml(item.title);
+    var escapedMsg = item.message ? "<p class='muted'>" + escapeHtml(item.message) + "</p>" : "";
+    var actionBtn = "";
+    if (item.objectType === "work_package" && item.objectId) {
+      actionBtn += "<button onclick=\"goWorkPackage('" + item.objectId + "')\">查看</button>";
+    } else if (item.objectType === "gate" && item.objectId) {
+      actionBtn += "<button onclick=\"goGate()\">查看</button>";
+    }
+    var readBtn = item.status === "UNREAD"
+      ? "<button class='secondary' onclick=\"markNotificationRead('" + item.id + "')\" " + (state.busy ? "disabled" : "") + ">标记已读</button>"
+      : "";
+    return "<article class='notif-card" + (item.status === "READ" ? " read" : "") + "'>"
+      + "<div class='notif-head'><span class='notif-type'>" + typeLabel + "</span><span class='muted'>" + dateLabel + "</span></div>"
+      + "<p><strong>" + escapedTitle + "</strong></p>"
+      + escapedMsg
+      + "<div class='actions'>" + actionBtn + readBtn + "</div>"
+      + "</article>";
+  }).join("") || "<p class='muted'>暂无通知。</p>";
+
+  var filterHtml = filters.map(function(f) {
+    var key = f[0], label = f[1], count = f[2];
+    var active = state.notificationFilter === key ? " active" : "";
+    return "<button class=\"filter-btn" + active + "\" onclick=\"setNotificationFilter('" + key + "')\">" + label + "(" + count + ")</button>";
+  }).join("");
+
+  return "<div class='filter-bar'>" + filterHtml
+    + "<span class='spacer'></span>"
+    + "<button class='secondary' onclick=\"markAllNotificationsRead()\" " + (state.busy || !notifications.unreadCount ? "disabled" : "") + ">全部已读</button>"
+    + "</div>"
+    + "<section class='notif-list'>" + items + "</section>";
+}
+
 
 function renderAudit() {
   q("#auditView").innerHTML = `

@@ -647,3 +647,75 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* Notification list view */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-bar .spacer {
+  flex: 1;
+}
+
+.filter-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notif-card {
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.notif-card.read {
+  opacity: 0.65;
+}
+
+.notif-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notif-type {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+.notif-card .actions {
+  margin-top: 8px;
+}
+
+.raw-message {
+  color: var(--text-muted);
+  font-style: italic;
+}
