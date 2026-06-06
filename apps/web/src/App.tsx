@@ -816,6 +816,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
           <Metric key={String(label)} label={label} value={String(value).match(/^[A-Z_]+$/) ? badge(String(value)) : value} />
         ))}
       </div>
+      <PilotBrief pilotReadiness={pilotReadiness} />
       <section className="split">
         <div className="subpanel">
           <h3>阻塞</h3>
@@ -882,6 +883,59 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotBrief({ pilotReadiness }: any) {
+  const [copied, setCopied] = useState(false);
+  const links = Object.entries(pilotReadiness.links || {})
+    .filter(([, value]) => Boolean(value))
+    .map(([label, value]) => `- ${label}: ${value}`);
+  const commands = Object.entries(pilotReadiness.commands || {})
+    .filter(([, value]) => Boolean(value))
+    .map(([label, value]) => `- ${label}: ${value}`);
+  const blockers = (pilotReadiness.blockers || []).map((item: any) => `- ${item.code}: ${item.message}`);
+  const warnings = (pilotReadiness.warnings || []).map((item: any) => `- ${item.code}: ${item.message}`);
+  const checklist = pilotReadiness.checklist?.summary || {};
+  const brief = [
+    "# 内部试点现场简报",
+    "",
+    `项目: ${pilotReadiness.project?.name || "-"} (${pilotReadiness.project?.id || "-"})`,
+    `当前阶段: ${pilotReadiness.project?.currentPhaseName || pilotReadiness.project?.currentPhaseId || "-"}`,
+    `阶段门: ${pilotReadiness.gate?.name || "-"} / ${pilotReadiness.gate?.readiness || "-"}`,
+    `试点状态: ${pilotReadiness.ready ? "READY" : "BLOCKED"}`,
+    `必需项: ${checklist.requiredDone || 0}/${checklist.requiredTotal || 0}`,
+    `待处理: ${checklist.pending || 0}`,
+    "",
+    "## 阻塞",
+    ...(blockers.length ? blockers : ["- 无"]),
+    "",
+    "## 提醒",
+    ...(warnings.length ? warnings : ["- 无"]),
+    "",
+    "## 命令",
+    ...commands,
+    "",
+    "## 链接",
+    ...links,
+  ].join("\n");
+
+  async function onCopy() {
+    await copyText(brief);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <section className="subpanel pilot-brief">
+      <div className="panel-heading">
+        <div>
+          <h3>现场简报</h3>
+          <p className="muted">复制当前试点状态、阻塞提醒、命令和诊断链接，便于同步到会议纪要或群消息。</p>
+        </div>
+        <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制简报"}</button>
+      </div>
+    </section>
   );
 }
 
