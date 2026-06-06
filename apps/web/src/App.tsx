@@ -886,13 +886,27 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
 }
 
 function PilotRunbook({ steps }: { steps?: string[] }) {
+  const [copied, setCopied] = useState(false);
+
   if (!steps?.length) {
     return null;
   }
 
+  async function onCopy() {
+    await copyText(steps.map((item, index) => `${index + 1}. ${item}`).join("\n"));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
     <section className="subpanel">
-      <h3>建议试点流程</h3>
+      <div className="panel-heading">
+        <div>
+          <h3>建议试点流程</h3>
+          <p className="muted">主持人可按顺序走完第一轮内部试点，也可复制到会议纪要或群消息。</p>
+        </div>
+        <button className="ghost" onClick={onCopy}>{copied ? "已复制" : "复制流程"}</button>
+      </div>
       <ol className="runbook-list">
         {steps.map((item, index) => (
           <li key={item}>
