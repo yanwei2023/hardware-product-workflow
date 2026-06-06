@@ -869,6 +869,7 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
           </table>
         </section>
       ) : null}
+      <PilotRunbook steps={pilotReadiness.runbookSteps} />
       <PilotAcceptance acceptanceCriteria={pilotReadiness.acceptanceCriteria} boundaries={pilotReadiness.boundaries} />
       <PilotIssueReport issueReport={pilotReadiness.issueReport} links={pilotReadiness.links} />
       <PilotOpsSummary opsSummary={opsSummary} />
@@ -881,6 +882,26 @@ function PilotReadiness({ opsSummary, pilotReadiness }: any) {
         </tbody>
       </table>
     </>
+  );
+}
+
+function PilotRunbook({ steps }: { steps?: string[] }) {
+  if (!steps?.length) {
+    return null;
+  }
+
+  return (
+    <section className="subpanel">
+      <h3>建议试点流程</h3>
+      <ol className="runbook-list">
+        {steps.map((item, index) => (
+          <li key={item}>
+            <strong>{String(index + 1).padStart(2, "0")}</strong>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

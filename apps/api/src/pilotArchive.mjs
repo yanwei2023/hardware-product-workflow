@@ -4,7 +4,7 @@ import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
 import { assertValidPostgresExport } from "./postgresExportReport.mjs";
 import { buildPostgresImportManifest, verifyPostgresImportBundle } from "./postgresImportBundle.mjs";
 import { mapStoreToPostgresRows, renderPostgresSeedSql } from "./postgresMapper.mjs";
-import { firstPilotAcceptanceCriteria, firstPilotBoundaries, pilotIssueReport } from "./pilotPlan.mjs";
+import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport } from "./pilotPlan.mjs";
 import {
   createDemoStore,
   getDemoProject,
@@ -65,6 +65,7 @@ function renderPilotHandoffMarkdown(manifest) {
   const latestCheckpoint = dataProtection.latestCheckpoint;
   const acceptanceRows = (manifest.acceptanceCriteria || []).map((item) => `- ${item}`).join("\n") || "- 暂无验收标准。";
   const boundaryRows = (manifest.boundaries || []).map((item) => `- ${item}`).join("\n") || "- 暂无额外边界。";
+  const runbookRows = (manifest.runbookSteps || []).map((item, index) => `${index + 1}. ${item}`).join("\n") || "暂无试点流程。";
   const issueReport = manifest.issueReport || {};
 
   return `# 内部试点交接页
@@ -130,6 +131,10 @@ ${requiredPendingRows}
 ## 第一轮验收标准
 
 ${acceptanceRows}
+
+## 建议试点流程
+
+${runbookRows}
 
 ## 第一轮试点边界
 
@@ -338,6 +343,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     commands: pilotReadiness.commands || {},
     acceptanceCriteria: firstPilotAcceptanceCriteria,
     boundaries: firstPilotBoundaries,
+    runbookSteps: firstPilotRunbookSteps,
     issueReport: {
       templatePath: pilotIssueReport.templateName,
       severityGuide: pilotIssueReport.severityGuide,

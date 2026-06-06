@@ -397,6 +397,32 @@ h3 {
   padding: 7px 8px;
 }
 
+.runbook-list {
+  display: grid;
+  gap: 9px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.runbook-list li {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.runbook-list strong {
+  color: #265d73;
+  font-size: 12px;
+}
+
+.runbook-list span {
+  color: #3d4c5e;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .split {
   display: grid;
   gap: 14px;
@@ -719,6 +745,7 @@ h3 {
   .network-list,
   .network-url,
   .panel-heading,
+  .runbook-list li,
   .split,
   .evidence-form {
     grid-template-columns: 1fr;

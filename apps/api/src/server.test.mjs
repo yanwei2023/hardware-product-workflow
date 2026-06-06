@@ -134,6 +134,8 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.acceptanceCriteria.some((item) => item.includes("npm run pilot:check")), true);
   assert.equal(result.body.boundaries.some((item) => item.includes("用户登录")), true);
   assert.equal(result.body.boundaries.some((item) => item.includes("PostgreSQL 运行时读写")), true);
+  assert.equal(result.body.runbookSteps.some((item) => item.includes("创建一个试点项目")), true);
+  assert.equal(result.body.runbookSteps.some((item) => item.includes("导出项目快照")), true);
   assert.equal(result.body.issueReport.templateName, "pilot-issue-report.md");
   assert.equal(result.body.issueReport.requiredFields.includes("请求 ID"), true);
   assert.equal(result.body.issueReport.requiredFields.includes("是否需要回滚"), true);

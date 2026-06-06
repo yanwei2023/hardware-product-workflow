@@ -30,7 +30,7 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
-import { firstPilotAcceptanceCriteria, firstPilotBoundaries, pilotIssueReport } from "./pilotPlan.mjs";
+import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport } from "./pilotPlan.mjs";
 import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
@@ -729,6 +729,7 @@ export function getPilotReadinessStatus() {
     },
     acceptanceCriteria: firstPilotAcceptanceCriteria,
     boundaries: firstPilotBoundaries,
+    runbookSteps: firstPilotRunbookSteps,
     issueReport: pilotIssueReport,
     links: {
       readiness: "/pilot/readiness",

@@ -12,6 +12,7 @@ console.log(
       commands: result.manifest.commands,
       acceptanceCriteria: result.manifest.acceptanceCriteria,
       boundaries: result.manifest.boundaries,
+      runbookSteps: result.manifest.runbookSteps,
       issueReport: result.manifest.issueReport,
       dataProtection: result.manifest.dataProtection,
       checklist: result.manifest.checklist,
