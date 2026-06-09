@@ -50,6 +50,22 @@ const statusText = {
 
 const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(value) {
+  if (!value) return "-";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function q(selector) {
   return document.querySelector(selector);
 }
@@ -1040,11 +1056,22 @@ function renderWorkPackageDetail(workPackage) {
         </label>
         <button class="ghost" onclick="addEvidenceRef('${workPackage.id}')" ${state.busy ? "disabled" : ""}>添加证据</button>
       </div>
+      <div class="inline-form evidence-form file-upload-form">
+        <label class="field">
+          附件标题
+          <input id="evidenceFileLabel-${escapeHtml(workPackage.id)}" placeholder="例如：EVT 测试原始数据" />
+        </label>
+        <label class="field">
+          文件
+          <input id="evidenceFile-${escapeHtml(workPackage.id)}" type="file" />
+        </label>
+        <button class="ghost" onclick="uploadEvidenceFile('${workPackage.id}')" ${state.busy ? "disabled" : ""}>上传附件</button>
+      </div>
       ${
         evidenceRefs.length
           ? `
             <table class="table compact-table">
-              <thead><tr><th>标题</th><th>引用</th><th>添加人</th></tr></thead>
+              <thead><tr><th>标题</th><th>引用</th><th>大小</th><th>添加人</th></tr></thead>
               <tbody>
                 ${evidenceRefs
                   .slice()
@@ -1053,7 +1080,8 @@ function renderWorkPackageDetail(workPackage) {
                     (item) => `
                       <tr>
                         <td>${escapeHtml(item.label)}</td>
-                        <td>${renderEvidenceRef(item.ref)}</td>
+                        <td>${renderEvidenceRef(item)}</td>
+                        <td>${item.kind === "file" ? formatBytes(item.sizeBytes) : "-"}</td>
                         <td>${escapeHtml(item.createdByUserId)}</td>
                       </tr>
                     `,
@@ -1114,7 +1142,13 @@ function renderWorkPackageDetail(workPackage) {
   `;
 }
 
-function renderEvidenceRef(ref) {
+function renderEvidenceRef(itemOrRef) {
+  const item = typeof itemOrRef === "object" && itemOrRef ? itemOrRef : { ref: itemOrRef };
+  const ref = item.ref || "";
+  if (item.kind === "file") {
+    const label = escapeHtml(item.originalFileName || item.fileName || "下载附件");
+    return `<a href="${escapeHtml(ref)}" target="_blank" rel="noreferrer">${label}</a>`;
+  }
   const safeRef = escapeHtml(ref);
   if (/^https?:\/\//i.test(ref)) {
     return `<a href="${safeRef}" target="_blank" rel="noreferrer">${safeRef}</a>`;
@@ -1631,6 +1665,29 @@ async function addEvidenceRef(workPackageId) {
       body: JSON.stringify({
         label,
         ref,
+        actorUserId: state.actorUserId,
+      }),
+    });
+    await loadProject();
+  });
+}
+
+async function uploadEvidenceFile(workPackageId) {
+  const label = q(`#evidenceFileLabel-${CSS.escape(workPackageId)}`).value.trim();
+  const file = q(`#evidenceFile-${CSS.escape(workPackageId)}`).files?.[0] || null;
+  if (!label || !file) {
+    showMessage("请填写附件标题并选择文件", "error");
+    return;
+  }
+  await withBusy(async () => {
+    const contentBase64 = await fileToBase64(file);
+    await api(`/work-packages/${workPackageId}/evidence-files`, {
+      method: "POST",
+      body: JSON.stringify({
+        label,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        contentBase64,
         actorUserId: state.actorUserId,
       }),
     });

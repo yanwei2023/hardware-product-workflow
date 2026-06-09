@@ -332,7 +332,19 @@ export function updateWorkPackageScheduleInStore(store, workPackageId, dueAt) {
 export function addWorkPackageEvidenceRefInStore(
   store,
   workPackageId,
-  { id, label, ref, createdByUserId, createdAt = new Date().toISOString() } = {},
+  {
+    id,
+    label,
+    ref,
+    kind = "reference",
+    fileName = null,
+    originalFileName = null,
+    mimeType = null,
+    sizeBytes = null,
+    storagePath = null,
+    createdByUserId,
+    createdAt = new Date().toISOString(),
+  } = {},
 ) {
   const workPackage = findWorkPackage(store, workPackageId);
   if (!workPackage) {
@@ -345,6 +357,12 @@ export function addWorkPackageEvidenceRefInStore(
     workPackageId: workPackage.id,
     label,
     ref,
+    kind,
+    fileName,
+    originalFileName,
+    mimeType,
+    sizeBytes,
+    storagePath,
     createdByUserId,
     createdAt,
   };

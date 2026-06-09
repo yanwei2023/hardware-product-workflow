@@ -28,3 +28,4 @@ data/*.json
 frontend-preview.png
 
 data/*.bak
+data/evidence-files/

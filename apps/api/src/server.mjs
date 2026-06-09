@@ -85,6 +85,7 @@ const host = process.env.HOST || "127.0.0.1";
 const workspaceRoot = path.resolve(import.meta.dirname, "../../..");
 const reactStaticRoot = path.join(workspaceRoot, "apps/web/dist");
 const fallbackStaticRoot = path.join(workspaceRoot, "apps/static");
+const evidenceFilesRoot = path.join(workspaceRoot, "data/evidence-files");
 const reactStaticAvailable = fs.existsSync(path.join(reactStaticRoot, "index.html"));
 const staticRoot = reactStaticAvailable ? reactStaticRoot : fallbackStaticRoot;
 const staticMode = reactStaticAvailable ? "react" : "static";
@@ -1110,6 +1111,20 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
     "access-control-allow-headers": "content-type,x-request-id",
+    "access-control-expose-headers": "x-request-id,x-service-version",
+    "x-service-version": serviceMetadata.version,
+    ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
+  });
+  res.end(body);
+}
+
+function writeFileDownload(res, filePath, { fileName, mimeType = "application/octet-stream" } = {}) {
+  const body = fs.readFileSync(filePath);
+  res.writeHead(200, {
+    "content-type": mimeType,
+    "content-disposition": `attachment; filename="${encodeURIComponent(fileName || path.basename(filePath))}"`,
+    "content-length": body.length,
+    "access-control-allow-origin": "*",
     "access-control-expose-headers": "x-request-id,x-service-version",
     "x-service-version": serviceMetadata.version,
     ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
@@ -2355,6 +2370,96 @@ export function addWorkPackageEvidenceRef(workPackageId, body = {}) {
   };
 }
 
+export function uploadWorkPackageEvidenceFile(workPackageId, body = {}) {
+  const workPackage = findWorkPackage(store, workPackageId);
+  if (!workPackage) {
+    return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+
+  const label = String(body.label || "").trim();
+  const originalFileName = path.basename(String(body.fileName || "").trim());
+  const mimeType = String(body.mimeType || "application/octet-stream").trim() || "application/octet-stream";
+  const contentBase64 = String(body.contentBase64 || "").trim();
+  if (!label) {
+    return validationError("证据标题不能为空");
+  }
+  if (!originalFileName) {
+    return validationError("文件名不能为空");
+  }
+  if (!contentBase64) {
+    return validationError("文件内容不能为空");
+  }
+
+  let fileBuffer;
+  try {
+    fileBuffer = Buffer.from(contentBase64, "base64");
+  } catch {
+    return validationError("文件内容不是合法 base64");
+  }
+  if (!fileBuffer.length || fileBuffer.toString("base64").replace(/=+$/, "") !== contentBase64.replace(/=+$/, "")) {
+    return validationError("文件内容不是合法 base64");
+  }
+  if (fileBuffer.length > maxJsonBodyBytes) {
+    return validationError(`文件大小不能超过 ${maxJsonBodyBytes} bytes`);
+  }
+
+  fs.mkdirSync(evidenceFilesRoot, { recursive: true });
+  const evidenceId = `evidence-${randomUUID()}`;
+  const extension = path.extname(originalFileName).slice(0, 24);
+  const storedFileName = `${evidenceId}${extension}`;
+  const storagePath = path.join(evidenceFilesRoot, storedFileName);
+  fs.writeFileSync(storagePath, fileBuffer);
+
+  const evidenceRef = addWorkPackageEvidenceRefInStore(store, workPackage.id, {
+    id: evidenceId,
+    label,
+    ref: `/evidence-files/${evidenceId}/download`,
+    kind: "file",
+    fileName: storedFileName,
+    originalFileName,
+    mimeType,
+    sizeBytes: fileBuffer.length,
+    storagePath,
+    createdByUserId: body.actorUserId || body.userId || "user-project-manager",
+  });
+  audit("WORK_PACKAGE_EVIDENCE_FILE_UPLOADED", "human", evidenceRef.createdByUserId, "workPackage", workPackage.id, {
+    evidenceRefId: evidenceRef.id,
+    label: evidenceRef.label,
+    originalFileName: evidenceRef.originalFileName,
+    sizeBytes: evidenceRef.sizeBytes,
+  });
+  persistStore();
+
+  return {
+    statusCode: 201,
+    body: {
+      evidenceRef,
+      workPackage: getWorkPackageDetail(workPackage.id),
+      project: getActiveProjectView(),
+    },
+  };
+}
+
+export function getEvidenceFile(evidenceRefId) {
+  const evidenceRef = (store.evidenceRefs || []).find((item) => item.id === evidenceRefId);
+  if (!evidenceRef || evidenceRef.kind !== "file") {
+    return { statusCode: 404, body: { error: "附件不存在" } };
+  }
+  const resolvedPath = path.resolve(evidenceRef.storagePath || "");
+  if (!resolvedPath.startsWith(path.resolve(evidenceFilesRoot)) || !fs.existsSync(resolvedPath)) {
+    return { statusCode: 404, body: { error: "附件文件不存在" } };
+  }
+
+  return {
+    statusCode: 200,
+    body: {
+      filePath: resolvedPath,
+      fileName: evidenceRef.originalFileName || evidenceRef.fileName,
+      mimeType: evidenceRef.mimeType || "application/octet-stream",
+    },
+  };
+}
+
 export function getWorkPackageDetail(workPackageId) {
   return getWorkPackageReadModel(store, workPackageId, {
     scheduleStatus: workPackageScheduleStatus,
@@ -3239,6 +3344,11 @@ async function handleAddWorkPackageEvidenceRef(req, res, workPackageId) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleUploadWorkPackageEvidenceFile(req, res, workPackageId) {
+  const result = uploadWorkPackageEvidenceFile(workPackageId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleGateApproval(req, res, gateId) {
   const result = approveGate(gateId, await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -3475,6 +3585,19 @@ export const server = http.createServer(async (req, res) => {
     const workPackageEvidenceRefMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/evidence-refs$/);
     if (req.method === "POST" && workPackageEvidenceRefMatch) {
       return await handleAddWorkPackageEvidenceRef(req, res, workPackageEvidenceRefMatch[1]);
+    }
+
+    const workPackageEvidenceFileMatch = url.pathname.match(/^\/work-packages\/([^/]+)\/evidence-files$/);
+    if (req.method === "POST" && workPackageEvidenceFileMatch) {
+      return await handleUploadWorkPackageEvidenceFile(req, res, workPackageEvidenceFileMatch[1]);
+    }
+
+    const evidenceFileDownloadMatch = url.pathname.match(/^\/evidence-files\/([^/]+)\/download$/);
+    if (req.method === "GET" && evidenceFileDownloadMatch) {
+      const result = getEvidenceFile(evidenceFileDownloadMatch[1]);
+      return result.statusCode === 200
+        ? writeFileDownload(res, result.body.filePath, result.body)
+        : writeJson(res, result.statusCode, result.body);
     }
 
     if (req.method === "GET" && url.pathname === "/templates/hardware") {

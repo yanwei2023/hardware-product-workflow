@@ -189,6 +189,15 @@ function openApiPath(path: string) {
   window.open(`${apiBase}${path}`, "_blank", "noopener,noreferrer");
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function fallbackCopyText(text: string) {
   if (/^https?:\/\//i.test(text)) {
     window.open(text, "_blank", "noopener,noreferrer");
@@ -1633,11 +1642,15 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, bus
   const [dueAt, setDueAt] = useState(workPackage.dueAt || "");
   const [evidenceLabel, setEvidenceLabel] = useState("");
   const [evidenceRef, setEvidenceRef] = useState("");
+  const [evidenceFileLabel, setEvidenceFileLabel] = useState("");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
 
   useEffect(() => {
     setDueAt(workPackage.dueAt || "");
     setEvidenceLabel("");
     setEvidenceRef("");
+    setEvidenceFileLabel("");
+    setEvidenceFile(null);
   }, [workPackage.id, workPackage.dueAt]);
 
   function submitReview(decision: string, defaultComment: string, extra: Record<string, any> = {}) {
@@ -1727,14 +1740,35 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, bus
             setEvidenceRef("");
           })}>添加证据</button>
         </div>
+        <div className="evidence-form file-upload-form">
+          <input placeholder="附件标题" value={evidenceFileLabel} onChange={(event) => setEvidenceFileLabel(event.target.value)} />
+          <input type="file" onChange={(event) => setEvidenceFile(event.target.files?.[0] || null)} />
+          <button className="ghost" disabled={busy || !evidenceFileLabel.trim() || !evidenceFile} onClick={() => runAction("证据附件已上传", async () => {
+            if (!evidenceFile) return;
+            const contentBase64 = await fileToBase64(evidenceFile);
+            await api(`/work-packages/${workPackage.id}/evidence-files`, {
+              method: "POST",
+              body: JSON.stringify({
+                actorUserId,
+                label: evidenceFileLabel,
+                fileName: evidenceFile.name,
+                mimeType: evidenceFile.type || "application/octet-stream",
+                contentBase64,
+              }),
+            });
+            setEvidenceFileLabel("");
+            setEvidenceFile(null);
+          })}>上传附件</button>
+        </div>
         {evidenceRefs.length ? (
           <table className="compact-table">
-            <thead><tr><th>标题</th><th>引用</th><th>添加人</th></tr></thead>
+            <thead><tr><th>标题</th><th>引用</th><th>大小</th><th>添加人</th></tr></thead>
             <tbody>
               {[...evidenceRefs].reverse().map((item: any) => (
                 <tr key={item.id}>
                   <td>{item.label}</td>
-                  <td>{item.ref}</td>
+                  <td>{item.kind === "file" ? <button className="link-button" onClick={() => openApiPath(item.ref)}>{item.originalFileName || item.fileName || "下载附件"}</button> : item.ref}</td>
+                  <td>{item.kind === "file" ? formatBytes(item.sizeBytes) : "-"}</td>
                   <td>{item.createdByUserId}</td>
                 </tr>
               ))}

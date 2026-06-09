@@ -376,6 +376,12 @@ test("work package evidence write helper creates scoped refs", () => {
     workPackageId: "wp-evt_exit-evt_test_plan",
     label: "测试照片",
     ref: "file://photo.jpg",
+    kind: "reference",
+    fileName: null,
+    originalFileName: null,
+    mimeType: null,
+    sizeBytes: null,
+    storagePath: null,
     createdByUserId: "user-test-lead",
     createdAt: "2026-05-31T03:00:00.000Z",
   });

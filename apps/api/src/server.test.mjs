@@ -59,6 +59,7 @@ async function dispatch(pathname, options = {}) {
     const res = {
       statusCode: 200,
       headers: {},
+      chunks: [],
       setHeader(name, value) {
         this.headers[name.toLowerCase()] = value;
       },
@@ -66,8 +67,16 @@ async function dispatch(pathname, options = {}) {
         this.statusCode = statusCode;
         this.headers = { ...this.headers, ...headers };
       },
+      write(chunk) {
+        if (chunk) {
+          this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+        }
+      },
       end(rawBody) {
-        const text = rawBody ? String(rawBody) : "";
+        if (rawBody) {
+          this.write(rawBody);
+        }
+        const text = this.chunks.length ? Buffer.concat(this.chunks).toString("utf8") : "";
         const contentType = this.headers?.["content-type"] || "";
         resolve({
           status: this.statusCode,
@@ -75,6 +84,7 @@ async function dispatch(pathname, options = {}) {
           body: contentType.includes("application/json") && text ? JSON.parse(text) : text || null,
         });
       },
+      on() {},
     };
     Promise.resolve(requestHandler(req, res)).catch((error) => {
       resolve({
@@ -879,6 +889,47 @@ test("work package evidence ref endpoint validates required fields", async () =>
 
   assert.equal(result.status, 400);
   assert.equal(result.body.error, "证据标题不能为空");
+});
+
+test("work package evidence file upload stores downloadable evidence", async () => {
+  const content = Buffer.from("thermal report attachment").toString("base64");
+  const upload = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/evidence-files", {
+    method: "POST",
+    body: JSON.stringify({
+      label: "热测试附件",
+      fileName: "thermal-report.txt",
+      mimeType: "text/plain",
+      contentBase64: content,
+      actorUserId: "user-test-lead",
+    }),
+  });
+
+  assert.equal(upload.status, 201);
+  assert.equal(upload.body.evidenceRef.kind, "file");
+  assert.equal(upload.body.evidenceRef.originalFileName, "thermal-report.txt");
+  assert.equal(upload.body.evidenceRef.sizeBytes, 25);
+  assert.match(upload.body.evidenceRef.ref, /^\/evidence-files\/evidence-.+\/download$/);
+
+  const project = await dispatch("/projects/demo");
+  assert.equal(project.body.evidenceRefs[0].kind, "file");
+
+  const reviewPack = await dispatch("/gates/gate-evt_exit/review-pack");
+  const testPlanEvidence = reviewPack.body.evidence.find((item) => item.workPackageId === "wp-evt_exit-evt_test_plan");
+  assert.equal(testPlanEvidence.manualEvidenceRefs[0].originalFileName, "thermal-report.txt");
+
+  const download = await dispatch(upload.body.evidenceRef.ref);
+  assert.equal(download.status, 200);
+  assert.equal(download.body, "thermal report attachment");
+});
+
+test("work package evidence file upload validates required fields", async () => {
+  const result = await dispatch("/work-packages/wp-evt_exit-evt_test_plan/evidence-files", {
+    method: "POST",
+    body: JSON.stringify({ label: "附件", fileName: "", contentBase64: "" }),
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, "文件名不能为空");
 });
 
 test("notification endpoints show and mark user notifications", async () => {
