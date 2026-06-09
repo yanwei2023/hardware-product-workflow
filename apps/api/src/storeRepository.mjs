@@ -243,6 +243,7 @@ export function addProjectGraphInStore(
     evidenceRefs = [],
     gateApprovalPacks = [],
     risks = [],
+    agentJobs = [],
     agentRuns = [],
     agentFindings = [],
     notifications = [],
@@ -261,6 +262,8 @@ export function addProjectGraphInStore(
   store.evidenceRefs.push(...evidenceRefs);
   store.gateApprovalPacks.push(...gateApprovalPacks);
   store.risks.push(...risks);
+  store.agentJobs ||= [];
+  store.agentJobs.push(...agentJobs);
   store.agentRuns.push(...agentRuns);
   store.agentFindings.push(...agentFindings);
   store.notifications.push(...notifications);
@@ -715,6 +718,7 @@ export function getProjectReadModel(store, projectId) {
     evidenceRefs: (store.evidenceRefs || []).filter((item) => workPackageIds.has(item.workPackageId)),
     gateApprovalPacks: (store.gateApprovalPacks || []).filter((item) => item.projectId === project.id),
     risks: store.risks.filter((item) => item.projectId === project.id && phaseIds.has(item.phaseId)),
+    agentJobs: (store.agentJobs || []).filter((item) => item.projectId === project.id && workPackageIds.has(item.workPackageId)),
     agentRuns: store.agentRuns.filter((item) => workPackageIds.has(item.workPackageId)),
     agentFindings: store.agentFindings.filter((item) => workPackageIds.has(item.workPackageId)),
     notifications: (store.notifications || []).filter((item) => item.projectId === project.id),
@@ -976,6 +980,7 @@ export function getActiveProjectReadModel(
     evidenceRefs,
     gateApprovalPacks,
     risks,
+    agentJobs,
     agentRuns,
     agentFindings,
     auditEvents,
@@ -1004,6 +1009,7 @@ export function getActiveProjectReadModel(
     evidenceRefs,
     gateApprovalPacks,
     risks,
+    agentJobs,
     agentRuns,
     agentFindings,
     auditEvents,
@@ -1095,6 +1101,7 @@ export function getProjectSnapshotReadModel(
     notifications,
     gateRequirements,
     artifactVersions,
+    agentJobs,
     agentRuns,
     agentFindings,
   } = model;
@@ -1127,6 +1134,7 @@ export function getProjectSnapshotReadModel(
       openConditionalApprovalCount: conditionalApprovalReviews.filter((item) => !item.conditionsCompletedAt).length,
       completedConditionalApprovalCount: conditionalApprovalReviews.filter((item) => item.conditionsCompletedAt).length,
       notificationCount: notifications.length,
+      agentJobCount: agentJobs.length,
       auditEventCount: auditEvents.length,
     },
     phases,
@@ -1151,6 +1159,7 @@ export function getProjectSnapshotReadModel(
       ...risk,
       phaseName: phases.find((phase) => phase.id === risk.phaseId)?.name || risk.phaseId,
     })),
+    agentJobs,
     agentRuns,
     agentFindings,
     notifications,

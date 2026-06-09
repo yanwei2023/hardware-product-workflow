@@ -219,6 +219,7 @@ export function createDemoStore() {
         status: "OPEN",
       },
     ],
+    agentJobs: [],
     agentRuns: [],
     agentFindings: [],
     evidenceRefs: [],
@@ -240,6 +241,7 @@ function ensureStoreShape() {
   store.notifications ||= [];
   store.evidenceRefs ||= [];
   store.gateApprovalPacks ||= [];
+  store.agentJobs ||= [];
 }
 
 export function getStorageStatus() {
@@ -1612,6 +1614,7 @@ export function validateProjectSnapshotImport(input = {}) {
   const evidenceRefs = asArray(snapshot.evidenceRefs);
   const gateApprovalPacks = asArray(snapshot.gateApprovalPacks);
   const risks = asArray(snapshot.risks);
+  const agentJobs = asArray(snapshot.agentJobs);
   const agentRuns = asArray(snapshot.agentRuns);
   const agentFindings = asArray(snapshot.agentFindings);
   const notifications = asArray(snapshot.notifications);
@@ -1759,6 +1762,17 @@ export function validateProjectSnapshotImport(input = {}) {
     });
   }
 
+  for (const agentJob of agentJobs) {
+    pushIfMissing(errors, agentJob.projectId === project?.id, "Agent job projectId 与项目不一致", {
+      agentJobId: agentJob.id,
+      projectId: agentJob.projectId,
+    });
+    pushIfMissing(errors, workPackageIds.has(agentJob.workPackageId), "Agent job workPackageId 未指向快照内工作包", {
+      agentJobId: agentJob.id,
+      workPackageId: agentJob.workPackageId,
+    });
+  }
+
   for (const finding of agentFindings) {
     pushIfMissing(errors, workPackageIds.has(finding.workPackageId), "Agent 发现 workPackageId 未指向快照内工作包", {
       findingId: finding.id,
@@ -1798,6 +1812,7 @@ export function validateProjectSnapshotImport(input = {}) {
       evidenceRefCount: evidenceRefs.length,
       gateApprovalPackCount: gateApprovalPacks.length,
       riskCount: risks.length,
+      agentJobCount: agentJobs.length,
       agentRunCount: agentRuns.length,
       agentFindingCount: agentFindings.length,
       notificationCount: notifications.length,
@@ -1827,6 +1842,7 @@ export function importProjectSnapshot(input = {}) {
   const evidenceRefs = asArray(snapshot.evidenceRefs).map((item) => ({ ...item }));
   const gateApprovalPacks = asArray(snapshot.gateApprovalPacks).map((item) => ({ ...item }));
   const risks = asArray(snapshot.risks).map(({ phaseName, ...item }) => ({ ...item }));
+  const agentJobs = asArray(snapshot.agentJobs).map((item) => ({ ...item }));
   const agentRuns = asArray(snapshot.agentRuns).map((item) => ({ ...item }));
   const agentFindings = asArray(snapshot.agentFindings).map((item) => ({ ...item }));
   const notifications = asArray(snapshot.notifications).map((item) => ({ ...item }));
@@ -1848,6 +1864,7 @@ export function importProjectSnapshot(input = {}) {
     evidenceRefs,
     gateApprovalPacks,
     risks,
+    agentJobs,
     agentRuns,
     agentFindings,
     notifications,
@@ -1979,6 +1996,14 @@ function remapSnapshotForProjectCopy(snapshot, projectId, name) {
     ...run,
     id: `${projectId}-${run.id}`,
     workPackageId: workPackageIdMap.get(run.workPackageId),
+  }));
+
+  copy.agentJobs = asArray(copy.agentJobs).map((job) => ({
+    ...job,
+    id: `${projectId}-${job.id}`,
+    projectId,
+    workPackageId: workPackageIdMap.get(job.workPackageId),
+    agentRunId: job.agentRunId ? `${projectId}-${job.agentRunId}` : null,
   }));
 
   copy.agentFindings = asArray(copy.agentFindings).map((finding) => ({
@@ -2469,6 +2494,133 @@ export function getWorkPackageDetail(workPackageId) {
 export function getWorkPackageMarkdown(workPackageId) {
   const detail = getWorkPackageDetail(workPackageId);
   return detail ? renderWorkPackageMarkdown(detail) : null;
+}
+
+export function getAgentJobs(filters = {}) {
+  const project = currentProject();
+  const projectWorkPackageIds = new Set(store.workPackages.filter((item) => item.projectId === project.id).map((item) => item.id));
+  const status = String(filters.status || "").trim();
+  const jobs = (store.agentJobs || [])
+    .filter((job) => projectWorkPackageIds.has(job.workPackageId))
+    .filter((job) => !status || job.status === status)
+    .map((job) => ({
+      ...job,
+      workPackage: findWorkPackage(store, job.workPackageId),
+    }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+  return {
+    jobs,
+    summary: {
+      total: jobs.length,
+      queued: jobs.filter((job) => job.status === "QUEUED").length,
+      running: jobs.filter((job) => job.status === "RUNNING").length,
+      completed: jobs.filter((job) => job.status === "COMPLETED").length,
+      failed: jobs.filter((job) => job.status === "FAILED").length,
+    },
+  };
+}
+
+export function enqueueAgentJob(body = {}) {
+  const workPackage = findWorkPackage(store, body.workPackageId);
+  if (!workPackage) {
+    return { statusCode: 404, body: { error: "工作包不存在" } };
+  }
+  if (body.inputRefs && !Array.isArray(body.inputRefs)) {
+    return validationError("inputRefs 必须是数组");
+  }
+
+  const rolePair = findRolePair(store, workPackage.rolePairId);
+  const agentKey = body.agentKey || rolePair?.agentKey;
+  if (!agentKey) {
+    return {
+      statusCode: 409,
+      body: {
+        error: "工作包缺少绑定 Agent",
+        workPackageId: workPackage.id,
+      },
+    };
+  }
+  if (body.agentKey && rolePair?.agentKey && body.agentKey !== rolePair.agentKey) {
+    return validationError("agentKey 与工作包绑定 Agent 不一致", {
+      expectedAgentKey: rolePair.agentKey,
+      receivedAgentKey: body.agentKey,
+    });
+  }
+
+  const job = {
+    id: `agent-job-${randomUUID()}`,
+    projectId: workPackage.projectId,
+    workPackageId: workPackage.id,
+    agentKey,
+    inputRefs: body.inputRefs || ["artifact:queued-agent"],
+    draftMarkdown: body.draftMarkdown || null,
+    requestedByUserId: body.actorUserId || body.userId || "user-project-manager",
+    status: "QUEUED",
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null,
+    resultStatusCode: null,
+    agentRunId: null,
+    error: "",
+  };
+  store.agentJobs.push(job);
+  audit("AGENT_JOB_QUEUED", "human", job.requestedByUserId, "workPackage", workPackage.id, {
+    agentJobId: job.id,
+    agentKey: job.agentKey,
+  });
+  persistStore();
+
+  return {
+    statusCode: 201,
+    body: {
+      job,
+      agentJobs: getAgentJobs(),
+      project: getActiveProjectView(),
+    },
+  };
+}
+
+export function processNextAgentJob(body = {}) {
+  const queuedJob = (store.agentJobs || [])
+    .filter((job) => job.status === "QUEUED")
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+  if (!queuedJob) {
+    return { statusCode: 200, body: { processed: false, agentJobs: getAgentJobs() } };
+  }
+
+  queuedJob.status = "RUNNING";
+  queuedJob.startedAt = new Date().toISOString();
+  const result = runAgentWorkPackage({
+    workPackageId: queuedJob.workPackageId,
+    agentKey: queuedJob.agentKey,
+    inputRefs: queuedJob.inputRefs,
+    ...(queuedJob.draftMarkdown ? { draftMarkdown: queuedJob.draftMarkdown } : {}),
+  });
+
+  queuedJob.completedAt = new Date().toISOString();
+  queuedJob.resultStatusCode = result.statusCode;
+  queuedJob.agentRunId = result.body?.agentRun?.id || null;
+  queuedJob.status = result.statusCode >= 200 && result.statusCode < 300 ? "COMPLETED" : "FAILED";
+  queuedJob.error = result.body?.error || "";
+  audit("AGENT_JOB_PROCESSED", "system", body.workerId || "agent-worker", "workPackage", queuedJob.workPackageId, {
+    agentJobId: queuedJob.id,
+    status: queuedJob.status,
+    resultStatusCode: queuedJob.resultStatusCode,
+    agentRunId: queuedJob.agentRunId,
+  });
+  persistStore();
+
+  return {
+    statusCode: queuedJob.status === "COMPLETED" ? 200 : 422,
+    body: {
+      processed: true,
+      job: queuedJob,
+      result: result.body,
+      agentJobs: getAgentJobs(),
+      project: getActiveProjectView(),
+    },
+  };
 }
 
 export function getUserActionItems(userId) {
@@ -3244,6 +3396,16 @@ async function handleAgentRun(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handleAgentJobCreate(req, res) {
+  const result = enqueueAgentJob(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleAgentJobProcessNext(req, res) {
+  const result = processNextAgentJob(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleReview(req, res) {
   const result = submitHumanReview(await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -3612,6 +3774,18 @@ export const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && artifactTemplateMatch) {
       const template = loadArtifactTemplateByKey(artifactTemplateMatch[1]);
       return template ? writeJson(res, 200, template) : writeJson(res, 404, { error: "交付物模板不存在" });
+    }
+
+    if (req.method === "GET" && url.pathname === "/agent-jobs") {
+      return writeJson(res, 200, getAgentJobs(Object.fromEntries(url.searchParams)));
+    }
+
+    if (req.method === "POST" && url.pathname === "/agent-jobs") {
+      return await handleAgentJobCreate(req, res);
+    }
+
+    if (req.method === "POST" && url.pathname === "/agent-jobs/process-next") {
+      return await handleAgentJobProcessNext(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/agent-runs") {

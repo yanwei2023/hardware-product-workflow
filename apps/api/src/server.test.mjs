@@ -1177,6 +1177,62 @@ test("agent run endpoint rejects malformed input refs", async () => {
   assert.equal(result.body.error, "inputRefs 必须是数组");
 });
 
+test("agent job queue creates and processes work asynchronously", async () => {
+  const create = await dispatch("/agent-jobs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      inputRefs: ["artifact:queued-input"],
+      actorUserId: "user-project-manager",
+    }),
+  });
+
+  assert.equal(create.status, 201);
+  assert.equal(create.body.job.status, "QUEUED");
+  assert.equal(create.body.agentJobs.summary.queued, 1);
+
+  const listBefore = await dispatch("/agent-jobs?status=QUEUED");
+  assert.equal(listBefore.status, 200);
+  assert.equal(listBefore.body.summary.queued, 1);
+  assert.equal(listBefore.body.jobs[0].workPackage.id, "wp-evt_exit-evt_test_report");
+
+  const processed = await dispatch("/agent-jobs/process-next", {
+    method: "POST",
+    body: JSON.stringify({ workerId: "test-worker" }),
+  });
+
+  assert.equal(processed.status, 200);
+  assert.equal(processed.body.processed, true);
+  assert.equal(processed.body.job.status, "COMPLETED");
+  assert.match(processed.body.job.agentRunId, /^[0-9a-f-]+$/);
+  assert.equal(processed.body.agentJobs.summary.completed, 1);
+
+  const project = await dispatch("/projects/demo");
+  assert.equal(project.body.agentJobs.length, 1);
+  assert.equal(project.body.agentRuns.length, 1);
+});
+
+test("agent job queue records failed template validation", async () => {
+  await dispatch("/agent-jobs", {
+    method: "POST",
+    body: JSON.stringify({
+      workPackageId: "wp-evt_exit-evt_test_report",
+      inputRefs: ["artifact:queued-invalid"],
+      draftMarkdown: "# 无效草稿\n\n缺少模板必填章节。",
+    }),
+  });
+
+  const processed = await dispatch("/agent-jobs/process-next", {
+    method: "POST",
+    body: JSON.stringify({ workerId: "test-worker" }),
+  });
+
+  assert.equal(processed.status, 422);
+  assert.equal(processed.body.job.status, "FAILED");
+  assert.equal(processed.body.job.resultStatusCode, 422);
+  assert.equal(processed.body.job.error, "Agent 输出未满足交付物模板要求，不能进入人类审核");
+});
+
 test("project endpoint rejects unknown active phase keys", async () => {
   const result = await dispatch("/projects", {
     method: "POST",

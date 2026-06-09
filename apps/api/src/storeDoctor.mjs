@@ -11,6 +11,7 @@ const requiredArrays = [
   "artifactVersions",
   "reviews",
   "risks",
+  "agentJobs",
   "agentRuns",
   "agentFindings",
   "evidenceRefs",

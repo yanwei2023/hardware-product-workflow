@@ -1594,6 +1594,7 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
   const artifacts = project.artifactVersions.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const reviews = project.reviews.filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const evidenceRefs = (project.evidenceRefs || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
+  const agentJobs = (project.agentJobs || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const agentRuns = (project.agentRuns || []).filter((item: any) => item.workPackageId === selectedWorkPackage?.id);
   const reviewIds = new Set(reviews.map((review: any) => review.id));
   const auditEvents = (project.auditEvents || []).filter(
@@ -1620,6 +1621,7 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
         {selectedWorkPackage ? (
           <WorkPackageDetail
             actorUserId={actorUserId}
+            agentJobs={agentJobs}
             agentRuns={agentRuns}
             artifacts={artifacts}
             auditEvents={auditEvents}
@@ -1635,7 +1637,7 @@ function WorkPackages({ actorUserId, busy, phaseWorkPackages, project, runAction
   );
 }
 
-function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, busy, evidenceRefs, reviews, runAction, workPackage }: any) {
+function WorkPackageDetail({ actorUserId, agentJobs, agentRuns, artifacts, auditEvents, busy, evidenceRefs, reviews, runAction, workPackage }: any) {
   const latestArtifact = artifacts.at(-1);
   const latestAgentRun = agentRuns.at(-1);
   const validation = latestArtifact?.content?.validation || latestAgentRun?.validation || null;
@@ -1681,6 +1683,15 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, bus
           method: "POST",
           body: JSON.stringify({ workPackageId: workPackage.id, inputRefs: ["artifact:react-workbench"] }),
         }))}>Agent 生成</button>
+        <button disabled={busy} className="ghost" onClick={() => runAction("Agent 任务已入队", () => api("/agent-jobs", {
+          method: "POST",
+          body: JSON.stringify({ workPackageId: workPackage.id, inputRefs: ["artifact:react-queued"], actorUserId }),
+        }))}>加入队列</button>
+        <button disabled={busy} className="ghost" onClick={() => runAction("Agent 队列已处理", () => api("/agent-jobs/process-next", {
+          method: "POST",
+          body: JSON.stringify({ workerId: actorUserId }),
+          allowError: true,
+        }))}>处理下一条</button>
         <button disabled={busy || !latestArtifact} onClick={() => submitReview("APPROVE", "React 工作台批准")}>批准</button>
         <button
           disabled={busy || !latestArtifact}
@@ -1775,6 +1786,24 @@ function WorkPackageDetail({ actorUserId, agentRuns, artifacts, auditEvents, bus
             </tbody>
           </table>
         ) : <p className="muted">暂无人工补充证据。</p>}
+      </section>
+      <section className="subpanel">
+        <h3>Agent 队列</h3>
+        {agentJobs.length ? (
+          <table className="compact-table">
+            <thead><tr><th>状态</th><th>Agent</th><th>创建时间</th><th>结果</th></tr></thead>
+            <tbody>
+              {[...agentJobs].reverse().slice(0, 6).map((job: any) => (
+                <tr key={job.id}>
+                  <td>{badge(job.status)}</td>
+                  <td>{job.agentKey}</td>
+                  <td>{job.createdAt}</td>
+                  <td>{job.resultStatusCode || "-"}{job.error ? ` · ${job.error}` : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p className="muted">暂无排队任务。</p>}
       </section>
       <section className="subpanel">
         <h3>交付物</h3>

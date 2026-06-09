@@ -229,6 +229,10 @@ function agentRunsFor(workPackageId) {
   return state.project.agentRuns.filter((item) => item.workPackageId === workPackageId);
 }
 
+function agentJobsFor(workPackageId) {
+  return state.project.agentJobs?.filter((item) => item.workPackageId === workPackageId) || [];
+}
+
 function reviewsFor(workPackageId) {
   return state.project.reviews.filter((item) => item.workPackageId === workPackageId);
 }
@@ -991,6 +995,7 @@ function renderWorkPackages() {
 function renderWorkPackageDetail(workPackage) {
   const artifact = latestArtifact(workPackage.id);
   const agentRun = latestAgentRun(workPackage.id);
+  const agentJobs = agentJobsFor(workPackage.id);
   const reviews = reviewsFor(workPackage.id);
   const evidenceRefs = evidenceRefsFor(workPackage.id);
   const reviewIds = new Set(reviews.map((review) => review.id));
@@ -1014,6 +1019,8 @@ function renderWorkPackageDetail(workPackage) {
 
     <div class="actions">
       <button onclick="runAgent('${workPackage.id}')" ${state.busy ? "disabled" : ""}>Agent 生成</button>
+      <button class="ghost" onclick="enqueueAgentJob('${workPackage.id}')" ${state.busy ? "disabled" : ""}>加入队列</button>
+      <button class="ghost" onclick="processNextAgentJob()" ${state.busy ? "disabled" : ""}>处理下一条</button>
       <button class="secondary" onclick="submitReview('${workPackage.id}', 'APPROVE')" ${state.busy ? "disabled" : ""}>人类批准</button>
       <button class="ghost" onclick="submitReview('${workPackage.id}', 'REQUEST_REVISION')" ${state.busy ? "disabled" : ""}>要求修改</button>
       <button class="ghost" onclick="submitReview('${workPackage.id}', 'REJECT')" ${state.busy ? "disabled" : ""}>驳回</button>
@@ -1132,6 +1139,36 @@ function renderWorkPackageDetail(workPackage) {
               )
               .join("")
           : "<p class='muted'>暂无活动记录。</p>"
+      }
+    </section>
+
+    <section class="subpanel">
+      <h4>Agent 队列</h4>
+      ${
+        agentJobs.length
+          ? `
+            <table class="table compact-table">
+              <thead><tr><th>状态</th><th>Agent</th><th>创建时间</th><th>结果</th></tr></thead>
+              <tbody>
+                ${agentJobs
+                  .slice()
+                  .reverse()
+                  .slice(0, 6)
+                  .map(
+                    (job) => `
+                      <tr>
+                        <td>${statusBadge(job.status)}</td>
+                        <td>${escapeHtml(job.agentKey)}</td>
+                        <td>${escapeHtml(job.createdAt)}</td>
+                        <td>${escapeHtml(job.resultStatusCode || "-")}${job.error ? ` · ${escapeHtml(job.error)}` : ""}</td>
+                      </tr>
+                    `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          `
+          : "<p class='muted'>暂无排队任务。</p>"
       }
     </section>
 
@@ -1598,6 +1635,30 @@ async function runAgent(workPackageId) {
         workPackageId,
         inputRefs: ["artifact:demo-input"],
       }),
+    });
+    await loadProject();
+  });
+}
+
+async function enqueueAgentJob(workPackageId) {
+  await withBusy(async () => {
+    await api("/agent-jobs", {
+      method: "POST",
+      body: JSON.stringify({
+        workPackageId,
+        inputRefs: ["artifact:static-queued"],
+        actorUserId: state.actorUserId,
+      }),
+    });
+    await loadProject();
+  });
+}
+
+async function processNextAgentJob() {
+  await withBusy(async () => {
+    await api("/agent-jobs/process-next", {
+      method: "POST",
+      body: JSON.stringify({ workerId: state.actorUserId }),
     });
     await loadProject();
   });
