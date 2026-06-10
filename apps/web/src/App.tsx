@@ -196,8 +196,44 @@ function promptComment(message: string, fallback: string) {
   return comment === null ? null : comment.trim() || fallback;
 }
 
-function openApiPath(path: string) {
-  window.open(`${apiBase}${path}`, "_blank", "noopener,noreferrer");
+async function openApiPath(path: string) {
+  const targetWindow = window.open("", "_blank");
+  if (targetWindow) {
+    targetWindow.opener = null;
+  }
+  const pilotAccessCode = window.localStorage.getItem(pilotAccessStorageKey) || "";
+  try {
+    const response = await fetch(`${apiBase}${path}`, {
+      headers: {
+        ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
+      },
+    });
+    const body = await response.blob();
+    if (!response.ok) {
+      const message = await body.text();
+      if (targetWindow) {
+        targetWindow.document.body.innerText = message || `请求失败：${response.status}`;
+      } else {
+        window.alert(message || `请求失败：${response.status}`);
+      }
+      return;
+    }
+    const contentType = response.headers.get("content-type") || body.type || "text/plain; charset=utf-8";
+    const objectUrl = URL.createObjectURL(new Blob([body], { type: contentType }));
+    if (targetWindow) {
+      targetWindow.location.href = objectUrl;
+    } else {
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (targetWindow) {
+      targetWindow.document.body.innerText = message;
+    } else {
+      window.alert(message);
+    }
+  }
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -1383,7 +1419,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <div className="network-share">
           <strong>推荐地址</strong>
           {runtimeNetwork?.preferredUrl ? <NetworkUrl url={runtimeNetwork.preferredUrl} /> : <span className="muted">暂无推荐地址</span>}
-          {renderCopyableText(runtimeNetwork?.shareText, runtimeNetwork?.shareText || "暂无可复制邀请文本")}
+          <CopyableText value={runtimeNetwork?.shareText} label={runtimeNetwork?.shareText || "暂无可复制邀请文本"} />
         </div>
         <div className="network-list">
           <div>

@@ -137,6 +137,46 @@ async function api(path, options = {}) {
   return body;
 }
 
+async function openApiPath(path) {
+  const targetWindow = window.open("", "_blank");
+  if (targetWindow) {
+    targetWindow.opener = null;
+  }
+  const pilotAccessCode = localStorage.getItem(pilotAccessStorageKey) || "";
+  try {
+    const response = await fetch(path, {
+      headers: {
+        ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
+      },
+    });
+    const body = await response.blob();
+    if (!response.ok) {
+      const message = await body.text();
+      if (targetWindow) {
+        targetWindow.document.body.innerText = message || `请求失败：${response.status}`;
+      } else {
+        window.alert(message || `请求失败：${response.status}`);
+      }
+      return;
+    }
+    const contentType = response.headers.get("content-type") || body.type || "text/plain; charset=utf-8";
+    const objectUrl = URL.createObjectURL(new Blob([body], { type: contentType }));
+    if (targetWindow) {
+      targetWindow.location.href = objectUrl;
+    } else {
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (targetWindow) {
+      targetWindow.document.body.innerText = message;
+    } else {
+      window.alert(message);
+    }
+  }
+}
+
 async function withBusy(action) {
   if (state.busy) return;
   state.busy = true;
@@ -456,7 +496,7 @@ function renderStorageStatus() {
       </tbody>
     </table>
     <div class="actions">
-      <button class="secondary" onclick="window.open('/ops/summary', '_blank')">打开运维摘要</button>
+      <button class="secondary" onclick="openApiPath('/ops/summary')">打开运维摘要</button>
       <button class="secondary" onclick="createStorageCheckpoint()" ${state.busy ? "disabled" : ""}>创建检查点</button>
       <button class="secondary" onclick="restoreStorageCheckpoint(${jsStringAttr(latestCheckpoint?.filePath || "")})" ${state.busy || !latestCheckpoint ? "disabled" : ""}>恢复最新检查点</button>
       <button class="secondary" onclick="restoreStorageBackup()" ${state.busy || !status.backupExists ? "disabled" : ""}>从备份恢复</button>
@@ -815,12 +855,12 @@ function renderPilotReadinessSummary() {
         </section>
       ` : ""}
       <div class="actions">
-        <button class="ghost" onclick="window.open('/pilot/readiness', '_blank')">打开就绪 JSON</button>
-        <button class="ghost" onclick="window.open('/pilot/checklist', '_blank')">打开演练清单</button>
-        <button class="ghost" onclick="window.open('/ops/summary', '_blank')">打开运维摘要</button>
-        <button class="ghost" onclick="window.open('/metrics', '_blank')">Metrics</button>
-        <button class="ghost" onclick="window.open('/storage/status', '_blank')">Store 状态</button>
-        <button class="ghost" onclick="window.open('/storage/doctor', '_blank')">Store Doctor</button>
+        <button class="ghost" onclick="openApiPath('/pilot/readiness')">打开就绪 JSON</button>
+        <button class="ghost" onclick="openApiPath('/pilot/checklist')">打开演练清单</button>
+        <button class="ghost" onclick="openApiPath('/ops/summary')">打开运维摘要</button>
+        <button class="ghost" onclick="openApiPath('/metrics')">Metrics</button>
+        <button class="ghost" onclick="openApiPath('/storage/status')">Store 状态</button>
+        <button class="ghost" onclick="openApiPath('/storage/doctor')">Store Doctor</button>
       </div>
     </article>
   `;
@@ -1190,7 +1230,7 @@ function renderEvidenceRef(itemOrRef) {
   const ref = item.ref || "";
   if (item.kind === "file") {
     const label = escapeHtml(item.originalFileName || item.fileName || "下载附件");
-    return `<a href="${escapeHtml(ref)}" target="_blank" rel="noreferrer">${label}</a>`;
+    return `<button class="link-button" onclick="openApiPath(${jsStringAttr(ref)})">${label}</button>`;
   }
   const safeRef = escapeHtml(ref);
   if (/^https?:\/\//i.test(ref)) {
@@ -1626,11 +1666,11 @@ function goRisks() {
 }
 
 function openWorkPackageMarkdown(workPackageId) {
-  window.open(`/work-packages/${workPackageId}/export.md`, "_blank");
+  openApiPath(`/work-packages/${workPackageId}/export.md`);
 }
 
 function openRiskRegisterMarkdown() {
-  window.open(`/projects/${state.project.project.id}/risk-register.md`, "_blank");
+  openApiPath(`/projects/${state.project.project.id}/risk-register.md`);
 }
 
 async function runAgent(workPackageId) {
@@ -1889,7 +1929,7 @@ async function checkGate() {
 function openGateReviewPackMarkdown() {
   const gate = activeGate();
   if (gate) {
-    window.open(`/gates/${gate.id}/review-pack.md`, "_blank");
+    openApiPath(`/gates/${gate.id}/review-pack.md`);
   }
 }
 
@@ -1947,7 +1987,7 @@ async function restoreProject(projectId) {
 }
 
 function openProjectSnapshotMarkdown(projectId) {
-  window.open(`/projects/${projectId}/snapshot.md`, "_blank");
+  openApiPath(`/projects/${projectId}/snapshot.md`);
 }
 
 async function cloneProject(projectId) {
