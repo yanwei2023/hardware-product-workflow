@@ -710,12 +710,12 @@ function Projects({
     if (!snapshot) return;
     setImportBusy(true);
     try {
-      const response = await fetch(`${apiBase}/projects/import/validate`, {
+      const result = await api("/projects/import/validate", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        allowError: true,
         body: JSON.stringify(snapshot),
       });
-      setImportValidation(await response.json());
+      setImportValidation(result);
     } catch (error) {
       setImportValidation({
         valid: false,

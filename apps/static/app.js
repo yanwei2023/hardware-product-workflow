@@ -117,17 +117,18 @@ function errorMessage(error) {
 }
 
 async function api(path, options = {}) {
+  const { allowError = false, ...fetchOptions } = options;
   const pilotAccessCode = localStorage.getItem(pilotAccessStorageKey) || "";
   const response = await fetch(path, {
-    ...options,
+    ...fetchOptions,
     headers: {
       "content-type": "application/json",
       ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
-      ...(options.headers || {}),
+      ...(fetchOptions.headers || {}),
     },
   });
   const body = await response.json();
-  if (!response.ok) {
+  if (!response.ok && !allowError) {
     const error = new Error(body.error || JSON.stringify(body));
     error.body = body;
     error.requestId = response.headers.get("x-request-id");
@@ -2028,15 +2029,11 @@ async function validateProjectSnapshotImport() {
   }
 
   await withBusy(async () => {
-    const response = await fetch("/projects/import/validate", {
+    state.importValidation = await api("/projects/import/validate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      allowError: true,
       body: JSON.stringify(snapshot),
     });
-    state.importValidation = await response.json();
-    if (!response.ok && !state.importValidation) {
-      throw new Error("快照校验失败。");
-    }
   });
 }
 
