@@ -42,6 +42,22 @@ http://本机内网IP:3001
 http://192.168.1.20:3001
 ```
 
+## 试点访问码
+
+局域网试点建议设置轻量访问码，避免同网段成员直接打开页面：
+
+```text
+HARDWARE_FLOW_PILOT_ACCESS_CODE=your-code npm run start:lan
+```
+
+启用后：
+
+- 静态页面、`/health`、`/ready`、`/runtime/config` 和 `/runtime/network` 仍可公开访问；
+- 数据接口、导出、审核、风险和阶段门操作需要请求头 `x-pilot-access-code`；
+- React 工作台和静态备用工作台都会提示输入访问码，并保存在当前浏览器本地。
+
+这只是内部试点保护，不替代正式用户登录、SSO 或细粒度权限审计。
+
 ## Docker 启动
 
 如果希望用容器方式运行试用版：
@@ -89,7 +105,7 @@ http://localhost:3001/runtime/config
 http://localhost:3001/metrics
 ```
 
-`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/ops/summary` 会聚合服务、网络、HTTP 错误计数、store、试点阶段门和下一步动作；`/storage/status` 和 `/storage/doctor` 用于检查数据文件、备份和检查点；`/runtime/network` 会列出本机访问地址、可尝试的局域网 URL、推荐访问地址、可复制邀请文本、当前是否 LAN 模式，以及是否只监听本机地址；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时和静态资源模式；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
+`/health` 返回 `ok: true` 表示后台进程正常；`/ready` 会额外校验本地 store 文件是否存在且可解析，并在进程关停时返回非 200；`/ops/summary` 会聚合服务、网络、HTTP 错误计数、store、试点阶段门和下一步动作；`/storage/status` 和 `/storage/doctor` 用于检查数据文件、备份和检查点；`/runtime/network` 会列出本机访问地址、可尝试的局域网 URL、推荐访问地址、可复制邀请文本、当前是否 LAN 模式，以及是否只监听本机地址；`/runtime/config` 用于确认当前端口、store 路径、服务版本、请求体上限、请求超时、静态资源模式和是否启用试点访问码；`/metrics` 输出 Prometheus 文本格式指标，包含 ready、关停状态、进程 uptime、RSS/heap 内存、HTTP 请求计数、4xx/5xx、平均/最大响应耗时、store 状态和当前项目工作包/风险/阶段门业务指标。
 
 页面“项目 -> 本地数据状态 -> 访问地址”也会显示推荐地址和可复制邀请文本。如果看到 `LOOPBACK_ONLY` 提醒，说明当前不是局域网监听模式，需要用 `npm run start:lan` 重新启动。
 

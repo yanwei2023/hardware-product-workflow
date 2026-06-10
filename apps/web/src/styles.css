@@ -114,6 +114,29 @@ pre {
   padding: 32px;
 }
 
+.access-screen {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.access-panel {
+  background: #fff;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  padding: 24px;
+  width: min(420px, calc(100vw - 32px));
+}
+
+.access-panel h1,
+.access-panel p {
+  margin: 0;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 224px 1fr;

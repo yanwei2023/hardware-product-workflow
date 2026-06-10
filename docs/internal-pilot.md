@@ -82,6 +82,14 @@ npm start
 npm run start:lan
 ```
 
+局域网试点建议启用访问码：
+
+```text
+HARDWARE_FLOW_PILOT_ACCESS_CODE=your-code npm run start:lan
+```
+
+启用后页面会提示输入访问码。该能力只用于内部试点轻量保护，不替代正式用户登录或 SSO。
+
 其他成员访问：
 
 ```text

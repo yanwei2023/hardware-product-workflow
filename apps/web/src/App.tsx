@@ -71,6 +71,7 @@ const navItems: Array<{ key: ViewKey; label: string }> = [
 const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
+const pilotAccessStorageKey = "hardware-flow-pilot-access-code";
 
 type ApiRequestOptions = RequestInit & { allowError?: boolean };
 
@@ -111,9 +112,14 @@ function errorMessage(error: unknown): UiMessage {
 
 async function api(path: string, options: ApiRequestOptions = {}) {
   const { allowError = false, ...fetchOptions } = options;
+  const pilotAccessCode = window.localStorage.getItem(pilotAccessStorageKey) || "";
   const response = await fetch(`${apiBase}${path}`, {
-    headers: { "content-type": "application/json" },
     ...fetchOptions,
+    headers: {
+      "content-type": "application/json",
+      ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
+      ...(fetchOptions.headers || {}),
+    },
   });
   const body = await response.json();
   if (!response.ok && !allowError) {
@@ -127,7 +133,12 @@ async function api(path: string, options: ApiRequestOptions = {}) {
 }
 
 async function apiText(path: string) {
-  const response = await fetch(`${apiBase}${path}`);
+  const pilotAccessCode = window.localStorage.getItem(pilotAccessStorageKey) || "";
+  const response = await fetch(`${apiBase}${path}`, {
+    headers: {
+      ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
+    },
+  });
   const body = await response.text();
   if (!response.ok) {
     throw new ApiError(
@@ -241,6 +252,8 @@ export function App() {
   const [notificationFilter, setNotificationFilter] = useState("ALL");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<UiMessage | null>(null);
+  const [pilotAccessCode, setPilotAccessCode] = useState(() => window.localStorage.getItem(pilotAccessStorageKey) || "");
+  const [pilotAccessEnabled, setPilotAccessEnabled] = useState(false);
 
   const activePhase = useMemo(
     () => state.project?.phases.find((phase: any) => phase.id === state.project.project.currentPhaseId),
@@ -260,6 +273,12 @@ export function App() {
   );
 
   async function load(nextActorUserId = actorUserId) {
+    const publicRuntimeConfig = await api("/runtime/config");
+    setPilotAccessEnabled(Boolean(publicRuntimeConfig.pilotAccessEnabled));
+    if (publicRuntimeConfig.pilotAccessEnabled && !window.localStorage.getItem(pilotAccessStorageKey)) {
+      setState((current) => ({ ...current, runtimeConfig: publicRuntimeConfig }));
+      throw new ApiError("请输入试点访问码后继续", null, publicRuntimeConfig.version || null);
+    }
     const [project, users, storageStatus, storageDoctor, readiness, pilotReadiness, pilotLaunch, opsSummary, runtimeConfig, runtimeNetwork, metricsText] = await Promise.all([
       api("/projects/demo"),
       api("/users/demo"),
@@ -336,6 +355,40 @@ export function App() {
     reloadNotifications().catch((error) => setMessage(errorMessage(error)));
   }, [notificationFilter]);
 
+  function savePilotAccessCode() {
+    const code = pilotAccessCode.trim();
+    if (!code) {
+      window.localStorage.removeItem(pilotAccessStorageKey);
+    } else {
+      window.localStorage.setItem(pilotAccessStorageKey, code);
+    }
+    setMessage(null);
+    load().catch((error) => setMessage(errorMessage(error)));
+  }
+
+  if (pilotAccessEnabled && (!window.localStorage.getItem(pilotAccessStorageKey) || message?.text.includes("访问码"))) {
+    return (
+      <main className="loading access-screen">
+        <section className="access-panel">
+          <h1>试点访问码</h1>
+          <p>当前服务已启用内部试点访问保护。</p>
+          <input
+            autoFocus
+            placeholder="输入访问码"
+            type="password"
+            value={pilotAccessCode}
+            onChange={(event) => setPilotAccessCode(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") savePilotAccessCode();
+            }}
+          />
+          <button onClick={savePilotAccessCode}>进入工作台</button>
+          {message ? <p className="muted">{message.text}</p> : null}
+        </section>
+      </main>
+    );
+  }
+
   if (!state.project) {
     return <main className="loading">正在加载硬件流程工作台...</main>;
   }
@@ -367,6 +420,13 @@ export function App() {
             <h1>{activePhase?.name || "-"} · {activeGate?.name || "无阶段门"}</h1>
           </div>
           <div className="top-actions">
+            {pilotAccessEnabled ? (
+              <button className="ghost" onClick={() => {
+                window.localStorage.removeItem(pilotAccessStorageKey);
+                setPilotAccessCode("");
+                setMessage(successMessage("访问码已清除"));
+              }}>清除访问码</button>
+            ) : null}
             <select value={actorUserId} onChange={(event) => setActorUserId(event.target.value)}>
               {state.users.map((user) => (
                 <option key={user.userId} value={user.userId}>
@@ -1306,6 +1366,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="服务版本" value={runtimeConfig?.version || "-"} />
         <Metric label="静态资源" value={runtimeConfig?.staticMode || "-"} />
         <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
+        <Metric label="访问码" value={runtimeConfig?.pilotAccessEnabled ? "开启" : "关闭"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
         <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />
         <Metric label="请求超时" value={runtimeConfig?.requestTimeoutMs ? `${runtimeConfig.requestTimeoutMs}ms` : "-"} />

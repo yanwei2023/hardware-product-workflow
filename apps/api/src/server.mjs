@@ -104,6 +104,8 @@ function parsePositiveIntegerEnv(name, fallbackValue) {
 const accessLogEnabled = process.env.HARDWARE_FLOW_ACCESS_LOG !== "0";
 const maxJsonBodyBytes = parsePositiveIntegerEnv("HARDWARE_FLOW_MAX_JSON_BODY_BYTES", 1_048_576);
 const requestTimeoutMs = parsePositiveIntegerEnv("HARDWARE_FLOW_REQUEST_TIMEOUT_MS", 120_000);
+const pilotAccessCode = String(process.env.HARDWARE_FLOW_PILOT_ACCESS_CODE || "").trim();
+const pilotAccessEnabled = Boolean(pilotAccessCode);
 const requestCounters = {
   total: 0,
   clientErrors: 0,
@@ -280,6 +282,7 @@ export function getRuntimeConfigStatus() {
     fallbackStaticRoot,
     reactStaticAvailable,
     accessLogEnabled,
+    pilotAccessEnabled,
     maxJsonBodyBytes,
     requestTimeoutMs,
     shuttingDown: isShuttingDown,
@@ -1099,7 +1102,7 @@ function writeJson(res, statusCode, body) {
     "content-type": "application/json; charset=utf-8",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-    "access-control-allow-headers": "content-type,x-request-id",
+    "access-control-allow-headers": "content-type,x-request-id,x-pilot-access-code",
     "access-control-expose-headers": "x-request-id,x-service-version",
     "x-service-version": serviceMetadata.version,
     ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
@@ -1112,7 +1115,7 @@ function writeText(res, statusCode, body, contentType = "text/plain; charset=utf
     "content-type": contentType,
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,PATCH,OPTIONS",
-    "access-control-allow-headers": "content-type,x-request-id",
+    "access-control-allow-headers": "content-type,x-request-id,x-pilot-access-code",
     "access-control-expose-headers": "x-request-id,x-service-version",
     "x-service-version": serviceMetadata.version,
     ...(res.hardwareFlowRequestId ? { "x-request-id": res.hardwareFlowRequestId } : {}),
@@ -1170,6 +1173,34 @@ function attachAccessLog(req, res, url) {
       durationMs: Number(durationMs.toFixed(2)),
     }));
   });
+}
+
+function isPublicPath(method, pathname) {
+  if (method === "OPTIONS") return true;
+  if (method === "GET" && ["/health", "/ready", "/runtime/config", "/runtime/network"].includes(pathname)) return true;
+  if (method === "GET" && !pathname.startsWith("/api/")) {
+    const staticPath = pathname === "/" ? "/index.html" : pathname;
+    const filePath = path.normalize(path.join(staticRoot, staticPath));
+    return filePath.startsWith(staticRoot) && fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+  }
+  return false;
+}
+
+function verifyPilotAccess(req, url) {
+  if (!pilotAccessEnabled || isPublicPath(req.method, url.pathname)) {
+    return { allowed: true };
+  }
+  const received = String(req.headers["x-pilot-access-code"] || "").trim();
+  return received === pilotAccessCode
+    ? { allowed: true }
+    : {
+        allowed: false,
+        statusCode: 401,
+        body: {
+          error: "需要试点访问码",
+          code: "PILOT_ACCESS_REQUIRED",
+        },
+      };
 }
 
 export function renderGateReviewPackMarkdown(pack) {
@@ -3561,6 +3592,11 @@ export const server = http.createServer(async (req, res) => {
   }
 
   try {
+    const access = verifyPilotAccess(req, url);
+    if (!access.allowed) {
+      return writeJson(res, access.statusCode, access.body);
+    }
+
     if (req.method === "GET" && url.pathname === "/health") {
       const runtimeSummary = getStoreRuntimeSummary(store);
       return writeJson(res, 200, {

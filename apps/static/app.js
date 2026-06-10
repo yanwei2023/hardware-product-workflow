@@ -17,6 +17,7 @@ const state = {
   notificationFilter: "ALL",
   busy: false,
 };
+const pilotAccessStorageKey = "hardware-flow-pilot-access-code";
 
 const statusText = {
   NOT_STARTED: "未开始",
@@ -116,9 +117,14 @@ function errorMessage(error) {
 }
 
 async function api(path, options = {}) {
+  const pilotAccessCode = localStorage.getItem(pilotAccessStorageKey) || "";
   const response = await fetch(path, {
-    headers: { "content-type": "application/json" },
     ...options,
+    headers: {
+      "content-type": "application/json",
+      ...(pilotAccessCode ? { "x-pilot-access-code": pilotAccessCode } : {}),
+      ...(options.headers || {}),
+    },
   });
   const body = await response.json();
   if (!response.ok) {
@@ -2081,6 +2087,59 @@ q("#resetDemo").addEventListener("click", async () => {
   });
 });
 
-loadProject().catch((error) => {
+function renderPilotAccessScreen(message = "") {
+  document.body.innerHTML = `
+    <main class="access-screen">
+      <section class="access-panel">
+        <h1>试点访问码</h1>
+        <p class="muted">当前服务已启用内部试点访问保护。</p>
+        <input id="pilotAccessCode" type="password" placeholder="输入访问码" autofocus />
+        <button id="pilotAccessSubmit">进入工作台</button>
+        <p id="pilotAccessMessage" class="muted">${escapeHtml(message)}</p>
+      </section>
+    </main>
+  `;
+  const submit = async () => {
+    const code = q("#pilotAccessCode").value.trim();
+    if (!code) {
+      q("#pilotAccessMessage").textContent = "请输入访问码。";
+      return;
+    }
+    localStorage.setItem(pilotAccessStorageKey, code);
+    try {
+      await api("/projects/demo");
+      window.location.reload();
+    } catch (error) {
+      localStorage.removeItem(pilotAccessStorageKey);
+      q("#pilotAccessMessage").textContent = error.message || "访问码错误。";
+    }
+  };
+  q("#pilotAccessSubmit").addEventListener("click", submit);
+  q("#pilotAccessCode").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") submit();
+  });
+}
+
+async function bootstrap() {
+  const runtimeConfig = await api("/runtime/config");
+  if (runtimeConfig.pilotAccessEnabled && !localStorage.getItem(pilotAccessStorageKey)) {
+    renderPilotAccessScreen();
+    return;
+  }
+  try {
+    await loadProject();
+  } catch (error) {
+    if (runtimeConfig.pilotAccessEnabled && error?.code === "PILOT_ACCESS_REQUIRED") {
+      localStorage.removeItem(pilotAccessStorageKey);
+      renderPilotAccessScreen(error.message || "访问码错误。");
+      return;
+    }
+    document.body.innerHTML = `
+      <pre>${escapeHtml(error.stack || error.message)}</pre>
+    `;
+  }
+}
+
+bootstrap().catch((error) => {
   document.body.innerHTML = `<pre>${escapeHtml(error.stack || error.message)}</pre>`;
 });
