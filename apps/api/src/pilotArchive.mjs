@@ -154,6 +154,8 @@ ${postgresErrors}
 - 一次性命令：\`${postgresImport.psql?.oneShot || "-"}\`
 - 受控预览：\`${postgresImport.commands?.preview || "-"}\`
 - 受控导入：\`${postgresImport.commands?.execute || "-"}\`
+- 结果报告：\`${postgresImport.resultReportPath || "-"}\`
+- 结果复核：\`${postgresImport.commands?.verifyResult || "-"}\`
 
 ## 诊断端点
 
@@ -333,6 +335,7 @@ function writePostgresImportBundle(outputDir, store) {
     manifestPath,
     psql: manifest.psql,
     commands: manifest.commands,
+    resultReportPath: path.join(postgresDir, "postgres-import-result.json"),
     verification: verifyPostgresImportBundle(postgresDir),
   };
 }
@@ -486,6 +489,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       errors: postgresImport.verification.errors,
       psql: postgresImport.psql,
       commands: postgresImport.commands,
+      resultReportPath: relative(resolvedOutputDir, postgresImport.resultReportPath),
     },
   };
 

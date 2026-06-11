@@ -38,6 +38,7 @@
 - 当前已提供 `npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import`，可在不连接数据库的情况下检查导入包文件完整性、report 是否有效、seed SQL 是否包含事务和幂等 upsert。
 - 当前已提供 `npm run db:preflight -- /tmp/hardware-flow-postgres-import`，可检查 `DATABASE_URL`、本机 `psql` 客户端和导入包完整性。默认只输出 `ready/blockers`，不会因为未配置数据库而失败；需要在部署脚本中强制失败时追加 `--strict`。
 - 当前已提供 `npm run db:import -- /tmp/hardware-flow-postgres-import` 预览实际导入计划；只有追加 `--confirm` 才会按 schema、seed 顺序调用 `psql`。执行时启用 `ON_ERROR_STOP`，schema 失败不会继续写入 seed，输出中的数据库密码保持脱敏；seed 完成后会查询各表行数并与 manifest 比对，不一致时导入仍判定失败。
+- `db:import` 预览会写入 `postgres-import-preview.json`，确认执行会写入 `postgres-import-result.json`，避免后续预览覆盖正式导入证据。报告记录脱敏数据库目标、bundle、执行阶段和计数结果；确认导入后使用 `npm run db:verify-import-result -- /tmp/hardware-flow-postgres-import/postgres-import-result.json` 独立复核报告与原始 manifest 是否一致。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
   - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
   - `not null` 和主键列是否会被导出为非空值；
@@ -60,6 +61,7 @@ export DATABASE_URL=postgres://user:password@localhost:5432/hardware_flow
 npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict
 npm run db:import -- /tmp/hardware-flow-postgres-import
 npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
+npm run db:verify-import-result -- /tmp/hardware-flow-postgres-import/postgres-import-result.json
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。

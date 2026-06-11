@@ -83,9 +83,10 @@ docker compose exec app npm run db:prepare-import -- /tmp/hardware-flow-postgres
 docker compose exec app npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict
 docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import
 docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
+docker compose exec app npm run db:verify-import-result -- /tmp/hardware-flow-postgres-import/postgres-import-result.json
 ```
 
-最后一条命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数。当前 API 运行时仍读取 JSON store；该命令用于验证迁移数据完整性，不会切换线上读写源。
+确认导入命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数、生成脱敏结果报告；复核命令会重新对照原始 manifest。当前 API 运行时仍读取 JSON store；这些命令用于验证迁移数据完整性，不会切换线上读写源。
 
 ## 端口调整
 

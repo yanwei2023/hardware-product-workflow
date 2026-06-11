@@ -118,7 +118,7 @@ docs/postgres-migration.md
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
 - `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。
-- `apps/api/src/postgresMapper.mjs`、`postgresExportReport.mjs`、`postgresImportBundle.mjs`、`postgresImporter.mjs` 和相关 CLI 脚本提供 JSON store 到 PostgreSQL rows/seed SQL、导入包、自检、preflight、受控执行和导入后表计数校验。
+- `apps/api/src/postgresMapper.mjs`、`postgresExportReport.mjs`、`postgresImportBundle.mjs`、`postgresImporter.mjs` 和相关 CLI 脚本提供 JSON store 到 PostgreSQL rows/seed SQL、导入包、自检、preflight、受控执行、导入后表计数校验和可独立复核的脱敏结果报告。
 - `npm run release:check` 会执行完整测试、前端构建、smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查，适合提交或发布前运行。
 - `npm run pilot:check` 会在 `release:check` 后追加 PostgreSQL 导入包 preflight，适合每次内部试点前运行。
 - Docker Compose 会等待 PostgreSQL 健康，并让应用容器具备执行 `db:preflight` 和 `db:import` 所需的连接串与 `psql` 客户端；API 运行时仍使用 JSON store。

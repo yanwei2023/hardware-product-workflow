@@ -31,6 +31,10 @@ test("PostgreSQL import manifest includes validated files and psql commands", ()
   assert.equal(manifest.commands.preflight, "npm run db:preflight -- /tmp/hardware-flow-import --strict");
   assert.equal(manifest.commands.preview, "npm run db:import -- /tmp/hardware-flow-import");
   assert.equal(manifest.commands.execute, "npm run db:import -- /tmp/hardware-flow-import --confirm");
+  assert.equal(
+    manifest.commands.verifyResult,
+    "npm run db:verify-import-result -- /tmp/hardware-flow-import/postgres-import-result.json",
+  );
 });
 
 test("PostgreSQL import bundle verifier accepts a complete bundle", () => {

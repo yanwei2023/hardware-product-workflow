@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { postgresImportResultFileName } from "./postgresImportReport.mjs";
 
 export function buildPostgresImportManifest({
   generatedAt = new Date(),
@@ -38,6 +39,7 @@ export function buildPostgresImportManifest({
       preflight: `npm run db:preflight -- ${outputDir} --strict`,
       preview: `npm run db:import -- ${outputDir}`,
       execute: `npm run db:import -- ${outputDir} --confirm`,
+      verifyResult: `npm run db:verify-import-result -- ${path.join(outputDir || "", postgresImportResultFileName)}`,
     },
   };
 }
