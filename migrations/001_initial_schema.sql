@@ -131,6 +131,23 @@ create table agent_runs (
   completed_at timestamptz
 );
 
+create table agent_jobs (
+  id text primary key,
+  project_id text not null references projects(id),
+  work_package_id text not null references work_packages(id),
+  agent_key text not null,
+  input_refs jsonb not null default '[]'::jsonb,
+  draft_markdown text,
+  requested_by_user_id text not null,
+  status text not null,
+  created_at timestamptz not null default now(),
+  started_at timestamptz,
+  completed_at timestamptz,
+  result_status_code int,
+  agent_run_id text references agent_runs(id),
+  error text not null default ''
+);
+
 create table agent_findings (
   id text primary key,
   work_package_id text not null references work_packages(id),
@@ -196,6 +213,8 @@ alter table projects
 create index audit_events_object_idx on audit_events(object_type, object_id);
 create index audit_events_project_created_idx on audit_events(project_id, created_at);
 create index artifact_versions_work_package_status_idx on artifact_versions(work_package_id, status);
+create index agent_jobs_project_status_created_idx on agent_jobs(project_id, status, created_at);
+create index agent_jobs_work_package_created_idx on agent_jobs(work_package_id, created_at desc);
 create index gate_approval_packs_gate_approved_idx on gate_approval_packs(gate_id, approved_at desc);
 create index notifications_user_project_status_idx on notifications(user_id, project_id, status);
 create index reviews_work_package_reviewed_idx on reviews(work_package_id, reviewed_at);

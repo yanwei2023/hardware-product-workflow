@@ -28,6 +28,9 @@ test("PostgreSQL import manifest includes validated files and psql commands", ()
   assert.equal(manifest.psql.requiredEnv, "DATABASE_URL");
   assert.equal(manifest.psql.createSchema, 'psql "$DATABASE_URL" -f schemas/database.sql');
   assert.equal(manifest.psql.importSeed, 'psql "$DATABASE_URL" -f /tmp/hardware-flow-import/postgres-seed.sql');
+  assert.equal(manifest.commands.preflight, "npm run db:preflight -- /tmp/hardware-flow-import --strict");
+  assert.equal(manifest.commands.preview, "npm run db:import -- /tmp/hardware-flow-import");
+  assert.equal(manifest.commands.execute, "npm run db:import -- /tmp/hardware-flow-import --confirm");
 });
 
 test("PostgreSQL import bundle verifier accepts a complete bundle", () => {

@@ -126,6 +126,22 @@ test("row reference check reports missing foreign-key targets", () => {
   assert.deepEqual(errors, ["gates[0].phase_id references missing phases.id missing-phase"]);
 });
 
+test("row reference check validates agent job links", () => {
+  const errors = validatePostgresRowReferences({
+    projects: [{ id: "project-1" }],
+    work_packages: [{ id: "work-package-1" }],
+    agent_runs: [],
+    agent_jobs: [{
+      id: "agent-job-1",
+      project_id: "project-1",
+      work_package_id: "work-package-1",
+      agent_run_id: "missing-run",
+    }],
+  });
+
+  assert.deepEqual(errors, ["agent_jobs[0].agent_run_id references missing agent_runs.id missing-run"]);
+});
+
 test("current database schema is covered by PostgreSQL row mapper", async () => {
   const sql = await import("node:fs").then((fs) => fs.readFileSync("schemas/database.sql", "utf8"));
   const emptyRows = Object.fromEntries(postgresTableNames.map((table) => [table, []]));

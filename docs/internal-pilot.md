@@ -33,6 +33,8 @@ npm run pilot:check
 
 如果没有配置 `DATABASE_URL` 或本机没有 `psql`，preflight 会报告 blockers，但不会让试点检查失败。当前试点仍使用 JSON store 持久化；这些 blockers 只表示 PostgreSQL 运行时切换尚未完成。
 
+使用 `infra/docker-compose.yml` 启动时，应用容器已包含 `psql` 并自动获得 Compose 内部 `DATABASE_URL`，可在容器内运行严格 preflight 和受控导入；导入完成后的逐表计数必须与 manifest 一致。
+
 如果只想单独验证试点主流程，不运行完整构建和数据库检查：
 
 ```text
@@ -51,7 +53,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 归档包包含：
 
-- 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、试点问题上报、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包和 `psql` 执行命令；
+- 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、试点问题上报、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包、`psql` 命令和受控 `db:import` 预览/确认命令；
 - 现场简报 `pilot-brief.md`，用于会前/会中同步项目、阶段门、必需项、阻塞提醒、命令和诊断链接；
 - 启动判定 `pilot-launch-summary.json`，用于快速判断 `GO`、`GO_WITH_CAUTION` 或 `NO_GO`，并列出硬阻塞、必需待处理项和下一步动作；
 - 试点问题上报模板 `pilot-issue-report.md`，用于记录请求 ID、服务版本、复现步骤、影响范围、诊断端点和是否需要回滚；

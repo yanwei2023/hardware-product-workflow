@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import {
+  addAgentJobInStore,
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
@@ -11,9 +12,11 @@ import {
   approveGateInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
+  completeAgentJobInStore,
   completeRiskMitigationInStore,
   countWorkPackagesByRolePair,
   findGate,
+  findNextQueuedAgentJob,
   findLatestPendingArtifactForWorkPackage,
   findNotification,
   findPhase,
@@ -44,6 +47,7 @@ import {
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
+  startAgentJobInStore,
   submitHumanReviewInStore,
   updateGateReadinessInStore,
   updateRolePairOwnerInStore,
@@ -51,6 +55,42 @@ import {
   updateRiskStatusInStore,
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
+
+test("agent job write helpers enforce queued, running, and terminal transitions", () => {
+  const store = createDemoStore();
+  const laterJob = addAgentJobInStore(store, {
+    id: "agent-job-later",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_report",
+    agentKey: "test_agent",
+    inputRefs: [],
+    requestedByUserId: "user-project-manager",
+    status: "QUEUED",
+    createdAt: "2026-06-11T02:00:00.000Z",
+  });
+  const earlierJob = addAgentJobInStore(store, {
+    ...laterJob,
+    id: "agent-job-earlier",
+    createdAt: "2026-06-11T01:00:00.000Z",
+  });
+
+  assert.equal(findNextQueuedAgentJob(store).id, earlierJob.id);
+  assert.equal(startAgentJobInStore(store, earlierJob.id, { startedAt: "2026-06-11T03:00:00.000Z" }).status, "RUNNING");
+  assert.equal(startAgentJobInStore(store, earlierJob.id), null);
+
+  const completed = completeAgentJobInStore(store, earlierJob.id, {
+    status: "COMPLETED",
+    resultStatusCode: 200,
+    agentRunId: "agent-run-1",
+    completedAt: "2026-06-11T04:00:00.000Z",
+  });
+
+  assert.equal(completed.status, "COMPLETED");
+  assert.equal(completed.agentRunId, "agent-run-1");
+  assert.equal(completed.completedAt, "2026-06-11T04:00:00.000Z");
+  assert.equal(completeAgentJobInStore(store, laterJob.id, { status: "FAILED", resultStatusCode: 422 }), null);
+  assert.equal(findNextQueuedAgentJob(store).id, laterJob.id);
+});
 
 test("store lookup helpers resolve current and individual records", () => {
   const store = createDemoStore();

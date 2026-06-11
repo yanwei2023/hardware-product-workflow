@@ -33,6 +33,7 @@ import {
 import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport, pilotRollbackCard } from "./pilotPlan.mjs";
 import {
   addAuditEventInStore,
+  addAgentJobInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
   addProjectGraphInStore,
@@ -41,9 +42,11 @@ import {
   approveGateInStore,
   archiveProjectInStore,
   completeReviewConditionsInStore,
+  completeAgentJobInStore,
   completeRiskMitigationInStore,
   countWorkPackagesByRolePair,
   findGate,
+  findNextQueuedAgentJob,
   findLatestPendingArtifactForWorkPackage,
   findNotification,
   findPhase,
@@ -71,6 +74,7 @@ import {
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
   selectProjectInStore,
+  startAgentJobInStore,
   submitHumanReviewInStore,
   updateRolePairOwnerInStore,
   updateGateReadinessInStore,
@@ -2595,7 +2599,7 @@ export function enqueueAgentJob(body = {}) {
     agentRunId: null,
     error: "",
   };
-  store.agentJobs.push(job);
+  addAgentJobInStore(store, job);
   audit("AGENT_JOB_QUEUED", "human", job.requestedByUserId, "workPackage", workPackage.id, {
     agentJobId: job.id,
     agentKey: job.agentKey,
@@ -2613,15 +2617,12 @@ export function enqueueAgentJob(body = {}) {
 }
 
 export function processNextAgentJob(body = {}) {
-  const queuedJob = (store.agentJobs || [])
-    .filter((job) => job.status === "QUEUED")
-    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0];
+  const queuedJob = findNextQueuedAgentJob(store);
   if (!queuedJob) {
     return { statusCode: 200, body: { processed: false, agentJobs: getAgentJobs() } };
   }
 
-  queuedJob.status = "RUNNING";
-  queuedJob.startedAt = new Date().toISOString();
+  startAgentJobInStore(store, queuedJob.id);
   const result = runAgentWorkPackage({
     workPackageId: queuedJob.workPackageId,
     agentKey: queuedJob.agentKey,
@@ -2629,11 +2630,12 @@ export function processNextAgentJob(body = {}) {
     ...(queuedJob.draftMarkdown ? { draftMarkdown: queuedJob.draftMarkdown } : {}),
   });
 
-  queuedJob.completedAt = new Date().toISOString();
-  queuedJob.resultStatusCode = result.statusCode;
-  queuedJob.agentRunId = result.body?.agentRun?.id || null;
-  queuedJob.status = result.statusCode >= 200 && result.statusCode < 300 ? "COMPLETED" : "FAILED";
-  queuedJob.error = result.body?.error || "";
+  completeAgentJobInStore(store, queuedJob.id, {
+    status: result.statusCode >= 200 && result.statusCode < 300 ? "COMPLETED" : "FAILED",
+    resultStatusCode: result.statusCode,
+    agentRunId: result.body?.agentRun?.id || null,
+    error: result.body?.error || "",
+  });
   audit("AGENT_JOB_PROCESSED", "system", body.workerId || "agent-worker", "workPackage", queuedJob.workPackageId, {
     agentJobId: queuedJob.id,
     status: queuedJob.status,

@@ -92,6 +92,54 @@ test("store mapper carries workflow closure fields", () => {
   assert.equal(rows.notifications[0].read_at, "2026-05-26T04:05:00.000Z");
 });
 
+test("store mapper carries agent job queue state", () => {
+  const store = createDemoStore();
+  store.agentRuns.push({
+    id: "agent-run-queue",
+    workPackageId: "wp-evt_exit-evt_test_report",
+    agentKey: "test_agent",
+    status: "COMPLETED",
+    inputRefs: ["artifact:input"],
+    createdAt: "2026-06-11T01:01:00.000Z",
+    completedAt: "2026-06-11T01:02:00.000Z",
+  });
+  store.agentJobs.push({
+    id: "agent-job-queue",
+    projectId: "project-smart-controller",
+    workPackageId: "wp-evt_exit-evt_test_report",
+    agentKey: "test_agent",
+    inputRefs: ["artifact:input"],
+    draftMarkdown: "# draft",
+    requestedByUserId: "user-project-manager",
+    status: "COMPLETED",
+    createdAt: "2026-06-11T01:00:00.000Z",
+    startedAt: "2026-06-11T01:00:30.000Z",
+    completedAt: "2026-06-11T01:02:00.000Z",
+    resultStatusCode: 200,
+    agentRunId: "agent-run-queue",
+    error: "",
+  });
+
+  const rows = mapStoreToPostgresRows(store);
+
+  assert.deepEqual(rows.agent_jobs[0], {
+    id: "agent-job-queue",
+    project_id: "project-smart-controller",
+    work_package_id: "wp-evt_exit-evt_test_report",
+    agent_key: "test_agent",
+    input_refs: ["artifact:input"],
+    draft_markdown: "# draft",
+    requested_by_user_id: "user-project-manager",
+    status: "COMPLETED",
+    created_at: "2026-06-11T01:00:00.000Z",
+    started_at: "2026-06-11T01:00:30.000Z",
+    completed_at: "2026-06-11T01:02:00.000Z",
+    result_status_code: 200,
+    agent_run_id: "agent-run-queue",
+    error: "",
+  });
+});
+
 test("PostgreSQL seed SQL wraps rows in a deferred transaction", () => {
   const rows = mapStoreToPostgresRows(createDemoStore());
   const sql = renderPostgresSeedSql(rows);

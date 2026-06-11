@@ -50,6 +50,7 @@ console.log(
       valid: report.valid,
       counts: report.counts,
       psql: manifest.psql,
+      commands: manifest.commands,
     },
     null,
     2,

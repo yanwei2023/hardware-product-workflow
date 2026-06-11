@@ -169,6 +169,45 @@ export function findRisk(store, riskId) {
   return store.risks.find((item) => item.id === riskId) || null;
 }
 
+export function addAgentJobInStore(store, job) {
+  store.agentJobs ||= [];
+  store.agentJobs.push(job);
+  return job;
+}
+
+export function findNextQueuedAgentJob(store) {
+  return [...(store.agentJobs || [])]
+    .filter((job) => job.status === "QUEUED")
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))[0] || null;
+}
+
+export function startAgentJobInStore(store, jobId, { startedAt = new Date().toISOString() } = {}) {
+  const job = (store.agentJobs || []).find((item) => item.id === jobId);
+  if (!job || job.status !== "QUEUED") {
+    return null;
+  }
+  job.status = "RUNNING";
+  job.startedAt = startedAt;
+  return job;
+}
+
+export function completeAgentJobInStore(
+  store,
+  jobId,
+  { status, resultStatusCode, agentRunId = null, error = "", completedAt = new Date().toISOString() } = {},
+) {
+  const job = (store.agentJobs || []).find((item) => item.id === jobId);
+  if (!job || job.status !== "RUNNING" || !["COMPLETED", "FAILED"].includes(status)) {
+    return null;
+  }
+  job.status = status;
+  job.completedAt = completedAt;
+  job.resultStatusCode = resultStatusCode;
+  job.agentRunId = agentRunId;
+  job.error = error;
+  return job;
+}
+
 export function addAuditEventInStore(
   store,
   {

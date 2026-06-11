@@ -34,6 +34,11 @@ export function buildPostgresImportManifest({
       importSeed: `psql "$DATABASE_URL" -f ${seedCommandPath}`,
       oneShot: `psql "$DATABASE_URL" -f ${schemaCommandPath} && psql "$DATABASE_URL" -f ${seedCommandPath}`,
     },
+    commands: {
+      preflight: `npm run db:preflight -- ${outputDir} --strict`,
+      preview: `npm run db:import -- ${outputDir}`,
+      execute: `npm run db:import -- ${outputDir} --confirm`,
+    },
   };
 }
 

@@ -28,6 +28,7 @@
     "db:export-report": "node apps/api/src/exportPostgresReport.mjs",
     "db:prepare-import": "node apps/api/src/preparePostgresImport.mjs",
     "db:verify-import-bundle": "node apps/api/src/verifyPostgresImportBundle.mjs",
+    "db:import": "node apps/api/src/postgresImportCli.mjs",
     "db:preflight": "node apps/api/src/postgresPreflightCli.mjs",
     "db:schema-check": "node apps/api/src/postgresSchemaCheck.mjs",
     "pilot:archive": "node apps/api/src/preparePilotArchive.mjs",

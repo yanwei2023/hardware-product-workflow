@@ -14,8 +14,8 @@
 将 `apps/api/src/server.mjs` 中直接读写 `store.*` 的代码逐步替换为 Repository：
 
 - 当前已建立 `apps/api/src/storeRepository.mjs` 作为只读 Repository 起点，已覆盖当前项目视图、用户待办视图、项目聚合 read model、项目列表摘要、项目快照、风险台账、阶段门就绪检查、阶段门评审包、阶段门批准包、通知列表和工作包详情，不改变现有 JSON 持久化行为。
-- 当前已补充项目、阶段、阶段门、角色配对、工作包、审核、风险和通知的基础定位 helper，后续写入 Repository 可复用这些入口，减少服务层直接扫描 JSON store。
-- 当前已开始迁移写入 helper：项目图谱批量新增、审计事件新增、通知新增、项目选择/归档/恢复、阶段门就绪状态同步、阶段门批准推进、阶段门批准包新增、通知单条已读、用户项目通知批量已读、角色配对负责人更新、工作包排期更新、工作包证据引用新增、Agent 输出记录、人工审核提交、审核条件完成、风险新增、风险状态更新、风险缓解计划更新/完成已由 Repository 层执行，服务层仍负责权限校验、审计/通知、持久化提交和响应组装。
+- 当前已补充项目、阶段、阶段门、角色配对、工作包、Agent 任务、审核、风险和通知的基础定位 helper，后续写入 Repository 可复用这些入口，减少服务层直接扫描 JSON store。
+- 当前已开始迁移写入 helper：项目图谱批量新增、审计事件新增、通知新增、项目选择/归档/恢复、阶段门就绪状态同步、阶段门批准推进、阶段门批准包新增、通知单条已读、用户项目通知批量已读、角色配对负责人更新、工作包排期更新、工作包证据引用新增、Agent 任务排队/开始/完成、Agent 输出记录、人工审核提交、审核条件完成、风险新增、风险状态更新、风险缓解计划更新/完成已由 Repository 层执行，服务层仍负责权限校验、审计/通知、持久化提交和响应组装。
 - `ProjectRepository`
 - `WorkPackageRepository`
 - `ReviewRepository`
@@ -37,6 +37,7 @@
 - 当前已提供 `npm run db:prepare-import -- /tmp/hardware-flow-postgres-import`，可一次性生成 rows JSON、seed SQL、report JSON 和 manifest。manifest 中包含基于 `DATABASE_URL` 的 `psql` 建表与导入命令。
 - 当前已提供 `npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import`，可在不连接数据库的情况下检查导入包文件完整性、report 是否有效、seed SQL 是否包含事务和幂等 upsert。
 - 当前已提供 `npm run db:preflight -- /tmp/hardware-flow-postgres-import`，可检查 `DATABASE_URL`、本机 `psql` 客户端和导入包完整性。默认只输出 `ready/blockers`，不会因为未配置数据库而失败；需要在部署脚本中强制失败时追加 `--strict`。
+- 当前已提供 `npm run db:import -- /tmp/hardware-flow-postgres-import` 预览实际导入计划；只有追加 `--confirm` 才会按 schema、seed 顺序调用 `psql`。执行时启用 `ON_ERROR_STOP`，schema 失败不会继续写入 seed，输出中的数据库密码保持脱敏；seed 完成后会查询各表行数并与 manifest 比对，不一致时导入仍判定失败。
 - 当前已提供 `npm run db:schema-check`，可在没有 PostgreSQL 服务的情况下校验：
   - `schemas/database.sql` 的表/列是否被 rows 映射覆盖；
   - `not null` 和主键列是否会被导出为非空值；
@@ -57,8 +58,8 @@ npm run db:verify-import-bundle -- /tmp/hardware-flow-postgres-import
 npm run db:preflight -- /tmp/hardware-flow-postgres-import
 export DATABASE_URL=postgres://user:password@localhost:5432/hardware_flow
 npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict
-psql "$DATABASE_URL" -f schemas/database.sql
-psql "$DATABASE_URL" -f /tmp/hardware-flow-postgres-import/postgres-seed.sql
+npm run db:import -- /tmp/hardware-flow-postgres-import
+npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。

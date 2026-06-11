@@ -76,6 +76,17 @@ docker compose up --build
 
 当前应用容器仍使用 JSON 文件持久化，数据保存在 `app-data` volume 中。PostgreSQL 服务会按 `migrations/` 中的 SQL 初始化，供后续迁移持久化层使用。
 
+应用镜像包含 `psql` 客户端，Compose 会等待 PostgreSQL 健康并向应用容器注入内部 `DATABASE_URL`。需要在容器内验证或执行 JSON store 导入时：
+
+```text
+docker compose exec app npm run db:prepare-import -- /tmp/hardware-flow-postgres-import
+docker compose exec app npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict
+docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import
+docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
+```
+
+最后一条命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数。当前 API 运行时仍读取 JSON store；该命令用于验证迁移数据完整性，不会切换线上读写源。
+
 ## 端口调整
 
 如果 `3001` 被占用：

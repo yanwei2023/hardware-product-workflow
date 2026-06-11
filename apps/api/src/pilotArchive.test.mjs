@@ -85,6 +85,14 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
     manifest.postgresImport.psql.importSeed,
     `psql "$DATABASE_URL" -f ${path.join(outputDir, "postgres-import", "postgres-seed.sql")}`,
   );
+  assert.equal(
+    manifest.postgresImport.commands.preview,
+    `npm run db:import -- ${path.join(outputDir, "postgres-import")}`,
+  );
+  assert.equal(
+    manifest.postgresImport.commands.execute,
+    `npm run db:import -- ${path.join(outputDir, "postgres-import")} --confirm`,
+  );
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.briefMarkdown)), true);
@@ -124,6 +132,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /postgres-import\/postgres-import-manifest\.json/);
   assert.match(handoffMarkdown, /表计数：/);
   assert.match(handoffMarkdown, /一次性命令：`psql "\$DATABASE_URL" -f schemas\/database\.sql && psql "\$DATABASE_URL" -f /);
+  assert.match(handoffMarkdown, /受控预览：`npm run db:import -- /);
+  assert.match(handoffMarkdown, /受控导入：`npm run db:import -- .* --confirm`/);
   const briefMarkdown = fs.readFileSync(path.join(outputDir, "pilot-brief.md"), "utf8");
   assert.match(briefMarkdown, /内部试点现场简报/);
   assert.match(briefMarkdown, /试点必需项/);
