@@ -72,6 +72,7 @@ const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
 const pilotAccessStorageKey = "hardware-flow-pilot-access-code";
+let runtimeWritable = true;
 
 type ApiRequestOptions = RequestInit & { allowError?: boolean };
 
@@ -112,6 +113,11 @@ function errorMessage(error: unknown): UiMessage {
 
 async function api(path: string, options: ApiRequestOptions = {}) {
   const { allowError = false, ...fetchOptions } = options;
+  const method = String(fetchOptions.method || "GET").toUpperCase();
+  const mutationRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method) && path !== "/projects/import/validate";
+  if (!runtimeWritable && mutationRequest) {
+    throw new ApiError("当前运行时为只读模式", null, null);
+  }
   const pilotAccessCode = window.localStorage.getItem(pilotAccessStorageKey) || "";
   const response = await fetch(`${apiBase}${path}`, {
     ...fetchOptions,
@@ -310,6 +316,7 @@ export function App() {
 
   async function load(nextActorUserId = actorUserId) {
     const publicRuntimeConfig = await api("/runtime/config");
+    runtimeWritable = publicRuntimeConfig.runtimeWrite?.writable !== false;
     setPilotAccessEnabled(Boolean(publicRuntimeConfig.pilotAccessEnabled));
     if (publicRuntimeConfig.pilotAccessEnabled && !window.localStorage.getItem(pilotAccessStorageKey)) {
       setState((current) => ({ ...current, runtimeConfig: publicRuntimeConfig }));
@@ -328,6 +335,7 @@ export function App() {
       api("/runtime/network"),
       apiText("/metrics"),
     ]);
+    runtimeWritable = runtimeConfig.runtimeWrite?.writable !== false;
     const phase = project.phases.find((item: any) => item.id === project.project.currentPhaseId);
     const gate = project.gates.find((item: any) => item.phaseId === phase?.id);
     const [actionItems, notifications, gateReviewPack] = await Promise.all([
@@ -473,6 +481,16 @@ export function App() {
             <button onClick={() => load()} disabled={busy}>刷新</button>
           </div>
         </header>
+
+        {!state.runtimeConfig?.runtimeWrite?.writable ? (
+          <div className="runtime-read-only" role="status">
+            <strong>只读运行模式</strong>
+            <span>
+              当前运行时已关闭业务修改操作。启动数据源：{runtimeConfig.runtimeSource?.loadedSource || "未知"}；写入后端：
+              {runtimeConfig.storage?.writeBackend || "未知"}。
+            </span>
+          </div>
+        ) : null}
 
         {message ? (
           <div className={message.kind === "error" ? "message error" : "message"} role={message.kind === "error" ? "alert" : "status"}>
@@ -1403,6 +1421,8 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="静态资源" value={runtimeConfig?.staticMode || "-"} />
         <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
         <Metric label="访问码" value={runtimeConfig?.pilotAccessEnabled ? "开启" : "关闭"} />
+        <Metric label="运行写入" value={runtimeConfig?.runtimeWrite?.writable ? "可写" : "只读"} />
+        <Metric label="启动数据源" value={runtimeConfig?.runtimeStoreSource?.loadedSource || "-"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
         <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />
         <Metric label="请求超时" value={runtimeConfig?.requestTimeoutMs ? `${runtimeConfig.requestTimeoutMs}ms` : "-"} />

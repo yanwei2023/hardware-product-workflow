@@ -265,6 +265,21 @@ h3 {
   padding: 10px 12px;
 }
 
+.runtime-read-only {
+  align-items: center;
+  background: #fff6dc;
+  border: 1px solid #e7ca72;
+  border-radius: 6px;
+  color: #6d5200;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.runtime-read-only span {
+  font-size: 13px;
+}
+
 .message strong {
   font-size: 13px;
 }

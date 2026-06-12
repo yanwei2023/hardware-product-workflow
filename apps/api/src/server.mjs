@@ -85,6 +85,7 @@ import {
 import { validateStoreFile } from "./storeDoctor.mjs";
 import { bootstrapRuntimeStore } from "./runtimeStoreBootstrap.mjs";
 import { createDemoStore } from "./demoStoreFactory.mjs";
+import { checkRuntimeWriteAccess, resolveRuntimeWritePolicy } from "./runtimeWritePolicy.mjs";
 
 export { createDemoStore } from "./demoStoreFactory.mjs";
 
@@ -187,6 +188,7 @@ const runtimeStoreBootstrap = bootstrapRuntimeStore({
 });
 let store = runtimeStoreBootstrap.store;
 const runtimeStoreSourceStatus = runtimeStoreBootstrap.status;
+let runtimeWritePolicy = resolveRuntimeWritePolicy({ runtimeSource: runtimeStoreSourceStatus });
 ensureStoreShape();
 saveStoreToDisk(store);
 
@@ -220,6 +222,7 @@ export function getStorageStatus() {
     backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
     checkpoints: listStoreCheckpoints({ storePath }).slice(0, 8),
     runtimeSource: runtimeStoreSourceStatus,
+    runtimeWrite: runtimeWritePolicy,
     ...runtimeSummary,
   };
 }
@@ -233,6 +236,7 @@ export function getRuntimeConfigStatus() {
     workspaceRoot,
     storePath: getStorePath(),
     runtimeStoreSource: runtimeStoreSourceStatus,
+    runtimeWrite: runtimeWritePolicy,
     staticMode,
     staticRoot,
     reactStaticRoot,
@@ -328,6 +332,13 @@ export function getOpsSummaryStatus() {
       details: runtimeStoreSourceStatus.errors,
     });
   }
+  if (!runtimeWritePolicy.writable) {
+    warnings.push({
+      code: "RUNTIME_READ_ONLY",
+      message: "当前 API 运行时为只读模式，业务修改请求会被拒绝。",
+      details: runtimeWritePolicy,
+    });
+  }
   const blockers = [
     ...(readiness.ready ? [] : [{ code: "SERVICE_NOT_READY", message: "服务或本地数据未就绪" }]),
     ...(pilotReadiness.blockers || []),
@@ -359,6 +370,8 @@ export function getOpsSummaryStatus() {
       staticMode: runtimeConfig.staticMode,
       accessLogEnabled: runtimeConfig.accessLogEnabled,
       shuttingDown: runtimeConfig.shuttingDown,
+      writeMode: runtimeWritePolicy.effectiveMode,
+      writable: runtimeWritePolicy.writable,
       uptimeSeconds: Number(process.uptime().toFixed(3)),
     },
     network: {
@@ -387,6 +400,7 @@ export function getOpsSummaryStatus() {
       backupValid: readiness.storage.backupValid,
       latestCheckpoint: storageStatus.checkpoints?.[0] || null,
       runtimeSource: runtimeStoreSourceStatus,
+      runtimeWrite: runtimeWritePolicy,
     },
     pilot: {
       ready: pilotReadiness.ready,
@@ -606,6 +620,7 @@ export function getReadinessStatus() {
       backupValid: storageDoctor.backupValid,
       backupErrors: storageDoctor.backupErrors,
       runtimeSource: runtimeStoreSourceStatus,
+      runtimeWrite: runtimeWritePolicy,
     },
   };
 }
@@ -851,6 +866,9 @@ function renderMetrics() {
     "# HELP hardware_flow_ready Whether the API and local store are ready.",
     "# TYPE hardware_flow_ready gauge",
     `hardware_flow_ready ${storageDoctor.exists && storageDoctor.valid && !isShuttingDown ? 1 : 0}`,
+    "# HELP hardware_flow_runtime_writable Whether the API accepts runtime mutation requests.",
+    "# TYPE hardware_flow_runtime_writable gauge",
+    `hardware_flow_runtime_writable ${runtimeWritePolicy.writable ? 1 : 0}`,
     "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
     "# TYPE hardware_flow_shutting_down gauge",
     `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
@@ -1061,6 +1079,13 @@ export function resetDemoStore() {
 
 export function setShuttingDownForTest(value) {
   isShuttingDown = Boolean(value);
+}
+
+export function setRuntimeWriteModeForTest(value) {
+  runtimeWritePolicy = resolveRuntimeWritePolicy({
+    configuredMode: value,
+    runtimeSource: runtimeStoreSourceStatus,
+  });
 }
 
 function writeJson(res, statusCode, body) {
@@ -3559,6 +3584,11 @@ export const server = http.createServer(async (req, res) => {
     const access = verifyPilotAccess(req, url);
     if (!access.allowed) {
       return writeJson(res, access.statusCode, access.body);
+    }
+
+    const writeAccess = checkRuntimeWriteAccess(runtimeWritePolicy, req.method, url.pathname);
+    if (!writeAccess.allowed) {
+      return writeJson(res, writeAccess.statusCode, writeAccess.body);
     }
 
     if (req.method === "GET" && url.pathname === "/health") {

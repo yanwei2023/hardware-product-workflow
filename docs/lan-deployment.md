@@ -112,7 +112,7 @@ docker compose exec app npm run db:verify-store-sync -- /tmp/hardware-flow-postg
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres docker compose -f infra/docker-compose.yml up --build
 ```
 
-此模式在 API 监听前完成数据库读取和 store doctor，失败会阻止启动。加载成功后仍写入 `/app/data/demo-store.json`；`/runtime/config`、`/ready` 和 `/storage/status` 会显示请求源、实际加载源、是否降级及写入后端。需要允许数据库故障时退回 JSON，可使用 `postgres-fallback`，但运维摘要会持续显示降级警告。
+此模式在 API 监听前完成数据库读取和 store doctor，失败会阻止启动。默认写策略 `auto` 会让 PostgreSQL 快照运行时自动只读，避免后续 JSON 写入与数据库分叉；工作台会显示只读横幅，修改请求返回 `RUNTIME_READ_ONLY`。加载成功的快照仍会物化到 `/app/data/demo-store.json`；`/runtime/config`、`/ready` 和 `/storage/status` 会显示请求源、实际加载源、是否降级及写策略。需要允许数据库故障时退回 JSON，可使用 `postgres-fallback`，但运维摘要会持续显示降级警告。
 
 ## 端口调整
 

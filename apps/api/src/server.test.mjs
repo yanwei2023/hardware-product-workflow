@@ -18,6 +18,7 @@ after(() => {
 
 beforeEach(() => {
   workflow.setShuttingDownForTest(false);
+  workflow.setRuntimeWriteModeForTest("read-write");
   workflow.resetDemoStore();
 });
 
@@ -128,6 +129,8 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.deepEqual(result.body.storage.errors, []);
   assert.equal(result.body.storage.runtimeSource.requestedSource, "json");
   assert.equal(result.body.storage.runtimeSource.writeBackend, "json-file");
+  assert.equal(result.body.storage.runtimeWrite.effectiveMode, "read-write");
+  assert.equal(result.body.storage.runtimeWrite.writable, true);
 });
 
 test("pilot readiness endpoint aggregates trial blockers and export links", async () => {
@@ -220,7 +223,39 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.equal(result.body.runtimeStoreSource.loadedSource, "demo-fallback");
   assert.equal(result.body.runtimeStoreSource.writeBackend, "json-file");
   assert.equal(result.body.runtimeStoreSource.databaseConfigured, false);
+  assert.equal(result.body.runtimeWrite.configuredMode, "read-write");
+  assert.equal(result.body.runtimeWrite.writable, true);
   assert.ok(result.body.staticRoot.includes("apps/"));
+});
+
+test("read-only runtime serves reads and rejects mutations before body parsing", async () => {
+  workflow.setRuntimeWriteModeForTest("read-only");
+
+  const readResult = await dispatch("/projects/demo");
+  const mutationResult = await dispatch("/projects", {
+    method: "POST",
+    body: "{invalid-json",
+  });
+  const validationResult = await dispatch("/projects/import/validate", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  const configResult = await dispatch("/runtime/config");
+  const opsResult = await dispatch("/ops/summary");
+  const metricsResult = await dispatch("/metrics");
+
+  assert.equal(readResult.status, 200);
+  assert.equal(mutationResult.status, 409);
+  assert.deepEqual(mutationResult.body, {
+    error: "当前运行时为只读模式",
+    code: "RUNTIME_READ_ONLY",
+    writeMode: "read-only",
+    reason: "explicit-configuration",
+  });
+  assert.equal(validationResult.status, 422);
+  assert.equal(configResult.body.runtimeWrite.writable, false);
+  assert.equal(opsResult.body.warnings.some((item) => item.code === "RUNTIME_READ_ONLY"), true);
+  assert.match(metricsResult.body, /hardware_flow_runtime_writable 0/);
 });
 
 test("runtime network endpoint reports local and LAN access hints", async () => {
@@ -277,6 +312,7 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.equal(result.headers["access-control-expose-headers"], "x-request-id,x-service-version");
   assert.match(result.body, /# TYPE hardware_flow_ready gauge/);
   assert.match(result.body, /hardware_flow_ready 1/);
+  assert.match(result.body, /hardware_flow_runtime_writable 1/);
   assert.match(result.body, /# TYPE hardware_flow_shutting_down gauge/);
   assert.match(result.body, /hardware_flow_shutting_down 0/);
   assert.match(result.body, /# TYPE hardware_flow_process_uptime_seconds gauge/);
@@ -326,6 +362,7 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.ok(result.body.backupPath.endsWith("store.json.bak"));
   assert.equal(typeof result.body.backupExists, "boolean");
   assert.equal(result.body.runtimeSource.requestedSource, "json");
+  assert.equal(result.body.runtimeWrite.writable, true);
 });
 
 test("storage doctor endpoint reports JSON store validity", async () => {

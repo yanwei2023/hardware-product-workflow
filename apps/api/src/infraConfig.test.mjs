@@ -13,6 +13,7 @@ test("compose waits for PostgreSQL and exposes its internal connection to the ap
 
   assert.match(compose, /DATABASE_URL: postgres:\/\/hardware_flow:hardware_flow_dev@postgres:5432\/hardware_flow/);
   assert.match(compose, /HARDWARE_FLOW_STARTUP_STORE_SOURCE: \$\{HARDWARE_FLOW_STARTUP_STORE_SOURCE:-json\}/);
+  assert.match(compose, /HARDWARE_FLOW_RUNTIME_WRITE_MODE: \$\{HARDWARE_FLOW_RUNTIME_WRITE_MODE:-auto\}/);
   assert.match(compose, /depends_on:\s+postgres:\s+condition: service_healthy/);
   assert.match(compose, /healthcheck:\s+test: \["CMD-SHELL", "pg_isready -U hardware_flow -d hardware_flow"\]/);
 });

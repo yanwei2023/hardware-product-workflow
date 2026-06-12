@@ -109,7 +109,7 @@ HARDWARE_FLOW_STORE_PATH=/path/to/store.json npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres DATABASE_URL=postgres://user:password@localhost/hardware_flow npm start
 ```
 
-启动快照会先通过完整映射和 store doctor，再写入 JSON store；运行期写入仍落 JSON。数据库不可用时严格模式拒绝启动，`postgres-fallback` 模式则回退到 JSON 并在运行状态中标记降级。
+启动快照会先通过完整映射和 store doctor，再写入 JSON store。默认 `HARDWARE_FLOW_RUNTIME_WRITE_MODE=auto` 会让 PostgreSQL 快照自动只读，工作台显示只读提示并在前后端同时阻止修改；数据库不可用时严格模式拒绝启动，`postgres-fallback` 模式则回退到可写 JSON 并在运行状态中标记降级。
 
 ## 可试用链路
 
