@@ -42,6 +42,8 @@ export function buildPostgresImportManifest({
       verifyResult: `npm run db:verify-import-result -- ${path.join(outputDir || "", postgresImportResultFileName)}`,
       restoreStorePreview: `npm run db:restore-store -- ${rowsPath}`,
       restoreStoreExecute: `npm run db:restore-store -- ${rowsPath} --confirm`,
+      compareStore: `npm run db:compare-store -- --report ${path.join(outputDir || "", "postgres-store-comparison.json")} --strict`,
+      verifyStoreComparison: `npm run db:verify-store-comparison -- ${path.join(outputDir || "", "postgres-store-comparison.json")}`,
     },
   };
 }
