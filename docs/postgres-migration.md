@@ -45,6 +45,8 @@
   - rows 内部常见外键引用是否能找到目标记录。
 - 当前已提供 `npm run db:migration-check`，可校验第一版迁移文件没有和 `schemas/database.sql` 漂移。
 - 当前已提供 PostgreSQL rows 到运行时 JSON store 的完整反向映射。`npm run db:restore-store -- /tmp/hardware-flow-postgres-import/postgres-rows.json` 只预览并执行 store doctor 引用校验，追加 `--confirm` 后才原子写入当前 store，并保留原文件 `.bak`；可用 `--output` 和 `--active-project` 指定目标文件与活动项目。
+- 当前已提供 PostgreSQL 实时只读桥接。配置 `DATABASE_URL` 后，`npm run db:export-live-rows -- /tmp/postgres-live-rows.json` 会通过单条只读查询导出所有映射表，执行 schema、必填字段和引用校验后才写入快照；`npm run db:pull-store` 会直接把同一份数据库读取结果反向映射为运行时 store，默认仅预览，追加 `--confirm` 才写盘并保留 `.bak`。
+- 实时读取命令不会在报告中保留查询结果、数据库 URL 或密码。当前桥接用于迁移核验、回滚与灾备演练，不会把 API 的在线写入源切换为 PostgreSQL。
 - `npm run check` 会把导出的 rows 反向恢复到 `/tmp`、运行 store doctor，并通过 `store:runtime-check` 动态加载服务模块、构建活动项目 read model 和执行当前阶段门检查，验证恢复数据不仅结构合法，而且能被真实运行时读取。
 
 ## 当前导出约束
@@ -66,6 +68,9 @@ npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
 npm run db:verify-import-result -- /tmp/hardware-flow-postgres-import/postgres-import-result.json
 npm run db:restore-store -- /tmp/hardware-flow-postgres-import/postgres-rows.json
 npm run db:restore-store -- /tmp/hardware-flow-postgres-import/postgres-rows.json --confirm
+npm run db:export-live-rows -- /tmp/hardware-flow-postgres-live-rows.json
+npm run db:pull-store
+npm run db:pull-store -- --output /tmp/hardware-flow-live-store.json --confirm
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。

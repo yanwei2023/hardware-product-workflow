@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
 import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
-import { restoreStoreFromPostgresRows } from "./postgresStoreRestore.mjs";
+import { restoreStoreFromPostgresRows, restoreStoreFromPostgresRowsData } from "./postgresStoreRestore.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
 
 function makeRowsFile() {
@@ -25,6 +25,20 @@ test("PostgreSQL rows restore previews a valid store without writing", () => {
   assert.equal(result.activeProjectId, "project-smart-controller");
   assert.equal(result.counts.projects, 1);
   assert.equal(fs.existsSync(outputPath), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("PostgreSQL rows restore accepts in-memory database rows", () => {
+  const { dir, outputPath } = makeRowsFile();
+  const result = restoreStoreFromPostgresRowsData({
+    rows: mapStoreToPostgresRows(createDemoStore()),
+    rowsPath: "postgresql://live-read",
+    outputPath,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.rowsPath, "postgresql://live-read");
+  assert.equal(result.written, false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

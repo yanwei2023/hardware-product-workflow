@@ -91,6 +91,16 @@ docker compose exec app npm run db:restore-store -- /tmp/hardware-flow-postgres-
 
 `db:restore-store` 默认只预览 PostgreSQL rows 反向恢复出的 JSON store，并执行引用完整性检查；只有追加 `--confirm` 才会覆盖当前 store，覆盖前会保留 `.bak`。在试点环境执行确认恢复前，应先停止写操作并创建检查点。
 
+数据库完成导入后，也可以直接从 Compose PostgreSQL 生成经过校验的恢复快照，或预览实时反向恢复：
+
+```text
+docker compose exec app npm run db:export-live-rows -- /tmp/hardware-flow-postgres-live-rows.json
+docker compose exec app npm run db:pull-store
+docker compose exec app npm run db:pull-store -- --output /app/data/demo-store.json --confirm
+```
+
+`db:pull-store` 仍是受控恢复工具，不代表 API 已切换为 PostgreSQL 在线读写。确认覆盖当前 store 前必须停止写操作，并先保留试点检查点。
+
 ## 端口调整
 
 如果 `3001` 被占用：

@@ -37,13 +37,30 @@ export function restoreStoreFromPostgresRows({
     };
   }
 
-  const missingTables = postgresTableNames.filter((table) => !Array.isArray(rows[table]));
+  return restoreStoreFromPostgresRowsData({
+    rows,
+    rowsPath: resolvedRowsPath,
+    outputPath: resolvedOutputPath,
+    activeProjectId,
+    confirm,
+  });
+}
+
+export function restoreStoreFromPostgresRowsData({
+  rows,
+  rowsPath = null,
+  outputPath = getStorePath(),
+  activeProjectId = null,
+  confirm = false,
+} = {}) {
+  const resolvedOutputPath = path.resolve(outputPath);
+  const missingTables = postgresTableNames.filter((table) => !Array.isArray(rows?.[table]));
   if (missingTables.length > 0) {
     return {
       ok: false,
       confirmed: confirm,
       written: false,
-      rowsPath: resolvedRowsPath,
+      rowsPath,
       outputPath: resolvedOutputPath,
       errors: missingTables.map((table) => `PostgreSQL rows are missing table array: ${table}`),
     };
@@ -57,7 +74,7 @@ export function restoreStoreFromPostgresRows({
       ok: false,
       confirmed: confirm,
       written: false,
-      rowsPath: resolvedRowsPath,
+      rowsPath,
       outputPath: resolvedOutputPath,
       errors: [error instanceof Error ? error.message : String(error)],
     };
@@ -72,7 +89,7 @@ export function restoreStoreFromPostgresRows({
       ok: false,
       confirmed: confirm,
       written: false,
-      rowsPath: resolvedRowsPath,
+      rowsPath,
       outputPath: resolvedOutputPath,
       activeProjectId: store.activeProjectId,
       counts,
@@ -88,7 +105,7 @@ export function restoreStoreFromPostgresRows({
     ok: true,
     confirmed: confirm,
     written: confirm,
-    rowsPath: resolvedRowsPath,
+    rowsPath,
     outputPath: resolvedOutputPath,
     activeProjectId: store.activeProjectId,
     counts,

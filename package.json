@@ -32,6 +32,8 @@
     "db:import": "node apps/api/src/postgresImportCli.mjs",
     "db:verify-import-result": "node apps/api/src/verifyPostgresImportResult.mjs",
     "db:restore-store": "node apps/api/src/restoreStoreFromPostgresRows.mjs",
+    "db:export-live-rows": "node apps/api/src/exportPostgresDatabaseRows.mjs",
+    "db:pull-store": "node apps/api/src/pullStoreFromPostgres.mjs",
     "db:preflight": "node apps/api/src/postgresPreflightCli.mjs",
     "db:schema-check": "node apps/api/src/postgresSchemaCheck.mjs",
     "pilot:archive": "node apps/api/src/preparePilotArchive.mjs",
