@@ -99,9 +99,12 @@ docker compose exec app npm run db:pull-store
 docker compose exec app npm run db:pull-store -- --output /app/data/demo-store.json --confirm
 docker compose exec app npm run db:compare-store -- --report /tmp/hardware-flow-postgres-comparison.json --strict
 docker compose exec app npm run db:verify-store-comparison -- /tmp/hardware-flow-postgres-comparison.json
+docker compose exec app npm run db:sync-store -- /tmp/hardware-flow-postgres-store-sync
+docker compose exec app npm run db:sync-store -- /tmp/hardware-flow-postgres-store-sync --confirm
+docker compose exec app npm run db:verify-store-sync -- /tmp/hardware-flow-postgres-store-sync/postgres-store-sync-result.json
 ```
 
-`db:compare-store` 逐表核对当前 JSON store 与数据库，严格模式适合放在导入验收和读源切换前的部署门禁中。`db:pull-store` 仍是受控恢复工具，不代表 API 已切换为 PostgreSQL 在线读写。确认覆盖当前 store 前必须停止写操作，并先保留试点检查点。
+`db:compare-store` 逐表核对当前 JSON store 与数据库，严格模式适合放在导入验收和读源切换前的部署门禁中。`db:sync-store --confirm` 是精确镜像操作，会删除数据库独有行，只能在停止写入、创建检查点并评审预览 SQL 后执行。`db:pull-store` 仍是受控恢复工具，不代表 API 已切换为 PostgreSQL 在线读写。
 
 ## 端口调整
 

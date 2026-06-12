@@ -51,6 +51,18 @@ test("PostgreSQL import manifest includes validated files and psql commands", ()
     manifest.commands.verifyStoreComparison,
     "npm run db:verify-store-comparison -- /tmp/hardware-flow-import/postgres-store-comparison.json",
   );
+  assert.equal(
+    manifest.commands.syncStorePreview,
+    "npm run db:sync-store -- /tmp/hardware-flow-import/store-sync",
+  );
+  assert.equal(
+    manifest.commands.syncStoreExecute,
+    "npm run db:sync-store -- /tmp/hardware-flow-import/store-sync --confirm",
+  );
+  assert.equal(
+    manifest.commands.verifyStoreSync,
+    "npm run db:verify-store-sync -- /tmp/hardware-flow-import/store-sync/postgres-store-sync-result.json",
+  );
 });
 
 test("PostgreSQL import bundle verifier accepts a complete bundle", () => {

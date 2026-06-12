@@ -44,6 +44,9 @@ export function buildPostgresImportManifest({
       restoreStoreExecute: `npm run db:restore-store -- ${rowsPath} --confirm`,
       compareStore: `npm run db:compare-store -- --report ${path.join(outputDir || "", "postgres-store-comparison.json")} --strict`,
       verifyStoreComparison: `npm run db:verify-store-comparison -- ${path.join(outputDir || "", "postgres-store-comparison.json")}`,
+      syncStorePreview: `npm run db:sync-store -- ${path.join(outputDir || "", "store-sync")}`,
+      syncStoreExecute: `npm run db:sync-store -- ${path.join(outputDir || "", "store-sync")} --confirm`,
+      verifyStoreSync: `npm run db:verify-store-sync -- ${path.join(outputDir || "", "store-sync", "postgres-store-sync-result.json")}`,
     },
   };
 }

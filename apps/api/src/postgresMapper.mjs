@@ -90,6 +90,21 @@ function renderUpsertClause(columns) {
   return `ON CONFLICT (id) DO UPDATE SET ${mutableColumns.map((column) => `${column} = EXCLUDED.${column}`).join(", ")}`;
 }
 
+function renderTableUpsert(table, tableRows) {
+  if (tableRows.length === 0) {
+    return [`-- ${table}: 0 rows`];
+  }
+
+  const columns = Object.keys(tableRows[0]);
+  return [
+    `-- ${table}: ${tableRows.length} rows`,
+    `INSERT INTO ${table} (${columns.join(", ")}) VALUES`,
+    tableRows
+      .map((row) => `  (${columns.map((column) => sqlLiteral(column, row[column])).join(", ")})`)
+      .join(",\n") + `\n${renderUpsertClause(columns)};`,
+  ];
+}
+
 function resolveRequirementWorkPackageId(requirement, gatesById, workPackages) {
   if (requirement.workPackageId) {
     return requirement.workPackageId;
@@ -116,23 +131,38 @@ export function renderPostgresSeedSql(rows) {
 
   for (const table of postgresTableNames) {
     const tableRows = asArray(rows[table]);
-    if (tableRows.length === 0) {
-      lines.push(`-- ${table}: 0 rows`, "");
-      continue;
-    }
-
-    const columns = Object.keys(tableRows[0]);
-    lines.push(`-- ${table}: ${tableRows.length} rows`);
-    lines.push(`INSERT INTO ${table} (${columns.join(", ")}) VALUES`);
-    lines.push(
-      tableRows
-        .map((row) => `  (${columns.map((column) => sqlLiteral(column, row[column])).join(", ")})`)
-        .join(",\n") + `\n${renderUpsertClause(columns)};`,
-    );
-    lines.push("");
+    lines.push(...renderTableUpsert(table, tableRows), "");
   }
 
   lines.push("COMMIT;", "");
+  return lines.join("\n");
+}
+
+export function renderPostgresMirrorSql(rows) {
+  const lines = [
+    "-- Generated exact-mirror synchronization for hardware-product-workflow.",
+    "-- Upserts the JSON store snapshot, then removes database-only rows.",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(hashtext('hardware-product-workflow-store-sync'));",
+    "SET CONSTRAINTS ALL DEFERRED;",
+    "",
+  ];
+
+  for (const table of postgresTableNames) {
+    lines.push(...renderTableUpsert(table, asArray(rows[table])), "");
+  }
+
+  lines.push("-- Remove rows that are not present in the JSON store snapshot.");
+  for (const table of [...postgresTableNames].reverse()) {
+    const ids = asArray(rows[table]).map((row) => row.id);
+    lines.push(
+      ids.length > 0
+        ? `DELETE FROM ${table} WHERE id NOT IN (${ids.map((id) => sqlLiteral("id", id)).join(", ")});`
+        : `DELETE FROM ${table};`,
+    );
+  }
+
+  lines.push("", "COMMIT;", "");
   return lines.join("\n");
 }
 
