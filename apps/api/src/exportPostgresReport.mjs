@@ -1,4 +1,4 @@
-import { createDemoStore } from "./server.mjs";
+import { createDemoStore } from "./demoStoreFactory.mjs";
 import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
 import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
 import { validatePostgresExportRows } from "./postgresExportReport.mjs";

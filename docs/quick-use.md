@@ -103,6 +103,14 @@ npm run store:restore-backup
 HARDWARE_FLOW_STORE_PATH=/path/to/store.json npm start
 ```
 
+完成 PostgreSQL 同步和一致性校验后，可从数据库加载一次启动快照：
+
+```text
+HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres DATABASE_URL=postgres://user:password@localhost/hardware_flow npm start
+```
+
+启动快照会先通过完整映射和 store doctor，再写入 JSON store；运行期写入仍落 JSON。数据库不可用时严格模式拒绝启动，`postgres-fallback` 模式则回退到 JSON 并在运行状态中标记降级。
+
 ## 可试用链路
 
 当前默认项目处于 `EVT Exit` 阶段。

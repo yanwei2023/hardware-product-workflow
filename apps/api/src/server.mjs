@@ -83,6 +83,10 @@ import {
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import { validateStoreFile } from "./storeDoctor.mjs";
+import { bootstrapRuntimeStore } from "./runtimeStoreBootstrap.mjs";
+import { createDemoStore } from "./demoStoreFactory.mjs";
+
+export { createDemoStore } from "./demoStoreFactory.mjs";
 
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || "127.0.0.1";
@@ -176,66 +180,13 @@ function summarizeRiskMitigations(risks) {
   };
 }
 
-export function createDemoStore() {
-  const projectId = "project-smart-controller";
-  const project = {
-    id: projectId,
-    name: "智能控制器项目",
-    currentPhaseId: "phase-evt_exit",
-    status: "IN_PROGRESS",
-  };
-  const generated = buildProjectFromTemplate(project);
-
-  return {
-    activeProjectId: project.id,
-    projects: [project],
-    phases: generated.phases,
-    gates: generated.gates,
-    rolePairs: generated.rolePairs,
-    gateRequirements: generated.gateRequirements,
-    workPackages: generated.workPackages,
-    artifactVersions: [
-      {
-        id: "artifact-evt-test-plan-draft",
-        workPackageId: "wp-evt_exit-evt_test_plan",
-        artifactType: "TEST_PLAN",
-        status: "PENDING_REVIEW",
-        version: "0.1",
-        createdByActor: "agent:test_agent",
-        content: {
-          title: "EVT 测试计划草稿",
-          summary: "由 Test Agent 根据需求和历史模板生成，等待测试负责人审核。",
-          templateKey: "test_plan_v0_1",
-          validation: {
-            status: "PASSED",
-            missingSections: [],
-            emptySections: [],
-          },
-        },
-      },
-    ],
-    reviews: [],
-    risks: [
-      {
-        id: "risk-thermal-margin",
-        projectId,
-        phaseId: "phase-evt_exit",
-        title: "热设计裕量不足",
-        severity: "HIGH",
-        status: "OPEN",
-      },
-    ],
-    agentJobs: [],
-    agentRuns: [],
-    agentFindings: [],
-    evidenceRefs: [],
-    gateApprovalPacks: [],
-    auditEvents: [],
-    notifications: [],
-  };
-}
-
-let store = loadStoreFromDisk() || createDemoStore();
+const runtimeStoreBootstrap = bootstrapRuntimeStore({
+  localStore: loadStoreFromDisk(),
+  createFallbackStore: createDemoStore,
+  activeProjectId: process.env.HARDWARE_FLOW_POSTGRES_ACTIVE_PROJECT_ID || null,
+});
+let store = runtimeStoreBootstrap.store;
+const runtimeStoreSourceStatus = runtimeStoreBootstrap.status;
 ensureStoreShape();
 saveStoreToDisk(store);
 
@@ -268,6 +219,7 @@ export function getStorageStatus() {
     updatedAt: stat?.mtime?.toISOString() || null,
     backupUpdatedAt: backupStat?.mtime?.toISOString() || null,
     checkpoints: listStoreCheckpoints({ storePath }).slice(0, 8),
+    runtimeSource: runtimeStoreSourceStatus,
     ...runtimeSummary,
   };
 }
@@ -280,6 +232,7 @@ export function getRuntimeConfigStatus() {
     port,
     workspaceRoot,
     storePath: getStorePath(),
+    runtimeStoreSource: runtimeStoreSourceStatus,
     staticMode,
     staticRoot,
     reactStaticRoot,
@@ -368,6 +321,13 @@ export function getOpsSummaryStatus() {
     ...(runtimeNetwork.warnings || []),
     ...(pilotReadiness.warnings || []),
   ];
+  if (runtimeStoreSourceStatus.degraded) {
+    warnings.push({
+      code: "POSTGRES_STARTUP_FALLBACK",
+      message: "PostgreSQL 启动快照不可用，当前进程已降级到 JSON store。",
+      details: runtimeStoreSourceStatus.errors,
+    });
+  }
   const blockers = [
     ...(readiness.ready ? [] : [{ code: "SERVICE_NOT_READY", message: "服务或本地数据未就绪" }]),
     ...(pilotReadiness.blockers || []),
@@ -426,6 +386,7 @@ export function getOpsSummaryStatus() {
       backupExists: storageStatus.backupExists,
       backupValid: readiness.storage.backupValid,
       latestCheckpoint: storageStatus.checkpoints?.[0] || null,
+      runtimeSource: runtimeStoreSourceStatus,
     },
     pilot: {
       ready: pilotReadiness.ready,
@@ -644,6 +605,7 @@ export function getReadinessStatus() {
       backupExists: storageDoctor.backupExists,
       backupValid: storageDoctor.backupValid,
       backupErrors: storageDoctor.backupErrors,
+      runtimeSource: runtimeStoreSourceStatus,
     },
   };
 }

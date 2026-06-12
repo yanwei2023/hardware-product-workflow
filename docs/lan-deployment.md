@@ -106,6 +106,14 @@ docker compose exec app npm run db:verify-store-sync -- /tmp/hardware-flow-postg
 
 `db:compare-store` 逐表核对当前 JSON store 与数据库，严格模式适合放在导入验收和读源切换前的部署门禁中。`db:sync-store --confirm` 是精确镜像操作，会删除数据库独有行，只能在停止写入、创建检查点并评审预览 SQL 后执行。`db:pull-store` 仍是受控恢复工具，不代表 API 已切换为 PostgreSQL 在线读写。
 
+完成同步与严格比较后，可以让 Compose 应用从 PostgreSQL 加载一次启动快照：
+
+```text
+HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres docker compose -f infra/docker-compose.yml up --build
+```
+
+此模式在 API 监听前完成数据库读取和 store doctor，失败会阻止启动。加载成功后仍写入 `/app/data/demo-store.json`；`/runtime/config`、`/ready` 和 `/storage/status` 会显示请求源、实际加载源、是否降级及写入后端。需要允许数据库故障时退回 JSON，可使用 `postgres-fallback`，但运维摘要会持续显示降级警告。
+
 ## 端口调整
 
 如果 `3001` 被占用：

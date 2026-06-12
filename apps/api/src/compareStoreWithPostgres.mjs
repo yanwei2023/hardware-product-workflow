@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createDemoStore } from "./server.mjs";
+import { createDemoStore } from "./demoStoreFactory.mjs";
 import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
 import { compareStoreWithPostgres, writePostgresStoreComparisonReport } from "./postgresStoreComparison.mjs";
 

@@ -49,6 +49,8 @@
 - 当前已提供 JSON store 与 PostgreSQL 的逐行一致性审计。`npm run db:compare-store -- --report /tmp/postgres-store-comparison.json --strict` 会归一化时间戳与 JSON 对象键顺序，再按表、主键和字段报告数据库缺失、store 缺失及内容变化；`--strict` 在发现漂移时返回非零状态。`npm run db:verify-store-comparison -- /tmp/postgres-store-comparison.json` 可独立复核报告完整性、汇总统计和同步结论。
 - 当前已提供受控精确镜像同步。`npm run db:sync-store -- /tmp/postgres-store-sync` 只生成事务 SQL 和预览报告；追加 `--confirm` 后才执行全表 upsert，并按反向依赖顺序删除数据库独有行。同步使用 PostgreSQL advisory transaction lock，执行后立即重读全部映射表并逐字段比较；`npm run db:verify-store-sync -- /tmp/postgres-store-sync/postgres-store-sync-result.json` 可独立复核执行证据和 SQL 护栏。
 - `db:sync-store --confirm` 会删除不在当前 JSON store 中的数据库记录，只能在停止应用写入、已创建 store 检查点且预览 SQL 完成评审的维护窗口执行。它是从 JSON 主存向 PostgreSQL 迁移的过渡工具，不是长期双写实现。
+- 当前 API 支持显式 PostgreSQL 启动快照源。`HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres` 会在监听端口前读取全部映射表、反向构建 store 并执行 doctor 校验，失败时拒绝启动；`postgres-fallback` 会在失败时降级到 JSON，并通过运行状态暴露降级原因。可用 `HARDWARE_FLOW_POSTGRES_ACTIVE_PROJECT_ID` 指定活动项目，不存在时严格失败。
+- 启动快照加载成功后会物化到 `HARDWARE_FLOW_STORE_PATH`，本进程后续写入仍以 JSON 文件为准。该模式用于验证 PostgreSQL 数据可被真实 API 读取，不是在线 PostgreSQL 读写切换；切换前必须先运行严格一致性比较。
 - 实时读取命令不会在报告中保留查询结果、数据库 URL 或密码。当前桥接用于迁移核验、回滚与灾备演练，不会把 API 的在线写入源切换为 PostgreSQL。
 - `npm run check` 会把导出的 rows 反向恢复到 `/tmp`、运行 store doctor，并通过 `store:runtime-check` 动态加载服务模块、构建活动项目 read model 和执行当前阶段门检查，验证恢复数据不仅结构合法，而且能被真实运行时读取。
 
@@ -79,6 +81,8 @@ npm run db:verify-store-comparison -- /tmp/hardware-flow-postgres-comparison.jso
 npm run db:sync-store -- /tmp/hardware-flow-postgres-store-sync
 npm run db:sync-store -- /tmp/hardware-flow-postgres-store-sync --confirm
 npm run db:verify-store-sync -- /tmp/hardware-flow-postgres-store-sync/postgres-store-sync-result.json
+HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres npm start
+HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres-fallback npm start
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。

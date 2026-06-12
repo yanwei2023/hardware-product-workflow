@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { mapStoreToPostgresRows, postgresTableNames } from "./postgresMapper.mjs";
+import { createDemoStore } from "./demoStoreFactory.mjs";
 
 const schemaPath = path.resolve("schemas/database.sql");
 
@@ -169,7 +170,6 @@ export function checkPostgresRowCoverage(sql, store) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const sql = fs.readFileSync(schemaPath, "utf8");
-  const { createDemoStore } = await import("./server.mjs");
   const errors = checkPostgresRowCoverage(sql, createDemoStore());
   if (errors.length > 0) {
     console.error(errors.join("\n"));

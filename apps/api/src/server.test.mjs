@@ -126,6 +126,8 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.equal(result.body.storage.exists, true);
   assert.equal(result.body.storage.valid, true);
   assert.deepEqual(result.body.storage.errors, []);
+  assert.equal(result.body.storage.runtimeSource.requestedSource, "json");
+  assert.equal(result.body.storage.runtimeSource.writeBackend, "json-file");
 });
 
 test("pilot readiness endpoint aggregates trial blockers and export links", async () => {
@@ -214,6 +216,10 @@ test("runtime config endpoint reports non-secret deployment settings", async () 
   assert.equal(result.body.maxJsonBodyBytes, 1048576);
   assert.equal(result.body.requestTimeoutMs, 120000);
   assert.equal(result.body.shuttingDown, false);
+  assert.equal(result.body.runtimeStoreSource.requestedSource, "json");
+  assert.equal(result.body.runtimeStoreSource.loadedSource, "demo-fallback");
+  assert.equal(result.body.runtimeStoreSource.writeBackend, "json-file");
+  assert.equal(result.body.runtimeStoreSource.databaseConfigured, false);
   assert.ok(result.body.staticRoot.includes("apps/"));
 });
 
@@ -319,6 +325,7 @@ test("storage status endpoint reports persistence metadata", async () => {
   assert.ok(result.body.storePath.endsWith("store.json"));
   assert.ok(result.body.backupPath.endsWith("store.json.bak"));
   assert.equal(typeof result.body.backupExists, "boolean");
+  assert.equal(result.body.runtimeSource.requestedSource, "json");
 });
 
 test("storage doctor endpoint reports JSON store validity", async () => {
