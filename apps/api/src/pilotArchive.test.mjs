@@ -98,6 +98,10 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
     manifest.postgresImport.commands.verifyResult,
     `npm run db:verify-import-result -- ${path.join(outputDir, "postgres-import", "postgres-import-result.json")}`,
   );
+  assert.equal(
+    manifest.postgresImport.commands.restoreStorePreview,
+    `npm run db:restore-store -- ${path.join(outputDir, "postgres-import", "postgres-rows.json")}`,
+  );
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.snapshotJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.briefMarkdown)), true);
@@ -141,6 +145,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /受控导入：`npm run db:import -- .* --confirm`/);
   assert.match(handoffMarkdown, /结果报告：`postgres-import\/postgres-import-result\.json`/);
   assert.match(handoffMarkdown, /结果复核：`npm run db:verify-import-result -- /);
+  assert.match(handoffMarkdown, /Store 恢复预览：`npm run db:restore-store -- /);
+  assert.match(handoffMarkdown, /Store 恢复执行：`npm run db:restore-store -- .* --confirm`/);
   const briefMarkdown = fs.readFileSync(path.join(outputDir, "pilot-brief.md"), "utf8");
   assert.match(briefMarkdown, /内部试点现场简报/);
   assert.match(briefMarkdown, /试点必需项/);

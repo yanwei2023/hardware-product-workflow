@@ -38,6 +38,18 @@ test("store doctor reports broken internal references", () => {
   assert.equal(errors.some((error) => error.includes("gateRequirement.gateId does not reference a gate")), true);
 });
 
+test("store doctor validates agent job references", () => {
+  const store = createDemoStore();
+  store.agentJobs.push({
+    id: "agent-job-invalid-reference",
+    projectId: store.activeProjectId,
+    workPackageId: "wp-evt_exit-evt_test_report",
+    agentRunId: "missing-agent-run",
+  });
+
+  assert.equal(validateStoreObject(store).some((error) => error.includes("agentJob.agentRunId")), true);
+});
+
 test("store doctor reports duplicate ids", () => {
   const store = createDemoStore();
   store.projects.push({ ...store.projects[0] });

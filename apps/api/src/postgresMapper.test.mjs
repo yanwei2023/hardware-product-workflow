@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createDemoStore } from "./server.mjs";
-import { mapStoreToPostgresRows, postgresTableNames, renderPostgresSeedSql } from "./postgresMapper.mjs";
+import {
+  mapPostgresRowsToStore,
+  mapStoreToPostgresRows,
+  postgresTableNames,
+  renderPostgresSeedSql,
+} from "./postgresMapper.mjs";
+import { validateStoreObject } from "./storeDoctor.mjs";
 
 test("store mapper produces PostgreSQL-shaped rows for the demo store", () => {
   const store = createDemoStore();
@@ -138,6 +144,59 @@ test("store mapper carries agent job queue state", () => {
     agent_run_id: "agent-run-queue",
     error: "",
   });
+});
+
+test("PostgreSQL rows map back to a valid runtime store without losing row data", () => {
+  const sourceStore = createDemoStore();
+  const rows = mapStoreToPostgresRows(sourceStore);
+  const restoredStore = mapPostgresRowsToStore(rows, { activeProjectId: sourceStore.activeProjectId });
+
+  assert.deepEqual(validateStoreObject(restoredStore), []);
+  assert.equal(restoredStore.activeProjectId, sourceStore.activeProjectId);
+  assert.equal(restoredStore.gateRequirements[0].requiredWorkPackageTitle.length > 0, true);
+  assert.deepEqual(mapStoreToPostgresRows(restoredStore), rows);
+});
+
+test("PostgreSQL row mapper accepts driver Date values and serialized jsonb values", () => {
+  const rows = mapStoreToPostgresRows(createDemoStore());
+  rows.projects[0].created_at = new Date("2026-06-12T01:00:00.000Z");
+  rows.projects[0].updated_at = new Date("2026-06-12T02:00:00.000Z");
+  rows.artifact_versions[0].content_json = JSON.stringify({ title: "数据库交付物" });
+  rows.agent_runs.push({
+    id: "agent-run-json",
+    work_package_id: "wp-evt_exit-evt_test_report",
+    agent_key: "test_agent",
+    status: "COMPLETED",
+    input_refs: '["artifact:input"]',
+    output_ref: "artifact:output",
+    artifact_template_key: "test_report_v0_1",
+    required_sections: '["结论"]',
+    required_review_roles: '["test_lead"]',
+    validation_json: '{"status":"PASSED"}',
+    created_at: new Date("2026-06-12T03:00:00.000Z"),
+    completed_at: new Date("2026-06-12T04:00:00.000Z"),
+  });
+
+  const store = mapPostgresRowsToStore(rows);
+
+  assert.equal(store.projects[0].createdAt, "2026-06-12T01:00:00.000Z");
+  assert.deepEqual(store.artifactVersions[0].content, { title: "数据库交付物" });
+  assert.deepEqual(store.agentRuns.at(-1).inputRefs, ["artifact:input"]);
+  assert.deepEqual(store.agentRuns.at(-1).validation, { status: "PASSED" });
+});
+
+test("PostgreSQL row mapper selects the first active project when no id is supplied", () => {
+  const rows = mapStoreToPostgresRows(createDemoStore());
+  rows.projects.unshift({
+    ...rows.projects[0],
+    id: "project-archived",
+    current_phase_id: null,
+    status: "ARCHIVED",
+  });
+
+  const store = mapPostgresRowsToStore(rows);
+
+  assert.equal(store.activeProjectId, "project-smart-controller");
 });
 
 test("PostgreSQL seed SQL wraps rows in a deferred transaction", () => {

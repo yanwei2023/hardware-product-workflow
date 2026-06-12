@@ -84,9 +84,12 @@ docker compose exec app npm run db:preflight -- /tmp/hardware-flow-postgres-impo
 docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import
 docker compose exec app npm run db:import -- /tmp/hardware-flow-postgres-import --confirm
 docker compose exec app npm run db:verify-import-result -- /tmp/hardware-flow-postgres-import/postgres-import-result.json
+docker compose exec app npm run db:restore-store -- /tmp/hardware-flow-postgres-import/postgres-rows.json
 ```
 
 确认导入命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数、生成脱敏结果报告；复核命令会重新对照原始 manifest。当前 API 运行时仍读取 JSON store；这些命令用于验证迁移数据完整性，不会切换线上读写源。
+
+`db:restore-store` 默认只预览 PostgreSQL rows 反向恢复出的 JSON store，并执行引用完整性检查；只有追加 `--confirm` 才会覆盖当前 store，覆盖前会保留 `.bak`。在试点环境执行确认恢复前，应先停止写操作并创建检查点。
 
 ## 端口调整
 

@@ -156,6 +156,8 @@ ${postgresErrors}
 - 受控导入：\`${postgresImport.commands?.execute || "-"}\`
 - 结果报告：\`${postgresImport.resultReportPath || "-"}\`
 - 结果复核：\`${postgresImport.commands?.verifyResult || "-"}\`
+- Store 恢复预览：\`${postgresImport.commands?.restoreStorePreview || "-"}\`
+- Store 恢复执行：\`${postgresImport.commands?.restoreStoreExecute || "-"}\`
 
 ## 诊断端点
 

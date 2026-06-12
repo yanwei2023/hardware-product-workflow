@@ -40,6 +40,8 @@ export function buildPostgresImportManifest({
       preview: `npm run db:import -- ${outputDir}`,
       execute: `npm run db:import -- ${outputDir} --confirm`,
       verifyResult: `npm run db:verify-import-result -- ${path.join(outputDir || "", postgresImportResultFileName)}`,
+      restoreStorePreview: `npm run db:restore-store -- ${rowsPath}`,
+      restoreStoreExecute: `npm run db:restore-store -- ${rowsPath} --confirm`,
     },
   };
 }

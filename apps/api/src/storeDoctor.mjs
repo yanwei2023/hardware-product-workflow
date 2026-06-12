@@ -134,6 +134,14 @@ export function validateStoreReferences(store) {
     requireReference(errors, workPackageIds.has(run.workPackageId), "agentRun.workPackageId does not reference a workPackage", run.id, run.workPackageId);
   }
 
+  for (const job of store.agentJobs) {
+    requireReference(errors, projectIds.has(job.projectId), "agentJob.projectId does not reference a project", job.id, job.projectId);
+    requireReference(errors, workPackageIds.has(job.workPackageId), "agentJob.workPackageId does not reference a workPackage", job.id, job.workPackageId);
+    if (job.agentRunId) {
+      requireReference(errors, agentRunIds.has(job.agentRunId), "agentJob.agentRunId does not reference an agentRun", job.id, job.agentRunId);
+    }
+  }
+
   for (const finding of store.agentFindings) {
     requireReference(errors, workPackageIds.has(finding.workPackageId), "agentFinding.workPackageId does not reference a workPackage", finding.id, finding.workPackageId);
     requireReference(errors, agentRunIds.has(finding.agentRunId), "agentFinding.agentRunId does not reference an agentRun", finding.id, finding.agentRunId);

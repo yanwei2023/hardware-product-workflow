@@ -25,7 +25,7 @@ npm run pilot:check
 该命令会执行：
 
 - 完整单元测试、React 构建、API smoke 和 store doctor；
-- PostgreSQL schema/migration/export/import bundle 校验；
+- PostgreSQL schema/migration/export/import bundle 校验，以及 rows 反向恢复 JSON store 后的 store doctor 校验；
 - 使用临时 store 自动执行一遍 EVT 内部试点演练；
 - 生成一份试点归档包到 `/tmp/hardware-flow-pilot-archive`；
 - diff 空白检查；

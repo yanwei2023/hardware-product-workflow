@@ -91,8 +91,7 @@ function backupExistingStore(storePath) {
   fs.copyFileSync(storePath, getBackupPath(storePath));
 }
 
-export function saveStoreToDisk(store) {
-  const storePath = getStorePath();
+export function saveStoreToDisk(store, { storePath = getStorePath() } = {}) {
   const serializedStore = `${JSON.stringify(store, null, 2)}\n`;
 
   fs.mkdirSync(path.dirname(storePath), { recursive: true });

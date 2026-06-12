@@ -43,6 +43,19 @@ test("saveStoreToDisk writes the first store without a backup", () => {
   });
 });
 
+test("saveStoreToDisk supports an explicit store path", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-explicit-store-"));
+  const storePath = path.join(dir, "custom-store.json");
+
+  saveStoreToDisk({ activeProjectId: "project-custom", projects: [] }, { storePath });
+
+  assert.deepEqual(JSON.parse(fs.readFileSync(storePath, "utf8")), {
+    activeProjectId: "project-custom",
+    projects: [],
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("saveStoreToDisk backs up the previous store before replacing it", () => {
   withTempStore(({ backupPath }) => {
     const firstStore = { activeProjectId: "project-1", projects: [{ id: "project-1" }] };

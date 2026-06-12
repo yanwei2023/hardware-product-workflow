@@ -167,7 +167,7 @@ EVT Exit -> DVT Exit -> PVT Exit
 npm run release:check
 ```
 
-该命令会执行完整测试、React 构建、API smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查。
+该命令会执行完整测试、React 构建、API smoke、store doctor、PostgreSQL 迁移/导出/导入包校验、rows 反向恢复 store 校验和 diff 空白检查。
 
 内部试点前建议运行：
 

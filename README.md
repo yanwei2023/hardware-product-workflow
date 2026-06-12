@@ -122,3 +122,4 @@ docs/postgres-migration.md
 - `npm run release:check` 会执行完整测试、前端构建、smoke、store doctor、PostgreSQL 迁移/导出/导入包校验和 diff 空白检查，适合提交或发布前运行。
 - `npm run pilot:check` 会在 `release:check` 后追加 PostgreSQL 导入包 preflight，适合每次内部试点前运行。
 - Docker Compose 会等待 PostgreSQL 健康，并让应用容器具备执行 `db:preflight` 和 `db:import` 所需的连接串与 `psql` 客户端；API 运行时仍使用 JSON store。
+- PostgreSQL rows 支持完整反向映射为 JSON store；`db:restore-store` 默认预览并校验，只有显式确认才原子写入并保留备份。
