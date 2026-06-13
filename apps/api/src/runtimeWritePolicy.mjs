@@ -11,9 +11,15 @@ export function normalizeRuntimeWriteMode(value = "auto") {
 export function resolveRuntimeWritePolicy({
   configuredMode = process.env.HARDWARE_FLOW_RUNTIME_WRITE_MODE || "auto",
   runtimeSource = {},
+  persistenceBackend = process.env.HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND || "json",
 } = {}) {
   const normalizedMode = normalizeRuntimeWriteMode(configuredMode);
   const postgresSnapshot = runtimeSource.loadedSource === "postgres-snapshot";
+  if (postgresSnapshot && normalizedMode === "read-write" && persistenceBackend !== "postgres-mirror") {
+    throw new Error(
+      "PostgreSQL startup snapshots require HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror for read-write mode",
+    );
+  }
   const effectiveMode = normalizedMode === "auto"
     ? (postgresSnapshot ? "read-only" : "read-write")
     : normalizedMode;
@@ -22,6 +28,7 @@ export function resolveRuntimeWritePolicy({
     configuredMode: normalizedMode,
     effectiveMode,
     writable: effectiveMode === "read-write",
+    persistenceBackend,
     reason: normalizedMode === "auto"
       ? (postgresSnapshot ? "postgres-startup-snapshot" : "json-runtime-store")
       : "explicit-configuration",

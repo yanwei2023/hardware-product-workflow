@@ -17,6 +17,7 @@ test("runtime write policy keeps JSON runtimes writable in auto mode", () => {
     configuredMode: "auto",
     effectiveMode: "read-write",
     writable: true,
+    persistenceBackend: "json",
     reason: "json-runtime-store",
   });
 });
@@ -36,11 +37,23 @@ test("explicit runtime write modes override the startup source default", () => {
   assert.equal(resolveRuntimeWritePolicy({
     configuredMode: "read-write",
     runtimeSource: { loadedSource: "postgres-snapshot" },
+    persistenceBackend: "postgres-mirror",
   }).writable, true);
   assert.equal(resolveRuntimeWritePolicy({
     configuredMode: "read-only",
     runtimeSource: { loadedSource: "json-file" },
   }).writable, false);
+});
+
+test("PostgreSQL snapshots reject unsafe JSON-backed read-write mode", () => {
+  assert.throws(
+    () => resolveRuntimeWritePolicy({
+      configuredMode: "read-write",
+      runtimeSource: { loadedSource: "postgres-snapshot" },
+      persistenceBackend: "json",
+    }),
+    /require HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror/,
+  );
 });
 
 test("runtime mutation classification preserves read and validation requests", () => {

@@ -86,6 +86,7 @@ import { validateStoreFile } from "./storeDoctor.mjs";
 import { bootstrapRuntimeStore } from "./runtimeStoreBootstrap.mjs";
 import { createDemoStore } from "./demoStoreFactory.mjs";
 import { checkRuntimeWriteAccess, resolveRuntimeWritePolicy } from "./runtimeWritePolicy.mjs";
+import { createRuntimePersistence } from "./runtimePersistence.mjs";
 
 export { createDemoStore } from "./demoStoreFactory.mjs";
 
@@ -188,12 +189,24 @@ const runtimeStoreBootstrap = bootstrapRuntimeStore({
 });
 let store = runtimeStoreBootstrap.store;
 const runtimeStoreSourceStatus = runtimeStoreBootstrap.status;
-let runtimeWritePolicy = resolveRuntimeWritePolicy({ runtimeSource: runtimeStoreSourceStatus });
 ensureStoreShape();
 saveStoreToDisk(store);
+const runtimePersistence = createRuntimePersistence({ initialStore: store });
+runtimeStoreSourceStatus.writeBackend = runtimePersistence.backend === "postgres-mirror"
+  ? "json-file+postgres-mirror"
+  : "json-file";
+let runtimeWritePolicy = resolveRuntimeWritePolicy({
+  runtimeSource: runtimeStoreSourceStatus,
+  persistenceBackend: runtimePersistence.backend,
+});
 
 function persistStore() {
-  saveStoreToDisk(store);
+  try {
+    runtimePersistence.persist(store);
+  } catch (error) {
+    store = runtimePersistence.getCommittedStore();
+    throw error;
+  }
 }
 
 function ensureStoreShape() {
@@ -223,6 +236,7 @@ export function getStorageStatus() {
     checkpoints: listStoreCheckpoints({ storePath }).slice(0, 8),
     runtimeSource: runtimeStoreSourceStatus,
     runtimeWrite: runtimeWritePolicy,
+    runtimePersistence: runtimePersistence.getStatus(),
     ...runtimeSummary,
   };
 }
@@ -237,6 +251,7 @@ export function getRuntimeConfigStatus() {
     storePath: getStorePath(),
     runtimeStoreSource: runtimeStoreSourceStatus,
     runtimeWrite: runtimeWritePolicy,
+    runtimePersistence: runtimePersistence.getStatus(),
     staticMode,
     staticRoot,
     reactStaticRoot,
@@ -339,6 +354,14 @@ export function getOpsSummaryStatus() {
       details: runtimeWritePolicy,
     });
   }
+  const persistenceStatus = runtimePersistence.getStatus();
+  if (persistenceStatus.lastError) {
+    warnings.push({
+      code: "RUNTIME_PERSISTENCE_DEGRADED",
+      message: "最近一次 PostgreSQL 镜像写入失败，业务修改已回滚。",
+      details: persistenceStatus,
+    });
+  }
   const blockers = [
     ...(readiness.ready ? [] : [{ code: "SERVICE_NOT_READY", message: "服务或本地数据未就绪" }]),
     ...(pilotReadiness.blockers || []),
@@ -372,6 +395,7 @@ export function getOpsSummaryStatus() {
       shuttingDown: runtimeConfig.shuttingDown,
       writeMode: runtimeWritePolicy.effectiveMode,
       writable: runtimeWritePolicy.writable,
+      persistenceBackend: persistenceStatus.backend,
       uptimeSeconds: Number(process.uptime().toFixed(3)),
     },
     network: {
@@ -401,6 +425,7 @@ export function getOpsSummaryStatus() {
       latestCheckpoint: storageStatus.checkpoints?.[0] || null,
       runtimeSource: runtimeStoreSourceStatus,
       runtimeWrite: runtimeWritePolicy,
+      runtimePersistence: persistenceStatus,
     },
     pilot: {
       ready: pilotReadiness.ready,
@@ -621,6 +646,7 @@ export function getReadinessStatus() {
       backupErrors: storageDoctor.backupErrors,
       runtimeSource: runtimeStoreSourceStatus,
       runtimeWrite: runtimeWritePolicy,
+      runtimePersistence: runtimePersistence.getStatus(),
     },
   };
 }
@@ -869,6 +895,9 @@ function renderMetrics() {
     "# HELP hardware_flow_runtime_writable Whether the API accepts runtime mutation requests.",
     "# TYPE hardware_flow_runtime_writable gauge",
     `hardware_flow_runtime_writable ${runtimeWritePolicy.writable ? 1 : 0}`,
+    "# HELP hardware_flow_runtime_postgres_sync_failures_total PostgreSQL runtime mirror synchronization failures.",
+    "# TYPE hardware_flow_runtime_postgres_sync_failures_total counter",
+    `hardware_flow_runtime_postgres_sync_failures_total ${runtimePersistence.getStatus().postgresSyncFailureCount}`,
     "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
     "# TYPE hardware_flow_shutting_down gauge",
     `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
@@ -978,6 +1007,7 @@ export function restoreStorageBackup(body = {}) {
   const restoreResult = restoreStoreFromBackup({ storePath });
   store = loadStoreFromDisk() || createDemoStore();
   ensureStoreShape();
+  persistStore();
 
   return {
     statusCode: 200,
@@ -1050,6 +1080,7 @@ export function restoreStorageCheckpoint(body = {}) {
     });
     store = loadStoreFromDisk() || createDemoStore();
     ensureStoreShape();
+    persistStore();
 
     return {
       statusCode: 200,
@@ -1062,9 +1093,10 @@ export function restoreStorageCheckpoint(body = {}) {
     };
   } catch (error) {
     return {
-      statusCode: 404,
+      statusCode: Number(error?.statusCode) || 404,
       body: {
         error: error instanceof Error ? error.message : String(error),
+        ...(error?.code ? { code: error.code } : {}),
       },
     };
   }
@@ -1085,6 +1117,7 @@ export function setRuntimeWriteModeForTest(value) {
   runtimeWritePolicy = resolveRuntimeWritePolicy({
     configuredMode: value,
     runtimeSource: runtimeStoreSourceStatus,
+    persistenceBackend: runtimePersistence.backend,
   });
 }
 
@@ -2475,7 +2508,14 @@ export function uploadWorkPackageEvidenceFile(workPackageId, body = {}) {
     originalFileName: evidenceRef.originalFileName,
     sizeBytes: evidenceRef.sizeBytes,
   });
-  persistStore();
+  try {
+    persistStore();
+  } catch (error) {
+    if (fs.existsSync(storagePath)) {
+      fs.unlinkSync(storagePath);
+    }
+    throw error;
+  }
 
   return {
     statusCode: 201,
@@ -3906,7 +3946,10 @@ export const server = http.createServer(async (req, res) => {
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
     return writeJson(res, statusCode, {
-      error: statusCode >= 400 && statusCode < 500 ? error.message : "服务器错误",
+      error: error?.code === "RUNTIME_PERSISTENCE_FAILED"
+        ? "持久化失败，修改已回滚"
+        : statusCode >= 400 && statusCode < 500 ? error.message : "服务器错误",
+      ...(error?.code ? { code: error.code } : {}),
       detail: error instanceof Error ? error.message : String(error),
     });
   }

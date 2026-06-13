@@ -69,6 +69,20 @@ test("saveStoreToDisk backs up the previous store before replacing it", () => {
   });
 });
 
+test("saveStoreToDisk can replace a failed write without overwriting the last good backup", () => {
+  withTempStore(({ backupPath }) => {
+    const committedStore = { activeProjectId: "project-1", projects: [{ id: "project-1" }] };
+    const failedStore = { activeProjectId: "project-2", projects: [{ id: "project-2" }] };
+
+    saveStoreToDisk(committedStore);
+    saveStoreToDisk(failedStore);
+    saveStoreToDisk(committedStore, { backup: false });
+
+    assert.deepEqual(loadStoreFromDisk(), committedStore);
+    assert.deepEqual(JSON.parse(fs.readFileSync(backupPath, "utf8")), committedStore);
+  });
+});
+
 test("saveStoreToDisk skips unchanged content without refreshing the backup", () => {
   withTempStore(({ backupPath }) => {
     const firstStore = { activeProjectId: "project-1", projects: [{ id: "project-1" }] };

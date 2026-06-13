@@ -124,5 +124,6 @@ docs/postgres-migration.md
 - Docker Compose 会等待 PostgreSQL 健康，并让应用容器具备执行 `db:preflight` 和 `db:import` 所需的连接串与 `psql` 客户端；API 运行时仍使用 JSON store。
 - PostgreSQL rows 支持完整反向映射为 JSON store；`db:restore-store` 默认预览并校验，只有显式确认才原子写入并保留备份。配置 `DATABASE_URL` 后，`db:export-live-rows` 可生成经过校验的数据库快照，`db:pull-store` 可直接预览或确认恢复运行时 store，`db:compare-store` 与独立复核命令可在读源切换前阻止数据漂移。
 - `db:sync-store` 提供 JSON 主存到 PostgreSQL 的受控精确镜像预演和确认执行：事务内 upsert、反向依赖清理、advisory lock、写后全量比较和独立结果复核；确认模式会删除数据库独有行，只用于迁移维护窗口。
-- `HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres` 可在 API 启动前从 PostgreSQL 加载并校验运行时快照；`postgres-fallback` 支持带降级告警的 JSON 回退。当前运行期写入后端仍为 JSON，并会在状态接口明确暴露。
+- `HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres` 可在 API 启动前从 PostgreSQL 加载并校验运行时快照；`postgres-fallback` 支持带降级告警的 JSON 回退。默认运行期写入后端为 JSON，并会在状态接口明确暴露。
 - `HARDWARE_FLOW_RUNTIME_WRITE_MODE=auto` 默认把 PostgreSQL 启动快照置为只读，HTTP 门禁与 React 工作台共同阻止修改，并导出 `hardware_flow_runtime_writable` 指标。
+- `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror` 提供严格的运行时镜像写入：JSON 原子落盘后执行 PostgreSQL 精确镜像和全量写后校验；失败时恢复上一份 JSON 与内存状态并返回 503。PostgreSQL 启动快照只有显式配置该后端后才允许 `read-write`。

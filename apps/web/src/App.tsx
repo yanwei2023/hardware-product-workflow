@@ -486,8 +486,8 @@ export function App() {
           <div className="runtime-read-only" role="status">
             <strong>只读运行模式</strong>
             <span>
-              当前运行时已关闭业务修改操作。启动数据源：{runtimeConfig.runtimeSource?.loadedSource || "未知"}；写入后端：
-              {runtimeConfig.storage?.writeBackend || "未知"}。
+              当前运行时已关闭业务修改操作。启动数据源：{runtimeConfig.runtimeStoreSource?.loadedSource || "未知"}；写入后端：
+              {runtimeConfig.runtimeStoreSource?.writeBackend || "未知"}。
             </span>
           </div>
         ) : null}
@@ -1422,6 +1422,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="访问日志" value={runtimeConfig?.accessLogEnabled ? "开启" : "关闭"} />
         <Metric label="访问码" value={runtimeConfig?.pilotAccessEnabled ? "开启" : "关闭"} />
         <Metric label="运行写入" value={runtimeConfig?.runtimeWrite?.writable ? "可写" : "只读"} />
+        <Metric label="持久化后端" value={runtimeConfig?.runtimePersistence?.backend || "-"} />
         <Metric label="启动数据源" value={runtimeConfig?.runtimeStoreSource?.loadedSource || "-"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
         <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />

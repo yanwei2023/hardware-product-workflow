@@ -91,7 +91,7 @@ function backupExistingStore(storePath) {
   fs.copyFileSync(storePath, getBackupPath(storePath));
 }
 
-export function saveStoreToDisk(store, { storePath = getStorePath() } = {}) {
+export function saveStoreToDisk(store, { storePath = getStorePath(), backup = true } = {}) {
   const serializedStore = `${JSON.stringify(store, null, 2)}\n`;
 
   fs.mkdirSync(path.dirname(storePath), { recursive: true });
@@ -100,7 +100,9 @@ export function saveStoreToDisk(store, { storePath = getStorePath() } = {}) {
     return;
   }
 
-  backupExistingStore(storePath);
+  if (backup) {
+    backupExistingStore(storePath);
+  }
   const tempPath = `${storePath}.${process.pid}.tmp`;
   fs.writeFileSync(tempPath, serializedStore);
   fs.renameSync(tempPath, storePath);

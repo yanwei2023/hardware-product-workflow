@@ -87,7 +87,7 @@ docker compose exec app npm run db:verify-import-result -- /tmp/hardware-flow-po
 docker compose exec app npm run db:restore-store -- /tmp/hardware-flow-postgres-import/postgres-rows.json
 ```
 
-确认导入命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数、生成脱敏结果报告；复核命令会重新对照原始 manifest。当前 API 运行时仍读取 JSON store；这些命令用于验证迁移数据完整性，不会切换线上读写源。
+确认导入命令会实际写入 Compose 的 PostgreSQL，并在结束后逐表核对导入行数、生成脱敏结果报告；复核命令会重新对照原始 manifest。默认 API 运行时仍读取 JSON store；这些命令用于验证迁移数据完整性，不会自动切换线上读写源。
 
 `db:restore-store` 默认只预览 PostgreSQL rows 反向恢复出的 JSON store，并执行引用完整性检查；只有追加 `--confirm` 才会覆盖当前 store，覆盖前会保留 `.bak`。在试点环境执行确认恢复前，应先停止写操作并创建检查点。
 
@@ -113,6 +113,8 @@ HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres docker compose -f infra/docker-compo
 ```
 
 此模式在 API 监听前完成数据库读取和 store doctor，失败会阻止启动。默认写策略 `auto` 会让 PostgreSQL 快照运行时自动只读，避免后续 JSON 写入与数据库分叉；工作台会显示只读横幅，修改请求返回 `RUNTIME_READ_ONLY`。加载成功的快照仍会物化到 `/app/data/demo-store.json`；`/runtime/config`、`/ready` 和 `/storage/status` 会显示请求源、实际加载源、是否降级及写策略。需要允许数据库故障时退回 JSON，可使用 `postgres-fallback`，但运维摘要会持续显示降级警告。
+
+若试点需要验证可写 PostgreSQL 镜像，必须同时设置 `HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-write` 与 `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror`。每个修改请求会等待数据库精确镜像和全表校验完成；失败时返回 `503 RUNTIME_PERSISTENCE_FAILED`，服务恢复修改前状态，并在运维摘要与指标中记录失败。该模式适合低并发迁移验证，不应视为最终数据库仓储实现。
 
 ## 端口调整
 

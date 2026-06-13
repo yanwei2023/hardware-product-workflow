@@ -50,8 +50,9 @@
 - 当前已提供受控精确镜像同步。`npm run db:sync-store -- /tmp/postgres-store-sync` 只生成事务 SQL 和预览报告；追加 `--confirm` 后才执行全表 upsert，并按反向依赖顺序删除数据库独有行。同步使用 PostgreSQL advisory transaction lock，执行后立即重读全部映射表并逐字段比较；`npm run db:verify-store-sync -- /tmp/postgres-store-sync/postgres-store-sync-result.json` 可独立复核执行证据和 SQL 护栏。
 - `db:sync-store --confirm` 会删除不在当前 JSON store 中的数据库记录，只能在停止应用写入、已创建 store 检查点且预览 SQL 完成评审的维护窗口执行。它是从 JSON 主存向 PostgreSQL 迁移的过渡工具，不是长期双写实现。
 - 当前 API 支持显式 PostgreSQL 启动快照源。`HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres` 会在监听端口前读取全部映射表、反向构建 store 并执行 doctor 校验，失败时拒绝启动；`postgres-fallback` 会在失败时降级到 JSON，并通过运行状态暴露降级原因。可用 `HARDWARE_FLOW_POSTGRES_ACTIVE_PROJECT_ID` 指定活动项目，不存在时严格失败。
-- 启动快照加载成功后会物化到 `HARDWARE_FLOW_STORE_PATH`，本进程后续写入仍以 JSON 文件为准。该模式用于验证 PostgreSQL 数据可被真实 API 读取，不是在线 PostgreSQL 读写切换；切换前必须先运行严格一致性比较。
+- 启动快照加载成功后会物化到 `HARDWARE_FLOW_STORE_PATH`，默认运行期写入仍以 JSON 文件为准。该模式用于验证 PostgreSQL 数据可被真实 API 读取，不会自动启用在线 PostgreSQL 写入；切换前必须先运行严格一致性比较。
 - `HARDWARE_FLOW_RUNTIME_WRITE_MODE` 支持 `auto`、`read-write`、`read-only`。默认 `auto` 会让成功加载的 PostgreSQL 启动快照自动进入只读模式，JSON 与数据库回退运行时保持可写；只读模式在 HTTP 路由层统一拒绝业务修改请求，保留 GET 和项目导入校验，并通过配置、readiness、storage、运维摘要及 Prometheus 指标暴露。
+- `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror` 可用于受控可写验证。每次修改会先原子写入 JSON，再使用精确镜像事务同步 PostgreSQL 并执行全表比较；任何执行或校验失败都会把 JSON 与内存状态恢复到上一次成功提交，保留原有备份，并返回 `503 RUNTIME_PERSISTENCE_FAILED`。文件证据上传也会清理未提交文件。该模式是同步、全量且偏保守的迁移桥，不是最终的高并发数据库仓储层。
 - 实时读取命令不会在报告中保留查询结果、数据库 URL 或密码。当前桥接用于迁移核验、回滚与灾备演练，不会把 API 的在线写入源切换为 PostgreSQL。
 - `npm run check` 会把导出的 rows 反向恢复到 `/tmp`、运行 store doctor，并通过 `store:runtime-check` 动态加载服务模块、构建活动项目 read model 和执行当前阶段门检查，验证恢复数据不仅结构合法，而且能被真实运行时读取。
 
@@ -85,6 +86,7 @@ npm run db:verify-store-sync -- /tmp/hardware-flow-postgres-store-sync/postgres-
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres-fallback npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-only npm start
+HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-write HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror npm start
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。
