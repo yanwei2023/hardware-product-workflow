@@ -53,6 +53,7 @@
 - 启动快照加载成功后会物化到 `HARDWARE_FLOW_STORE_PATH`，默认运行期写入仍以 JSON 文件为准。该模式用于验证 PostgreSQL 数据可被真实 API 读取，不会自动启用在线 PostgreSQL 写入；切换前必须先运行严格一致性比较。
 - `HARDWARE_FLOW_RUNTIME_WRITE_MODE` 支持 `auto`、`read-write`、`read-only`。默认 `auto` 会让成功加载的 PostgreSQL 启动快照自动进入只读模式，JSON 与数据库回退运行时保持可写；只读模式在 HTTP 路由层统一拒绝业务修改请求，保留 GET 和项目导入校验，并通过配置、readiness、storage、运维摘要及 Prometheus 指标暴露。
 - `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror` 可用于受控可写验证。每次修改会先原子写入 JSON，再使用精确镜像事务同步 PostgreSQL 并执行全表比较；任何执行或校验失败都会把 JSON 与内存状态恢复到上一次成功提交，保留原有备份，并返回 `503 RUNTIME_PERSISTENCE_FAILED`。文件证据上传也会清理未提交文件。该模式是同步、全量且偏保守的迁移桥，不是最终的高并发数据库仓储层。
+- 镜像后端会在 API 监听前执行只读一致性门禁，数据库未配置、读取失败或任一映射表存在缺失/额外/变化行时拒绝启动。可先运行 `npm run runtime:persistence-check` 独立检查；该命令复用实际启动源选择和活动项目配置，结果同时暴露在 runtime、readiness、storage、运维摘要和 `hardware_flow_runtime_persistence_startup_ready` 指标中。
 - 实时读取命令不会在报告中保留查询结果、数据库 URL 或密码。当前桥接用于迁移核验、回滚与灾备演练，不会把 API 的在线写入源切换为 PostgreSQL。
 - `npm run check` 会把导出的 rows 反向恢复到 `/tmp`、运行 store doctor，并通过 `store:runtime-check` 动态加载服务模块、构建活动项目 read model 和执行当前阶段门检查，验证恢复数据不仅结构合法，而且能被真实运行时读取。
 
@@ -87,6 +88,7 @@ HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres-fallback npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-only npm start
 HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-write HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror npm start
+HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror npm run runtime:persistence-check
 ```
 
 导入前先查看 `/tmp/hardware-flow-postgres-import/postgres-export-report.json`，必须确认 `valid: true` 且 `errors: []`。

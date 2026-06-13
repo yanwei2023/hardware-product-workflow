@@ -113,6 +113,8 @@ HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres DATABASE_URL=postgres://user:passwor
 
 需要验证可写链路时，显式增加 `HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-write HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror`。该模式会同步阻塞到 PostgreSQL 精确镜像和写后校验完成；失败请求返回 503，并自动恢复修改前的 JSON 与内存状态。运行状态和 `/metrics` 会暴露持久化后端、最近错误及累计同步失败数。
 
+切换前先用同一组环境变量运行 `npm run runtime:persistence-check`。镜像模式只有在当前 JSON 与 PostgreSQL 全表一致时才通过；API 启动会重复执行该门禁，因此数据库漂移不会等到第一次用户修改才暴露。
+
 ## 可试用链路
 
 当前默认项目处于 `EVT Exit` 阶段。
@@ -215,7 +217,7 @@ npm run pilot:check
 尚未接入：
 
 - 用户登录；
-- PostgreSQL 运行时读写；
+- 原生 PostgreSQL repository 与增量事务写入；
 - 真实大模型；
 - 飞书/企业微信通知；
 - 真实权限审批链；

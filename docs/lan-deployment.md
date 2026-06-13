@@ -116,6 +116,8 @@ HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres docker compose -f infra/docker-compo
 
 若试点需要验证可写 PostgreSQL 镜像，必须同时设置 `HARDWARE_FLOW_RUNTIME_WRITE_MODE=read-write` 与 `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror`。每个修改请求会等待数据库精确镜像和全表校验完成；失败时返回 `503 RUNTIME_PERSISTENCE_FAILED`，服务恢复修改前状态，并在运维摘要与指标中记录失败。该模式适合低并发迁移验证，不应视为最终数据库仓储实现。
 
+启动前使用相同环境变量运行 `npm run runtime:persistence-check`。该命令只读比较 JSON 与 PostgreSQL，任何连接问题或数据漂移都会返回非零状态；API 在监听端口前还会执行一次相同检查，避免带着失配数据进入可写模式。
+
 ## 端口调整
 
 如果 `3001` 被占用：

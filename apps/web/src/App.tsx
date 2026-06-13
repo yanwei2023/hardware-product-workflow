@@ -1423,6 +1423,7 @@ function StorageStatus({ busy, readiness, runAction, runtimeConfig, runtimeMetri
         <Metric label="访问码" value={runtimeConfig?.pilotAccessEnabled ? "开启" : "关闭"} />
         <Metric label="运行写入" value={runtimeConfig?.runtimeWrite?.writable ? "可写" : "只读"} />
         <Metric label="持久化后端" value={runtimeConfig?.runtimePersistence?.backend || "-"} />
+        <Metric label="启动一致性" value={runtimeConfig?.runtimePersistence?.startupCheck?.ready ? "READY" : "BLOCKED"} />
         <Metric label="启动数据源" value={runtimeConfig?.runtimeStoreSource?.loadedSource || "-"} />
         <Metric label="就绪状态" value={readiness?.ready ? "READY" : "BLOCKED"} />
         <Metric label="请求上限" value={runtimeConfig?.maxJsonBodyBytes || "-"} />

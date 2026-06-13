@@ -133,7 +133,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /导出项目快照 JSON 和 Markdown/);
   assert.match(handoffMarkdown, /第一轮试点边界/);
   assert.match(handoffMarkdown, /用户登录和单点登录不作为第一轮内部试点验收项/);
-  assert.match(handoffMarkdown, /PostgreSQL 运行时读写不作为第一轮内部试点验收项/);
+  assert.match(handoffMarkdown, /原生 PostgreSQL 运行时读写不作为第一轮内部试点验收项/);
   assert.match(handoffMarkdown, /PostgreSQL 导入包/);
   assert.match(handoffMarkdown, /未完成必需项/);
   assert.match(handoffMarkdown, /试点前创建数据检查点/);
