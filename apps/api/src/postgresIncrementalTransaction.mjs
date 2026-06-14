@@ -60,6 +60,25 @@ function insertedRows(previousRows, nextRows, table) {
   return (nextRows[table] || []).filter((row) => !previousIds.has(row.id));
 }
 
+function assertOnlyTablesChanged(storeDelta, allowedTables, transactionLabel) {
+  const allowedDriftTables = new Set(allowedTables);
+  const unexpectedDriftTables = Object.entries(storeDelta.tables)
+    .filter(([table, detail]) => !allowedDriftTables.has(table) && !detail.inSync)
+    .map(([table]) => table);
+  if (unexpectedDriftTables.length > 0) {
+    throw new Error(`${transactionLabel} contains unrelated store changes: ${unexpectedDriftTables.join(", ")}`);
+  }
+}
+
+function assertInsertedSideEffects(storeDelta, transactionLabel) {
+  for (const table of ["notifications", "audit_events"]) {
+    const detail = storeDelta.tables[table];
+    if (detail.missingInDatabase.length > 0 || detail.changed.length > 0) {
+      throw new Error(`${transactionLabel} contains unsupported ${table} changes`);
+    }
+  }
+}
+
 function renderNotificationInsert(row) {
   return `INSERT INTO notifications (id, project_id, user_id, title, message, type, status, object_type, object_id, created_at, read_at) VALUES (${[
     sqlString(row.id),
@@ -111,13 +130,7 @@ export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePa
   if (notifications.length === 0) {
     throw new Error("role pair owner transaction requires at least one notification");
   }
-  const allowedDriftTables = new Set(["role_pairs", "notifications", "audit_events"]);
-  const unexpectedDriftTables = Object.entries(storeDelta.tables)
-    .filter(([table, detail]) => !allowedDriftTables.has(table) && !detail.inSync)
-    .map(([table]) => table);
-  if (unexpectedDriftTables.length > 0) {
-    throw new Error(`role pair owner transaction contains unrelated store changes: ${unexpectedDriftTables.join(", ")}`);
-  }
+  assertOnlyTablesChanged(storeDelta, ["role_pairs", "notifications", "audit_events"], "role pair owner transaction");
   const rolePairDelta = storeDelta.tables.role_pairs;
   if (
     rolePairDelta.missingInDatabase.length > 0 ||
@@ -128,12 +141,7 @@ export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePa
   ) {
     throw new Error("role pair owner transaction contains unsupported role pair changes");
   }
-  for (const table of ["notifications", "audit_events"]) {
-    const detail = storeDelta.tables[table];
-    if (detail.missingInDatabase.length > 0 || detail.changed.length > 0) {
-      throw new Error(`role pair owner transaction contains unsupported ${table} changes`);
-    }
-  }
+  assertInsertedSideEffects(storeDelta, "role pair owner transaction");
 
   const notificationIds = notifications.map((row) => row.id);
   const auditIds = auditEvents.map((row) => row.id);
@@ -179,6 +187,84 @@ export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePa
   };
 }
 
+export function buildWorkPackageScheduleTransaction({ previousStore, nextStore, workPackageId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousWorkPackage = previousRows.work_packages.find((row) => row.id === workPackageId);
+  const nextWorkPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  if (!previousWorkPackage || !nextWorkPackage) {
+    throw new Error(`work package not found for incremental transaction: ${workPackageId}`);
+  }
+  if (previousWorkPackage.due_at === nextWorkPackage.due_at) {
+    throw new Error(`work package schedule did not change: ${workPackageId}`);
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "WORK_PACKAGE_SCHEDULE_UPDATED") {
+    throw new Error("work package schedule transaction requires exactly one WORK_PACKAGE_SCHEDULE_UPDATED audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("work package schedule transaction requires at least one notification");
+  }
+  assertOnlyTablesChanged(storeDelta, ["work_packages", "notifications", "audit_events"], "work package schedule transaction");
+  const workPackageDelta = storeDelta.tables.work_packages;
+  if (
+    workPackageDelta.missingInDatabase.length > 0 ||
+    workPackageDelta.missingInStore.length > 0 ||
+    workPackageDelta.changed.length !== 1 ||
+    workPackageDelta.changed[0].id !== workPackageId ||
+    workPackageDelta.changed[0].fields.join(",") !== "due_at"
+  ) {
+    throw new Error("work package schedule transaction contains unsupported work package changes");
+  }
+  assertInsertedSideEffects(storeDelta, "work package schedule transaction");
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental work-package schedule transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE work_packages SET due_at = ${sqlNullable(nextWorkPackage.due_at)} WHERE id = ${sqlString(workPackageId)} AND due_at IS NOT DISTINCT FROM ${sqlNullable(previousWorkPackage.due_at)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'work package schedule changed concurrently or work package is missing';",
+    "  END IF;",
+    "END",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating work-package schedule transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `UPDATE work_packages SET due_at = ${sqlNullable(previousWorkPackage.due_at)} WHERE id = ${sqlString(workPackageId)} AND due_at IS NOT DISTINCT FROM ${sqlNullable(nextWorkPackage.due_at)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "work-package-schedule-update",
+    workPackageId,
+    previousDueAt: previousWorkPackage.due_at,
+    dueAt: nextWorkPackage.due_at,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function executePostgresIncrementalTransaction({
   previousStore,
   nextStore,
@@ -193,10 +279,13 @@ export function executePostgresIncrementalTransaction({
   }
   let transaction;
   try {
-    if (mutation?.kind !== "role-pair-owner-update") {
+    if (mutation?.kind === "role-pair-owner-update") {
+      transaction = buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId: mutation.rolePairId });
+    } else if (mutation?.kind === "work-package-schedule-update") {
+      transaction = buildWorkPackageScheduleTransaction({ previousStore, nextStore, workPackageId: mutation.workPackageId });
+    } else {
       throw new Error(`unsupported incremental mutation: ${mutation?.kind || "missing"}`);
     }
-    transaction = buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId: mutation.rolePairId });
   } catch (error) {
     return { ok: false, mode: "INCREMENTAL_TRANSACTION", errors: [error instanceof Error ? error.message : String(error)], execution: null, verification: null, compensation: null };
   }
@@ -218,7 +307,11 @@ export function executePostgresIncrementalTransaction({
     return {
       ok: true,
       mode: "INCREMENTAL_TRANSACTION",
-      mutation: { kind: transaction.kind, rolePairId: transaction.rolePairId },
+      mutation: {
+        kind: transaction.kind,
+        ...(transaction.rolePairId ? { rolePairId: transaction.rolePairId } : {}),
+        ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
+      },
       counts: { auditEvents: transaction.auditEventCount, notifications: transaction.notificationCount },
       errors: [],
       sqlPath,

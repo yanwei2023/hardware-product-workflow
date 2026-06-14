@@ -34,6 +34,17 @@ test("PostgreSQL store comparison accepts semantically equal rows", () => {
   assert.equal(result.summary.driftedTableCount, 0);
 });
 
+test("PostgreSQL store comparison treats date-only and midnight timestamps as equal", () => {
+  const expected = makeRows();
+  const actual = JSON.parse(JSON.stringify(expected));
+  expected.work_packages[0].due_at = "2026-07-01";
+  actual.work_packages[0].due_at = "2026-07-01T00:00:00.000Z";
+
+  const result = comparePostgresRows(expected, actual);
+
+  assert.equal(result.inSync, true);
+});
+
 test("PostgreSQL store comparison reports missing, extra, and changed rows", () => {
   const expected = makeRows();
   const actual = JSON.parse(JSON.stringify(expected));

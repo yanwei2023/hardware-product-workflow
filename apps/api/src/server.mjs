@@ -2402,6 +2402,7 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
     });
   }
 
+  const previousDueAt = workPackage.dueAt || null;
   updateWorkPackageScheduleInStore(store, workPackage.id, dueAt);
   audit("WORK_PACKAGE_SCHEDULE_UPDATED", "human", body.actorUserId || "user-project-manager", "workPackage", workPackage.id, {
     dueAt: workPackage.dueAt,
@@ -2416,7 +2417,15 @@ export function updateWorkPackageSchedule(workPackageId, body = {}) {
     objectType: "workPackage",
     objectId: workPackage.id,
   });
-  persistStore();
+  const persistenceOptions = previousDueAt === workPackage.dueAt
+    ? {}
+    : {
+        incrementalMutation: {
+          kind: "work-package-schedule-update",
+          workPackageId: workPackage.id,
+        },
+      };
+  persistStore(persistenceOptions);
 
   return {
     statusCode: 200,

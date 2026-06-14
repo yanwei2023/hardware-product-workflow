@@ -16,7 +16,7 @@ function normalizeValue(value, key = "") {
         .map((itemKey) => [itemKey, normalizeValue(value[itemKey], itemKey)]),
     );
   }
-  if (typeof value === "string" && key.endsWith("_at") && /[T ]/.test(value)) {
+  if (typeof value === "string" && key.endsWith("_at")) {
     const timestamp = Date.parse(value);
     if (!Number.isNaN(timestamp)) {
       return new Date(timestamp).toISOString();
