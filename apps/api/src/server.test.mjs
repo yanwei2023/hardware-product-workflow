@@ -133,6 +133,7 @@ test("ready endpoint reports runtime and storage readiness", async () => {
   assert.equal(result.body.storage.runtimeWrite.writable, true);
   assert.equal(result.body.storage.runtimePersistence.backend, "json");
   assert.equal(result.body.storage.runtimePersistence.startupCheck.ready, true);
+  assert.equal(result.body.storage.runtimePersistence.ready, true);
 });
 
 test("pilot readiness endpoint aggregates trial blockers and export links", async () => {
@@ -262,6 +263,9 @@ test("read-only runtime serves reads and rejects mutations before body parsing",
   assert.match(metricsResult.body, /hardware_flow_runtime_writable 0/);
   assert.match(metricsResult.body, /hardware_flow_runtime_postgres_sync_failures_total 0/);
   assert.match(metricsResult.body, /hardware_flow_runtime_persistence_startup_ready 1/);
+  assert.match(metricsResult.body, /hardware_flow_runtime_persistence_ready 1/);
+  assert.match(metricsResult.body, /hardware_flow_runtime_incremental_transactions_total 0/);
+  assert.match(metricsResult.body, /hardware_flow_runtime_exact_mirror_transactions_total 0/);
 });
 
 test("runtime network endpoint reports local and LAN access hints", async () => {

@@ -125,6 +125,37 @@ test("PostgreSQL mirror persistence commits only after verified synchronization"
   assert.deepEqual(persistence.getCommittedStore(), { value: 2 });
   assert.equal(status.lastPostgresSyncAt, "2026-06-13T01:00:00.000Z");
   assert.equal(status.postgresSyncFailureCount, 0);
+  assert.equal(status.exactMirrorTransactionCount, 1);
+  assert.equal(status.incrementalTransactionCount, 0);
+  assert.equal(status.lastPostgresWriteMode, "exact-mirror");
+});
+
+test("PostgreSQL mirror persistence routes supported mutations through the incremental writer", () => {
+  const calls = [];
+  const persistence = createRuntimePersistence({
+    initialStore: { value: 1 },
+    backend: "postgres-mirror",
+    databaseUrl: "postgres://example",
+    startupChecker: () => ({ required: true, ready: true, inSync: true, summary: {}, errors: [] }),
+    saveStore: () => {},
+    synchronize: () => assert.fail("incremental mutations must not use exact mirroring"),
+    incrementalSynchronize: (options) => {
+      calls.push(options);
+      return { ok: true, mode: "INCREMENTAL_TRANSACTION", errors: [] };
+    },
+  });
+
+  const status = persistence.persist(
+    { value: 2 },
+    { incrementalMutation: { kind: "role-pair-owner-update", rolePairId: "pair-test_agent" } },
+  );
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].previousStore, { value: 1 });
+  assert.deepEqual(calls[0].nextStore, { value: 2 });
+  assert.equal(status.incrementalTransactionCount, 1);
+  assert.equal(status.exactMirrorTransactionCount, 0);
+  assert.equal(status.lastPostgresWriteMode, "incremental-transaction");
 });
 
 test("PostgreSQL mirror failure restores the last committed JSON store", () => {
@@ -149,6 +180,39 @@ test("PostgreSQL mirror failure restores the last committed JSON store", () => {
   assert.deepEqual(persistence.getCommittedStore(), { value: 1 });
   assert.equal(persistence.getStatus().postgresSyncFailureCount, 1);
   assert.equal(persistence.getStatus().lastError, "database unavailable");
+});
+
+test("uncompensated verification failure blocks subsequent runtime writes", () => {
+  let attempts = 0;
+  const persistence = createRuntimePersistence({
+    initialStore: { value: 1 },
+    backend: "postgres-mirror",
+    databaseUrl: "postgres://example",
+    startupChecker: () => ({ required: true, ready: true, inSync: true, summary: {}, errors: [] }),
+    saveStore: () => {},
+    incrementalSynchronize: () => {
+      attempts += 1;
+      return {
+        ok: false,
+        mode: "INCREMENTAL_TRANSACTION",
+        errors: ["verification drifted"],
+        verification: { ok: false },
+        compensation: { ok: false },
+      };
+    },
+  });
+
+  assert.throws(
+    () => persistence.persist({ value: 2 }, { incrementalMutation: { kind: "role-pair-owner-update" } }),
+    /运行时修改已回滚/,
+  );
+  assert.equal(persistence.getStatus().writeBlocked, true);
+  assert.equal(persistence.getStatus().ready, false);
+  assert.throws(
+    () => persistence.persist({ value: 3 }),
+    /写入已锁定/,
+  );
+  assert.equal(attempts, 1);
 });
 
 test("PostgreSQL mirror persistence fails closed when startup consistency is not ready", () => {

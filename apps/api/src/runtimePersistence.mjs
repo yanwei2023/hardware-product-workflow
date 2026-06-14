@@ -3,6 +3,7 @@ import { saveStoreToDisk } from "./persistence.mjs";
 import { readPostgresDatabaseRows } from "./postgresDatabaseReader.mjs";
 import { mapStoreToPostgresRows } from "./postgresMapper.mjs";
 import { comparePostgresRows } from "./postgresStoreComparison.mjs";
+import { executePostgresIncrementalTransaction } from "./postgresIncrementalTransaction.mjs";
 import { synchronizeStoreToPostgres } from "./postgresStoreSync.mjs";
 import { validateStoreObject } from "./storeDoctor.mjs";
 
@@ -138,6 +139,7 @@ export function createRuntimePersistence({
   outputDir = process.env.HARDWARE_FLOW_RUNTIME_POSTGRES_SYNC_DIR || "data/runtime-postgres-sync",
   saveStore = saveStoreToDisk,
   synchronize = synchronizeStoreToPostgres,
+  incrementalSynchronize = executePostgresIncrementalTransaction,
   databaseReader = readPostgresDatabaseRows,
   startupChecker = checkRuntimePersistenceStartup,
 } = {}) {
@@ -156,6 +158,10 @@ export function createRuntimePersistence({
   let lastPostgresSyncAt = null;
   let lastError = null;
   let postgresSyncFailureCount = 0;
+  let incrementalTransactionCount = 0;
+  let exactMirrorTransactionCount = 0;
+  let lastPostgresWriteMode = null;
+  let writeBlocked = false;
 
   function status() {
     return {
@@ -167,23 +173,39 @@ export function createRuntimePersistence({
       lastPostgresSyncAt,
       lastError,
       postgresSyncFailureCount,
+      incrementalTransactionCount,
+      exactMirrorTransactionCount,
+      lastPostgresWriteMode,
+      writeBlocked,
+      ready: startupCheck.ready && !writeBlocked,
       startupCheck,
     };
   }
 
-  function persist(nextStore, { persistedAt = new Date() } = {}) {
+  function persist(nextStore, { persistedAt = new Date(), incrementalMutation = null } = {}) {
+    if (writeBlocked) {
+      throw new RuntimePersistenceError("PostgreSQL 持久化状态不确定，写入已锁定；请修复一致性后重启服务");
+    }
     const persistedAtIso = persistedAt instanceof Date ? persistedAt.toISOString() : String(persistedAt);
     saveStore(nextStore);
 
     if (normalizedBackend === "postgres-mirror") {
       let syncResult;
       try {
-        syncResult = synchronize({
-          store: nextStore,
-          databaseUrl,
-          outputDir,
-          confirm: true,
-        });
+        syncResult = incrementalMutation
+          ? incrementalSynchronize({
+            previousStore: committedStore,
+            nextStore,
+            mutation: incrementalMutation,
+            databaseUrl,
+            outputDir,
+          })
+          : synchronize({
+            store: nextStore,
+            databaseUrl,
+            outputDir,
+            confirm: true,
+          });
       } catch (error) {
         syncResult = { ok: false, errors: [error instanceof Error ? error.message : String(error)] };
       }
@@ -191,12 +213,24 @@ export function createRuntimePersistence({
       if (!syncResult?.ok) {
         postgresSyncFailureCount += 1;
         lastError = (syncResult?.errors || ["PostgreSQL mirror synchronization failed"]).join("; ");
+        const uncompensatedVerificationFailure = syncResult?.verification?.ok === false && syncResult?.compensation?.ok !== true;
+        if (uncompensatedVerificationFailure) {
+          writeBlocked = true;
+          lastError = `${lastError}; compensation did not restore the previous PostgreSQL state`;
+        }
         try {
           saveStore(committedStore, { backup: false });
         } catch (rollbackError) {
           lastError = `${lastError}; JSON rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`;
         }
         throw new RuntimePersistenceError("PostgreSQL 镜像写入失败，运行时修改已回滚", { syncResult });
+      }
+      if (syncResult.mode === "INCREMENTAL_TRANSACTION") {
+        incrementalTransactionCount += 1;
+        lastPostgresWriteMode = "incremental-transaction";
+      } else {
+        exactMirrorTransactionCount += 1;
+        lastPostgresWriteMode = "exact-mirror";
       }
       lastPostgresSyncAt = persistedAtIso;
     }

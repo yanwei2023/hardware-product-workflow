@@ -115,6 +115,8 @@ HARDWARE_FLOW_STARTUP_STORE_SOURCE=postgres DATABASE_URL=postgres://user:passwor
 
 切换前先用同一组环境变量运行 `npm run runtime:persistence-check`。镜像模式只有在当前 JSON 与 PostgreSQL 全表一致时才通过；API 启动会重复执行该门禁，因此数据库漂移不会等到第一次用户修改才暴露。
 
+镜像模式下，角色负责人变更已经使用原生 PostgreSQL 增量事务，将负责人、审计和通知一起提交；其他修改仍使用全量精确镜像。页面“本地数据状态”和 `/metrics` 会显示启动一致性、当前持久化就绪状态、最近数据库写入模式及两类事务累计次数。
+
 ## 可试用链路
 
 当前默认项目处于 `EVT Exit` 阶段。

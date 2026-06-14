@@ -200,9 +200,9 @@ let runtimeWritePolicy = resolveRuntimeWritePolicy({
   persistenceBackend: runtimePersistence.backend,
 });
 
-function persistStore() {
+function persistStore(options = {}) {
   try {
-    runtimePersistence.persist(store);
+    runtimePersistence.persist(store, options);
   } catch (error) {
     store = runtimePersistence.getCommittedStore();
     throw error;
@@ -632,8 +632,9 @@ export function getReadinessStatus() {
   const runtimeSummary = getStoreRuntimeSummary(store);
   const storageDoctor = getStorageDoctorStatus();
   const storageReady = storageDoctor.exists && storageDoctor.valid;
+  const persistenceReady = runtimePersistence.getStatus().ready;
   return {
-    ready: storageReady && !isShuttingDown,
+    ready: storageReady && persistenceReady && !isShuttingDown,
     shuttingDown: isShuttingDown,
     ...serviceMetadata,
     ...runtimeSummary,
@@ -901,6 +902,15 @@ function renderMetrics() {
     "# HELP hardware_flow_runtime_persistence_startup_ready Whether the runtime persistence startup consistency check passed.",
     "# TYPE hardware_flow_runtime_persistence_startup_ready gauge",
     `hardware_flow_runtime_persistence_startup_ready ${runtimePersistence.getStatus().startupCheck.ready ? 1 : 0}`,
+    "# HELP hardware_flow_runtime_persistence_ready Whether runtime persistence is safe to accept writes.",
+    "# TYPE hardware_flow_runtime_persistence_ready gauge",
+    `hardware_flow_runtime_persistence_ready ${runtimePersistence.getStatus().ready ? 1 : 0}`,
+    "# HELP hardware_flow_runtime_incremental_transactions_total Successful native PostgreSQL runtime transactions.",
+    "# TYPE hardware_flow_runtime_incremental_transactions_total counter",
+    `hardware_flow_runtime_incremental_transactions_total ${runtimePersistence.getStatus().incrementalTransactionCount}`,
+    "# HELP hardware_flow_runtime_exact_mirror_transactions_total Successful exact-mirror PostgreSQL runtime transactions.",
+    "# TYPE hardware_flow_runtime_exact_mirror_transactions_total counter",
+    `hardware_flow_runtime_exact_mirror_transactions_total ${runtimePersistence.getStatus().exactMirrorTransactionCount}`,
     "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
     "# TYPE hardware_flow_shutting_down gauge",
     `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
@@ -2363,7 +2373,12 @@ export function updateRolePair(rolePairId, body = {}) {
     objectType: "rolePair",
     objectId: rolePair.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "role-pair-owner-update",
+      rolePairId: rolePair.id,
+    },
+  });
 
   return {
     statusCode: 200,
