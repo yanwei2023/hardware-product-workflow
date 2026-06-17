@@ -185,7 +185,7 @@ npm run store:restore-backup
 以下能力不应作为第一轮内部试点验收项：
 
 - 用户登录和单点登录；
-- 原生 PostgreSQL repository 与增量事务写入；
+- 完整原生 PostgreSQL repository；当前已有启动快照、镜像桥和部分核心动作的增量事务，但不作为第一轮试点验收项；
 - 真实大模型调用；
 - 飞书、企业微信或邮件通知；
 - 生产级 TLS、反向代理、数据库备份和灾备；

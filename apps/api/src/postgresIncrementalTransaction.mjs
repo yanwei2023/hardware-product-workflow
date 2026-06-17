@@ -55,6 +55,13 @@ function sqlJson(value) {
   return `${sqlString(JSON.stringify(value ?? {}))}::jsonb`;
 }
 
+function sqlValue(value) {
+  if (value && typeof value === "object") {
+    return sqlJson(value);
+  }
+  return sqlNullable(value);
+}
+
 function insertedRows(previousRows, nextRows, table) {
   const previousIds = new Set((previousRows[table] || []).map((row) => row.id));
   return (nextRows[table] || []).filter((row) => !previousIds.has(row.id));
@@ -265,6 +272,137 @@ export function buildWorkPackageScheduleTransaction({ previousStore, nextStore, 
   };
 }
 
+const riskMutationFieldAllowlist = {
+  "risk-status-update": new Set([
+    "status",
+    "accepted_by_user_id",
+    "accepted_at",
+    "accepted_comment",
+    "closed_by_user_id",
+    "closed_at",
+    "closed_comment",
+  ]),
+  "risk-mitigation-update": new Set([
+    "mitigation",
+    "mitigation_owner_user_id",
+    "mitigation_due_at",
+    "mitigation_status",
+    "mitigation_updated_at",
+    "mitigation_updated_by_user_id",
+    "mitigation_completed_at",
+    "mitigation_completed_by_user_id",
+    "mitigation_completion_comment",
+  ]),
+  "risk-mitigation-complete": new Set([
+    "mitigation_status",
+    "mitigation_completed_at",
+    "mitigation_completed_by_user_id",
+    "mitigation_completion_comment",
+  ]),
+};
+
+function renderRiskUpdate(row, changedFields) {
+  return changedFields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
+}
+
+function renderRiskPreviousConditions(row, changedFields) {
+  return changedFields.map((field) => `${field} IS NOT DISTINCT FROM ${sqlValue(row[field])}`).join(" AND ");
+}
+
+export function buildRiskTransaction({ previousStore, nextStore, riskId, kind } = {}) {
+  const allowedFields = riskMutationFieldAllowlist[kind];
+  if (!allowedFields) {
+    throw new Error(`unsupported risk incremental transaction: ${kind || "missing"}`);
+  }
+
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousRisk = previousRows.risks.find((row) => row.id === riskId);
+  const nextRisk = nextRows.risks.find((row) => row.id === riskId);
+  if (!previousRisk || !nextRisk) {
+    throw new Error(`risk not found for incremental transaction: ${riskId}`);
+  }
+
+  const riskDelta = storeDelta.tables.risks;
+  if (
+    riskDelta.missingInDatabase.length > 0 ||
+    riskDelta.missingInStore.length > 0 ||
+    riskDelta.changed.length !== 1 ||
+    riskDelta.changed[0].id !== riskId
+  ) {
+    throw new Error(`${kind} transaction contains unsupported risk changes`);
+  }
+
+  const changedFields = riskDelta.changed[0].fields;
+  const unsupportedFields = changedFields.filter((field) => !allowedFields.has(field));
+  if (unsupportedFields.length > 0) {
+    throw new Error(`${kind} transaction contains unsupported risk fields: ${unsupportedFields.join(", ")}`);
+  }
+  if (changedFields.length === 0) {
+    throw new Error(`${kind} transaction did not change risk fields: ${riskId}`);
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  const allowedAuditEvents = {
+    "risk-status-update": new Set(["RISK_ACCEPTED", "RISK_CLOSED"]),
+    "risk-mitigation-update": new Set(["RISK_MITIGATION_UPDATED"]),
+    "risk-mitigation-complete": new Set(["RISK_MITIGATION_DONE"]),
+  }[kind];
+  if (auditEvents.length !== 1 || !allowedAuditEvents.has(auditEvents[0].event_type)) {
+    throw new Error(`${kind} transaction requires exactly one supported audit event`);
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["risks", "notifications", "audit_events"], `${kind} transaction`);
+  assertInsertedSideEffects(storeDelta, `${kind} transaction`);
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const notificationRollback = notificationIds.length > 0
+    ? `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`
+    : "-- No notification side effects to delete.";
+  const applySql = [
+    `-- Native incremental ${kind} transaction`,
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE risks SET ${renderRiskUpdate(nextRisk, changedFields)} WHERE id = ${sqlString(riskId)} AND ${renderRiskPreviousConditions(previousRisk, changedFields)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'risk changed concurrently or risk is missing';",
+    "  END IF;",
+    "END",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    `-- Compensating ${kind} transaction`,
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    notificationRollback,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `UPDATE risks SET ${renderRiskUpdate(previousRisk, changedFields)} WHERE id = ${sqlString(riskId)} AND ${renderRiskPreviousConditions(nextRisk, changedFields)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind,
+    riskId,
+    changedFields,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function executePostgresIncrementalTransaction({
   previousStore,
   nextStore,
@@ -283,6 +421,8 @@ export function executePostgresIncrementalTransaction({
       transaction = buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId: mutation.rolePairId });
     } else if (mutation?.kind === "work-package-schedule-update") {
       transaction = buildWorkPackageScheduleTransaction({ previousStore, nextStore, workPackageId: mutation.workPackageId });
+    } else if (mutation?.kind?.startsWith("risk-")) {
+      transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else {
       throw new Error(`unsupported incremental mutation: ${mutation?.kind || "missing"}`);
     }
@@ -311,6 +451,7 @@ export function executePostgresIncrementalTransaction({
         kind: transaction.kind,
         ...(transaction.rolePairId ? { rolePairId: transaction.rolePairId } : {}),
         ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
+        ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
       },
       counts: { auditEvents: transaction.auditEventCount, notifications: transaction.notificationCount },
       errors: [],

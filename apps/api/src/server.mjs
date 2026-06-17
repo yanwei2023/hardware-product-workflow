@@ -3206,7 +3206,12 @@ export function updateRiskStatus(riskId, status, body = {}) {
     objectType: "risk",
     objectId: risk.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "risk-status-update",
+      riskId: risk.id,
+    },
+  });
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
 
@@ -3252,7 +3257,12 @@ export function updateRiskMitigation(riskId, body = {}) {
     });
   }
 
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "risk-mitigation-update",
+      riskId: risk.id,
+    },
+  });
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
 
@@ -3304,7 +3314,12 @@ export function completeRiskMitigation(riskId, body = {}) {
     objectId: risk.id,
   });
 
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "risk-mitigation-complete",
+      riskId: risk.id,
+    },
+  });
   return { statusCode: 200, body: { risk, latestGateCheck: currentGateCheck() } };
 }
 
