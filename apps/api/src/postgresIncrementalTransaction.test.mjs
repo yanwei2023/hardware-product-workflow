@@ -8,6 +8,7 @@ import {
   addAuditEventInStore,
   addNotificationInStore,
   completeRiskMitigationInStore,
+  submitHumanReviewInStore,
   updateRiskMitigationInStore,
   updateRolePairOwnerInStore,
   updateRiskStatusInStore,
@@ -15,6 +16,7 @@ import {
 } from "./storeRepository.mjs";
 import {
   buildRiskTransaction,
+  buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
   buildWorkPackageScheduleTransaction,
   executePostgresIncrementalTransaction,
@@ -197,6 +199,47 @@ function riskMitigationCompletedStores() {
   return { previousStore, nextStore, riskId };
 }
 
+function humanReviewChangedStores(decision = "APPROVE") {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const workPackageId = "wp-evt_exit-evt_test_plan";
+  const artifactId = "artifact-evt-test-plan-draft";
+  const review = {
+    id: `review-${decision.toLowerCase().replaceAll("_", "-")}`,
+    workPackageId,
+    reviewerUserId: "user-test-lead",
+    decision,
+    comment: decision === "REQUEST_REVISION" ? "补充覆盖矩阵。" : "",
+    conditions: decision === "APPROVE_WITH_CONDITIONS" ? ["补充低温启动测试"] : [],
+    reviewedAt: "2026-06-14T06:00:00.000Z",
+  };
+  submitHumanReviewInStore(nextStore, workPackageId, artifactId, review);
+  addAuditEventInStore(nextStore, {
+    id: `audit-${review.id}`,
+    projectId: nextStore.activeProjectId,
+    actorType: "human",
+    actorId: "user-test-lead",
+    eventType: "HUMAN_REVIEW_SUBMITTED",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: { decision, comment: review.comment },
+    createdAt: "2026-06-14T06:00:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: `notification-${review.id}`,
+    projectId: nextStore.activeProjectId,
+    userId: "user-project-manager",
+    title: decision === "APPROVE" || decision === "APPROVE_WITH_CONDITIONS" ? "工作包已批准" : "工作包需要返工",
+    message: `EVT 测试计划 的审核结果为 ${decision}。`,
+    type: decision === "APPROVE" || decision === "APPROVE_WITH_CONDITIONS" ? "INFO" : "WARNING",
+    status: "UNREAD",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    createdAt: "2026-06-14T06:00:00.000Z",
+  });
+  return { previousStore, nextStore, workPackageId, artifactId, reviewId: review.id };
+}
+
 function queryRunnerSequence(rowsList) {
   let index = 0;
   return () => ({ status: 0, signal: null, stdout: `${JSON.stringify(rowsList[Math.min(index++, rowsList.length - 1)])}\n`, stderr: "" });
@@ -302,6 +345,38 @@ test("risk transaction rejects unrelated risk fields", () => {
   );
 });
 
+test("human review transaction approves work package and artifact atomically", () => {
+  const { previousStore, nextStore, workPackageId, artifactId, reviewId } = humanReviewChangedStores();
+  const transaction = buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId });
+
+  assert.match(transaction.applySql, /^-- Native incremental human-review transaction/m);
+  assert.match(transaction.applySql, /UPDATE work_packages SET status = 'HUMAN_APPROVED'/);
+  assert.match(transaction.applySql, /UPDATE artifact_versions SET status = 'APPROVED', version = '1.0'/);
+  assert.match(transaction.applySql, /INSERT INTO reviews[\s\S]*INSERT INTO audit_events[\s\S]*INSERT INTO notifications[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*DELETE FROM reviews[\s\S]*status = 'PENDING_REVIEW'/);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("human review transaction supports revision decisions", () => {
+  const { previousStore, nextStore, workPackageId, artifactId, reviewId } = humanReviewChangedStores("REQUEST_REVISION");
+  const transaction = buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId });
+
+  assert.match(transaction.applySql, /UPDATE work_packages SET status = 'NEEDS_AGENT_REVISION'/);
+  assert.match(transaction.applySql, /UPDATE artifact_versions SET status = 'NEEDS_REVISION'/);
+  assert.deepEqual(transaction.changedArtifactFields, ["status"]);
+});
+
+test("human review transaction rejects unrelated artifact changes", () => {
+  const { previousStore, nextStore, workPackageId, artifactId, reviewId } = humanReviewChangedStores();
+  nextStore.artifactVersions.find((artifact) => artifact.id === artifactId).objectKey = "unexpected";
+
+  assert.throws(
+    () => buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId }),
+    /unsupported artifact fields: object_key/,
+  );
+});
+
 test("incremental role pair transaction executes and verifies the complete store", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
   const { previousStore, nextStore } = changedStores();
@@ -360,6 +435,24 @@ test("incremental risk transaction executes and reports its mutation identity", 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "risk-mitigation-update", riskId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental human review transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, workPackageId, artifactId, reviewId } = humanReviewChangedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "human-review-submit", workPackageId, artifactId, reviewId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "human-review-submit", workPackageId, artifactId, reviewId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

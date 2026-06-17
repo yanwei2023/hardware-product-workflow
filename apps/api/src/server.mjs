@@ -3070,7 +3070,14 @@ export function submitHumanReview(body) {
       objectId: workPackage.id,
     });
   }
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "human-review-submit",
+      workPackageId: workPackage.id,
+      artifactId: pendingArtifact.id,
+      reviewId: review.id,
+    },
+  });
 
   return { statusCode: 201, body: { review, workPackage, latestGateCheck: currentGateCheck() } };
 }

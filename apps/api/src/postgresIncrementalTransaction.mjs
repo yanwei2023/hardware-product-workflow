@@ -116,6 +116,21 @@ function renderAuditInsert(row) {
   ].join(", ")});`;
 }
 
+function renderReviewInsert(row) {
+  return `INSERT INTO reviews (id, work_package_id, reviewer_user_id, decision, comment, conditions, conditions_completed_at, conditions_completed_by_user_id, conditions_completion_comment, reviewed_at) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.work_package_id),
+    sqlString(row.reviewer_user_id),
+    sqlString(row.decision),
+    sqlString(row.comment),
+    sqlJson(row.conditions),
+    sqlNullable(row.conditions_completed_at),
+    sqlNullable(row.conditions_completed_by_user_id),
+    sqlString(row.conditions_completion_comment),
+    sqlString(row.reviewed_at),
+  ].join(", ")});`;
+}
+
 export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -403,6 +418,130 @@ export function buildRiskTransaction({ previousStore, nextStore, riskId, kind } 
   };
 }
 
+export function buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousWorkPackage = previousRows.work_packages.find((row) => row.id === workPackageId);
+  const nextWorkPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  const previousArtifact = previousRows.artifact_versions.find((row) => row.id === artifactId);
+  const nextArtifact = nextRows.artifact_versions.find((row) => row.id === artifactId);
+  if (!previousWorkPackage || !nextWorkPackage) {
+    throw new Error(`work package not found for incremental transaction: ${workPackageId}`);
+  }
+  if (!previousArtifact || !nextArtifact) {
+    throw new Error(`artifact not found for incremental transaction: ${artifactId}`);
+  }
+
+  const reviews = insertedRows(previousRows, nextRows, "reviews");
+  const review = reviews.find((row) => row.id === reviewId) || null;
+  if (reviews.length !== 1 || !review) {
+    throw new Error("human review transaction requires exactly one inserted review");
+  }
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "HUMAN_REVIEW_SUBMITTED") {
+    throw new Error("human review transaction requires exactly one HUMAN_REVIEW_SUBMITTED audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("human review transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(
+    storeDelta,
+    ["work_packages", "artifact_versions", "reviews", "notifications", "audit_events"],
+    "human review transaction",
+  );
+  assertInsertedSideEffects(storeDelta, "human review transaction");
+
+  const reviewDelta = storeDelta.tables.reviews;
+  if (
+    reviewDelta.missingInDatabase.length > 0 ||
+    reviewDelta.missingInStore.length !== 1 ||
+    reviewDelta.missingInStore[0] !== reviewId ||
+    reviewDelta.changed.length > 0
+  ) {
+    throw new Error("human review transaction contains unsupported review changes");
+  }
+
+  const workPackageDelta = storeDelta.tables.work_packages;
+  if (
+    workPackageDelta.missingInDatabase.length > 0 ||
+    workPackageDelta.missingInStore.length > 0 ||
+    workPackageDelta.changed.length !== 1 ||
+    workPackageDelta.changed[0].id !== workPackageId ||
+    workPackageDelta.changed[0].fields.join(",") !== "status"
+  ) {
+    throw new Error("human review transaction contains unsupported work package changes");
+  }
+
+  const artifactDelta = storeDelta.tables.artifact_versions;
+  if (
+    artifactDelta.missingInDatabase.length > 0 ||
+    artifactDelta.missingInStore.length > 0 ||
+    artifactDelta.changed.length !== 1 ||
+    artifactDelta.changed[0].id !== artifactId
+  ) {
+    throw new Error("human review transaction contains unsupported artifact changes");
+  }
+  const artifactFields = artifactDelta.changed[0].fields;
+  const unsupportedArtifactFields = artifactFields.filter((field) => !new Set(["status", "version"]).has(field));
+  if (unsupportedArtifactFields.length > 0) {
+    throw new Error(`human review transaction contains unsupported artifact fields: ${unsupportedArtifactFields.join(", ")}`);
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental human-review transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE work_packages SET status = ${sqlString(nextWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status = ${sqlString(previousWorkPackage.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'work package status changed concurrently or work package is missing';",
+    "  END IF;",
+    `  UPDATE artifact_versions SET ${artifactFields.map((field) => `${field} = ${sqlValue(nextArtifact[field])}`).join(", ")} WHERE id = ${sqlString(artifactId)} AND ${artifactFields.map((field) => `${field} IS NOT DISTINCT FROM ${sqlValue(previousArtifact[field])}`).join(" AND ")};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'artifact version changed concurrently or artifact is missing';",
+    "  END IF;",
+    "END",
+    "$hardware_flow$;",
+    renderReviewInsert(review),
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating human-review transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM reviews WHERE id = ${sqlString(reviewId)};`,
+    `UPDATE artifact_versions SET ${artifactFields.map((field) => `${field} = ${sqlValue(previousArtifact[field])}`).join(", ")} WHERE id = ${sqlString(artifactId)} AND ${artifactFields.map((field) => `${field} IS NOT DISTINCT FROM ${sqlValue(nextArtifact[field])}`).join(" AND ")};`,
+    `UPDATE work_packages SET status = ${sqlString(previousWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status = ${sqlString(nextWorkPackage.status)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "human-review-submit",
+    workPackageId,
+    artifactId,
+    reviewId,
+    changedArtifactFields: artifactFields,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function executePostgresIncrementalTransaction({
   previousStore,
   nextStore,
@@ -423,6 +562,14 @@ export function executePostgresIncrementalTransaction({
       transaction = buildWorkPackageScheduleTransaction({ previousStore, nextStore, workPackageId: mutation.workPackageId });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
+    } else if (mutation?.kind === "human-review-submit") {
+      transaction = buildHumanReviewTransaction({
+        previousStore,
+        nextStore,
+        workPackageId: mutation.workPackageId,
+        artifactId: mutation.artifactId,
+        reviewId: mutation.reviewId,
+      });
     } else {
       throw new Error(`unsupported incremental mutation: ${mutation?.kind || "missing"}`);
     }
@@ -452,6 +599,8 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.rolePairId ? { rolePairId: transaction.rolePairId } : {}),
         ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
+        ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),
+        ...(transaction.reviewId ? { reviewId: transaction.reviewId } : {}),
       },
       counts: { auditEvents: transaction.auditEventCount, notifications: transaction.notificationCount },
       errors: [],
