@@ -131,6 +131,18 @@ function renderReviewInsert(row) {
   ].join(", ")});`;
 }
 
+function renderEvidenceRefInsert(row) {
+  return `INSERT INTO work_package_evidence_refs (id, project_id, work_package_id, label, ref, created_by_user_id, created_at) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.project_id),
+    sqlString(row.work_package_id),
+    sqlString(row.label),
+    sqlString(row.ref),
+    sqlString(row.created_by_user_id),
+    sqlString(row.created_at),
+  ].join(", ")});`;
+}
+
 function renderGateApprovalPackInsert(row) {
   return `INSERT INTO gate_approval_packs (id, project_id, gate_id, phase_id, approved_by_user_id, approved_at, approval_comment, review_pack_json) VALUES (${[
     sqlString(row.id),
@@ -578,6 +590,72 @@ export function buildHumanReviewTransaction({ previousStore, nextStore, workPack
   };
 }
 
+export function buildWorkPackageEvidenceTransaction({ previousStore, nextStore, workPackageId, evidenceRefId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const workPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  if (!workPackage) {
+    throw new Error(`work package not found for incremental transaction: ${workPackageId}`);
+  }
+
+  const evidenceRefs = insertedRows(previousRows, nextRows, "work_package_evidence_refs");
+  const evidenceRef = evidenceRefs.find((row) => row.id === evidenceRefId) || null;
+  if (evidenceRefs.length !== 1 || !evidenceRef || evidenceRef.work_package_id !== workPackageId) {
+    throw new Error("work package evidence transaction requires exactly one inserted evidence ref");
+  }
+
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  const allowedAuditTypes = new Set(["WORK_PACKAGE_EVIDENCE_ADDED", "WORK_PACKAGE_EVIDENCE_FILE_UPLOADED"]);
+  if (auditEvents.length !== 1 || !allowedAuditTypes.has(auditEvents[0].event_type)) {
+    throw new Error("work package evidence transaction requires exactly one evidence audit event");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["work_package_evidence_refs", "audit_events"], "work package evidence transaction");
+  assertInsertedSideEffects(storeDelta, "work package evidence transaction");
+  const evidenceDelta = storeDelta.tables.work_package_evidence_refs;
+  if (
+    evidenceDelta.missingInDatabase.length > 0 ||
+    evidenceDelta.missingInStore.length !== 1 ||
+    evidenceDelta.missingInStore[0] !== evidenceRefId ||
+    evidenceDelta.changed.length > 0
+  ) {
+    throw new Error("work package evidence transaction contains unsupported evidence ref changes");
+  }
+
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental work-package evidence transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderEvidenceRefInsert(evidenceRef),
+    ...auditEvents.map(renderAuditInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating work-package evidence transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM work_package_evidence_refs WHERE id = ${sqlString(evidenceRefId)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "work-package-evidence-add",
+    workPackageId,
+    evidenceRefId,
+    auditEventCount: auditEvents.length,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -756,6 +834,13 @@ export function executePostgresIncrementalTransaction({
       transaction = buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId: mutation.rolePairId });
     } else if (mutation?.kind === "work-package-schedule-update") {
       transaction = buildWorkPackageScheduleTransaction({ previousStore, nextStore, workPackageId: mutation.workPackageId });
+    } else if (mutation?.kind === "work-package-evidence-add") {
+      transaction = buildWorkPackageEvidenceTransaction({
+        previousStore,
+        nextStore,
+        workPackageId: mutation.workPackageId,
+        evidenceRefId: mutation.evidenceRefId,
+      });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "human-review-submit") {
@@ -801,6 +886,7 @@ export function executePostgresIncrementalTransaction({
         kind: transaction.kind,
         ...(transaction.rolePairId ? { rolePairId: transaction.rolePairId } : {}),
         ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
+        ...(transaction.evidenceRefId ? { evidenceRefId: transaction.evidenceRefId } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),
         ...(transaction.reviewId ? { reviewId: transaction.reviewId } : {}),

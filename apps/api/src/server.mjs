@@ -2465,7 +2465,13 @@ export function addWorkPackageEvidenceRef(workPackageId, body = {}) {
     label: evidenceRef.label,
     ref: evidenceRef.ref,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "work-package-evidence-add",
+      workPackageId: workPackage.id,
+      evidenceRefId: evidenceRef.id,
+    },
+  });
 
   return {
     statusCode: 201,
@@ -2536,7 +2542,13 @@ export function uploadWorkPackageEvidenceFile(workPackageId, body = {}) {
     sizeBytes: evidenceRef.sizeBytes,
   });
   try {
-    persistStore();
+    persistStore({
+      incrementalMutation: {
+        kind: "work-package-evidence-add",
+        workPackageId: workPackage.id,
+        evidenceRefId: evidenceRef.id,
+      },
+    });
   } catch (error) {
     if (fs.existsSync(storagePath)) {
       fs.unlinkSync(storagePath);

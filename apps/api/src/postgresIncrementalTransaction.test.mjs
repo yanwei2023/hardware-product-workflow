@@ -8,6 +8,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addWorkPackageEvidenceRefInStore,
   approveGateInStore,
   completeRiskMitigationInStore,
   submitHumanReviewInStore,
@@ -21,6 +22,7 @@ import {
   buildRiskTransaction,
   buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
+  buildWorkPackageEvidenceTransaction,
   buildWorkPackageScheduleTransaction,
   executePostgresIncrementalTransaction,
 } from "./postgresIncrementalTransaction.mjs";
@@ -85,6 +87,48 @@ function scheduleChangedStores() {
     createdAt: "2026-06-14T02:00:00.000Z",
   });
   return { previousStore, nextStore, workPackageId };
+}
+
+function evidenceChangedStores({ file = false } = {}) {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const workPackageId = "wp-evt_exit-evt_test_plan";
+  const evidenceRef = addWorkPackageEvidenceRefInStore(nextStore, workPackageId, {
+    id: `evidence-${file ? "file" : "ref"}`,
+    label: file ? "热测试附件" : "热测试报告",
+    ref: file ? "/evidence-files/evidence-file/download" : "https://example.test/reports/thermal",
+    kind: file ? "file" : "reference",
+    fileName: file ? "evidence-file.txt" : null,
+    originalFileName: file ? "thermal-report.txt" : null,
+    mimeType: file ? "text/plain" : null,
+    sizeBytes: file ? 25 : null,
+    storagePath: file ? "/tmp/evidence-file.txt" : null,
+    createdByUserId: "user-test-lead",
+    createdAt: file ? "2026-06-14T08:30:00.000Z" : "2026-06-14T08:00:00.000Z",
+  });
+  addAuditEventInStore(nextStore, {
+    id: `audit-${evidenceRef.id}`,
+    projectId: nextStore.activeProjectId,
+    actorType: "human",
+    actorId: "user-test-lead",
+    eventType: file ? "WORK_PACKAGE_EVIDENCE_FILE_UPLOADED" : "WORK_PACKAGE_EVIDENCE_ADDED",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: file
+      ? {
+          evidenceRefId: evidenceRef.id,
+          label: evidenceRef.label,
+          originalFileName: evidenceRef.originalFileName,
+          sizeBytes: evidenceRef.sizeBytes,
+        }
+      : {
+          evidenceRefId: evidenceRef.id,
+          label: evidenceRef.label,
+          ref: evidenceRef.ref,
+        },
+    createdAt: evidenceRef.createdAt,
+  });
+  return { previousStore, nextStore, workPackageId, evidenceRefId: evidenceRef.id };
 }
 
 function riskStatusChangedStores() {
@@ -371,6 +415,45 @@ test("work package schedule transaction rejects unrelated in-memory changes", ()
   );
 });
 
+test("work package evidence transaction inserts evidence and audit atomically", () => {
+  const { previousStore, nextStore, workPackageId, evidenceRefId } = evidenceChangedStores();
+  const transaction = buildWorkPackageEvidenceTransaction({ previousStore, nextStore, workPackageId, evidenceRefId });
+
+  assert.match(transaction.applySql, /^-- Native incremental work-package evidence transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO work_package_evidence_refs/);
+  assert.match(transaction.applySql, /https:\/\/example\.test\/reports\/thermal/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*WORK_PACKAGE_EVIDENCE_ADDED[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*DELETE FROM work_package_evidence_refs/);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("work package evidence transaction supports uploaded file audit events", () => {
+  const { previousStore, nextStore, workPackageId, evidenceRefId } = evidenceChangedStores({ file: true });
+  const transaction = buildWorkPackageEvidenceTransaction({ previousStore, nextStore, workPackageId, evidenceRefId });
+
+  assert.match(transaction.applySql, /WORK_PACKAGE_EVIDENCE_FILE_UPLOADED/);
+  assert.match(transaction.applySql, /\/evidence-files\/evidence-file\/download/);
+});
+
+test("work package evidence transaction rejects unrelated evidence changes", () => {
+  const { previousStore, nextStore, workPackageId, evidenceRefId } = evidenceChangedStores();
+  nextStore.evidenceRefs.push({
+    id: "evidence-extra",
+    projectId: nextStore.activeProjectId,
+    workPackageId,
+    label: "额外证据",
+    ref: "https://example.test/extra",
+    createdByUserId: "user-test-lead",
+    createdAt: "2026-06-14T09:00:00.000Z",
+  });
+
+  assert.throws(
+    () => buildWorkPackageEvidenceTransaction({ previousStore, nextStore, workPackageId, evidenceRefId }),
+    /requires exactly one inserted evidence ref/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -524,6 +607,24 @@ test("incremental work package transaction executes and reports its mutation ide
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "work-package-schedule-update", workPackageId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental work package evidence transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, workPackageId, evidenceRefId } = evidenceChangedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "work-package-evidence-add", workPackageId, evidenceRefId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "work-package-evidence-add", workPackageId, evidenceRefId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
