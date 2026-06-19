@@ -131,6 +131,42 @@ function renderReviewInsert(row) {
   ].join(", ")});`;
 }
 
+function renderGateApprovalPackInsert(row) {
+  return `INSERT INTO gate_approval_packs (id, project_id, gate_id, phase_id, approved_by_user_id, approved_at, approval_comment, review_pack_json) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.project_id),
+    sqlString(row.gate_id),
+    sqlString(row.phase_id),
+    sqlString(row.approved_by_user_id),
+    sqlString(row.approved_at),
+    sqlString(row.approval_comment),
+    sqlJson(row.review_pack_json),
+  ].join(", ")});`;
+}
+
+function renderUpdateSet(row, fields) {
+  return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
+}
+
+function renderPreviousConditions(row, fields) {
+  return fields.map((field) => `${field} IS NOT DISTINCT FROM ${sqlValue(row[field])}`).join(" AND ");
+}
+
+function changedRowForId(storeDelta, table, id, label) {
+  const changed = storeDelta.tables[table].changed.find((row) => row.id === id) || null;
+  if (!changed) {
+    throw new Error(`${label} transaction expected ${table} row to change: ${id}`);
+  }
+  return changed;
+}
+
+function assertNoRowAddsOrDeletes(storeDelta, table, label) {
+  const detail = storeDelta.tables[table];
+  if (detail.missingInDatabase.length > 0 || detail.missingInStore.length > 0) {
+    throw new Error(`${label} transaction contains unsupported ${table} row additions or deletions`);
+  }
+}
+
 export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePairId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -177,7 +213,7 @@ export function buildRolePairOwnerTransaction({ previousStore, nextStore, rolePa
     "  IF NOT FOUND THEN",
     "    RAISE EXCEPTION 'role pair owner changed concurrently or role pair is missing';",
     "  END IF;",
-    "END",
+    "END;",
     "$hardware_flow$;",
     ...auditEvents.map(renderAuditInsert),
     ...notifications.map(renderNotificationInsert),
@@ -255,7 +291,7 @@ export function buildWorkPackageScheduleTransaction({ previousStore, nextStore, 
     "  IF NOT FOUND THEN",
     "    RAISE EXCEPTION 'work package schedule changed concurrently or work package is missing';",
     "  END IF;",
-    "END",
+    "END;",
     "$hardware_flow$;",
     ...auditEvents.map(renderAuditInsert),
     ...notifications.map(renderNotificationInsert),
@@ -387,7 +423,7 @@ export function buildRiskTransaction({ previousStore, nextStore, riskId, kind } 
     "  IF NOT FOUND THEN",
     "    RAISE EXCEPTION 'risk changed concurrently or risk is missing';",
     "  END IF;",
-    "END",
+    "END;",
     "$hardware_flow$;",
     ...auditEvents.map(renderAuditInsert),
     ...notifications.map(renderNotificationInsert),
@@ -506,7 +542,7 @@ export function buildHumanReviewTransaction({ previousStore, nextStore, workPack
     "  IF NOT FOUND THEN",
     "    RAISE EXCEPTION 'artifact version changed concurrently or artifact is missing';",
     "  END IF;",
-    "END",
+    "END;",
     "$hardware_flow$;",
     renderReviewInsert(review),
     ...auditEvents.map(renderAuditInsert),
@@ -533,6 +569,166 @@ export function buildHumanReviewTransaction({ previousStore, nextStore, workPack
     artifactId,
     reviewId,
     changedArtifactFields: artifactFields,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
+export function buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousGate = previousRows.gates.find((row) => row.id === gateId);
+  const nextGate = nextRows.gates.find((row) => row.id === gateId);
+  if (!previousGate || !nextGate) {
+    throw new Error(`gate not found for incremental transaction: ${gateId}`);
+  }
+  const previousPhase = previousRows.phases.find((row) => row.id === previousGate.phase_id);
+  const nextPhase = nextRows.phases.find((row) => row.id === previousGate.phase_id);
+  const previousProject = previousRows.projects.find((row) => row.id === previousGate.project_id);
+  const nextProject = nextRows.projects.find((row) => row.id === previousGate.project_id);
+  if (!previousPhase || !nextPhase || !previousProject || !nextProject) {
+    throw new Error(`gate approval graph is incomplete for incremental transaction: ${gateId}`);
+  }
+
+  const approvalPacks = insertedRows(previousRows, nextRows, "gate_approval_packs");
+  const approvalPack = approvalPacks.find((row) => row.id === approvalPackId) || null;
+  if (approvalPacks.length !== 1 || !approvalPack) {
+    throw new Error("gate approval transaction requires exactly one inserted approval pack");
+  }
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "GATE_APPROVED") {
+    throw new Error("gate approval transaction requires exactly one GATE_APPROVED audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("gate approval transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(
+    storeDelta,
+    ["projects", "phases", "gates", "gate_approval_packs", "notifications", "audit_events"],
+    "gate approval",
+  );
+  assertInsertedSideEffects(storeDelta, "gate approval");
+  assertNoRowAddsOrDeletes(storeDelta, "projects", "gate approval");
+  assertNoRowAddsOrDeletes(storeDelta, "phases", "gate approval");
+  assertNoRowAddsOrDeletes(storeDelta, "gates", "gate approval");
+
+  const approvalPackDelta = storeDelta.tables.gate_approval_packs;
+  if (
+    approvalPackDelta.missingInDatabase.length > 0 ||
+    approvalPackDelta.missingInStore.length !== 1 ||
+    approvalPackDelta.missingInStore[0] !== approvalPackId ||
+    approvalPackDelta.changed.length > 0
+  ) {
+    throw new Error("gate approval transaction contains unsupported approval pack changes");
+  }
+
+  const gateChanged = changedRowForId(storeDelta, "gates", gateId, "gate approval");
+  const gateFields = gateChanged.fields;
+  const allowedGateFields = new Set(["status", "approved_by_user_id", "approved_at", "approval_comment"]);
+  const unsupportedGateFields = gateFields.filter((field) => !allowedGateFields.has(field));
+  if (unsupportedGateFields.length > 0) {
+    throw new Error(`gate approval transaction contains unsupported gate fields: ${unsupportedGateFields.join(", ")}`);
+  }
+
+  const currentPhaseChanged = changedRowForId(storeDelta, "phases", previousPhase.id, "gate approval");
+  if (currentPhaseChanged.fields.join(",") !== "status") {
+    throw new Error("gate approval transaction contains unsupported current phase changes");
+  }
+
+  const projectChanged = changedRowForId(storeDelta, "projects", previousProject.id, "gate approval");
+  const allowedProjectFields = new Set(["current_phase_id", "status"]);
+  const unsupportedProjectFields = projectChanged.fields.filter((field) => !allowedProjectFields.has(field));
+  if (unsupportedProjectFields.length > 0) {
+    throw new Error(`gate approval transaction contains unsupported project fields: ${unsupportedProjectFields.join(", ")}`);
+  }
+
+  const phaseChanges = storeDelta.tables.phases.changed;
+  const gateChanges = storeDelta.tables.gates.changed;
+  const nextPhaseChange = phaseChanges.find((row) => row.id !== previousPhase.id) || null;
+  const nextGateChange = gateChanges.find((row) => row.id !== gateId) || null;
+  if (nextPhaseChange && nextPhaseChange.fields.join(",") !== "status") {
+    throw new Error("gate approval transaction contains unsupported next phase changes");
+  }
+  if (nextGateChange && nextGateChange.fields.join(",") !== "status") {
+    throw new Error("gate approval transaction contains unsupported next gate changes");
+  }
+  if (phaseChanges.length > (nextPhaseChange ? 2 : 1)) {
+    throw new Error("gate approval transaction contains unsupported phase changes");
+  }
+  if (gateChanges.length > (nextGateChange ? 2 : 1)) {
+    throw new Error("gate approval transaction contains unsupported gate changes");
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const previousByTable = {
+    projects: new Map(previousRows.projects.map((row) => [row.id, row])),
+    phases: new Map(previousRows.phases.map((row) => [row.id, row])),
+    gates: new Map(previousRows.gates.map((row) => [row.id, row])),
+  };
+  const nextByTable = {
+    projects: new Map(nextRows.projects.map((row) => [row.id, row])),
+    phases: new Map(nextRows.phases.map((row) => [row.id, row])),
+    gates: new Map(nextRows.gates.map((row) => [row.id, row])),
+  };
+  const changedRowSql = (table, id, fields, rowsByTable) => [
+    `  UPDATE ${table} SET ${renderUpdateSet(rowsByTable[table].get(id), fields)} WHERE id = ${sqlString(id)} AND ${renderPreviousConditions(previousByTable[table].get(id), fields)};`,
+    "  IF NOT FOUND THEN",
+    `    RAISE EXCEPTION '${table} changed concurrently or row is missing: ${id}';`,
+    "  END IF;",
+  ].join("\n");
+  const rollbackRowSql = (table, id, fields) =>
+    `UPDATE ${table} SET ${renderUpdateSet(previousByTable[table].get(id), fields)} WHERE id = ${sqlString(id)} AND ${renderPreviousConditions(nextByTable[table].get(id), fields)};`;
+
+  const applySql = [
+    "-- Native incremental gate-approval transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    changedRowSql("gates", gateId, gateFields, nextByTable),
+    changedRowSql("phases", previousPhase.id, currentPhaseChanged.fields, nextByTable),
+    ...(nextPhaseChange ? [changedRowSql("phases", nextPhaseChange.id, nextPhaseChange.fields, nextByTable)] : []),
+    changedRowSql("projects", previousProject.id, projectChanged.fields, nextByTable),
+    ...(nextGateChange ? [changedRowSql("gates", nextGateChange.id, nextGateChange.fields, nextByTable)] : []),
+    "END;",
+    "$hardware_flow$;",
+    renderGateApprovalPackInsert(approvalPack),
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating gate-approval transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM gate_approval_packs WHERE id = ${sqlString(approvalPackId)};`,
+    ...(nextGateChange ? [rollbackRowSql("gates", nextGateChange.id, nextGateChange.fields)] : []),
+    rollbackRowSql("projects", previousProject.id, projectChanged.fields),
+    ...(nextPhaseChange ? [rollbackRowSql("phases", nextPhaseChange.id, nextPhaseChange.fields)] : []),
+    rollbackRowSql("phases", previousPhase.id, currentPhaseChanged.fields),
+    rollbackRowSql("gates", gateId, gateFields),
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "gate-approval",
+    gateId,
+    approvalPackId,
+    changedProjectFields: projectChanged.fields,
+    changedGateIds: gateChanges.map((row) => row.id),
+    changedPhaseIds: phaseChanges.map((row) => row.id),
     auditEventCount: auditEvents.length,
     notificationCount: notifications.length,
     applySql,
@@ -570,6 +766,13 @@ export function executePostgresIncrementalTransaction({
         artifactId: mutation.artifactId,
         reviewId: mutation.reviewId,
       });
+    } else if (mutation?.kind === "gate-approval") {
+      transaction = buildGateApprovalTransaction({
+        previousStore,
+        nextStore,
+        gateId: mutation.gateId,
+        approvalPackId: mutation.approvalPackId,
+      });
     } else {
       throw new Error(`unsupported incremental mutation: ${mutation?.kind || "missing"}`);
     }
@@ -601,6 +804,8 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),
         ...(transaction.reviewId ? { reviewId: transaction.reviewId } : {}),
+        ...(transaction.gateId ? { gateId: transaction.gateId } : {}),
+        ...(transaction.approvalPackId ? { approvalPackId: transaction.approvalPackId } : {}),
       },
       counts: { auditEvents: transaction.auditEventCount, notifications: transaction.notificationCount },
       errors: [],

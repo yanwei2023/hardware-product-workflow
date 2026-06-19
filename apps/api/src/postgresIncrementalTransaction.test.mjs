@@ -6,7 +6,9 @@ import test from "node:test";
 import { createDemoStore } from "./demoStoreFactory.mjs";
 import {
   addAuditEventInStore,
+  addGateApprovalPackInStore,
   addNotificationInStore,
+  approveGateInStore,
   completeRiskMitigationInStore,
   submitHumanReviewInStore,
   updateRiskMitigationInStore,
@@ -15,6 +17,7 @@ import {
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import {
+  buildGateApprovalTransaction,
   buildRiskTransaction,
   buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
@@ -240,6 +243,73 @@ function humanReviewChangedStores(decision = "APPROVE") {
   return { previousStore, nextStore, workPackageId, artifactId, reviewId: review.id };
 }
 
+function gateApprovalChangedStores({ final = false } = {}) {
+  const previousStore = createDemoStore();
+  const project = previousStore.projects.find((item) => item.id === previousStore.activeProjectId);
+  let gateId = "gate-evt_exit";
+  if (final) {
+    const finalPhase = previousStore.phases
+      .filter((item) => item.projectId === project.id)
+      .sort((left, right) => right.sequence - left.sequence)[0];
+    project.currentPhaseId = finalPhase.id;
+    finalPhase.status = "GATE_BLOCKED";
+    gateId = previousStore.gates.find((item) => item.phaseId === finalPhase.id).id;
+  }
+  previousStore.gates.find((item) => item.id === gateId).status = "READY";
+
+  const nextStore = structuredClone(previousStore);
+  const approvedAt = final ? "2026-06-14T07:30:00.000Z" : "2026-06-14T07:00:00.000Z";
+  const approvalComment = final ? "批准项目完成" : "批准进入下一阶段";
+  const approval = approveGateInStore(nextStore, gateId, {
+    approvedByUserId: "user-project-manager",
+    approvedAt,
+    approvalComment,
+  });
+  const approvalPackId = `gate-pack-${final ? "final" : "evt"}`;
+  addGateApprovalPackInStore(nextStore, {
+    id: approvalPackId,
+    projectId: approval.gate.projectId,
+    gateId: approval.gate.id,
+    phaseId: approval.gate.phaseId,
+    approvedByUserId: "user-project-manager",
+    approvedAt: approval.gate.approvedAt,
+    approvalComment: approval.gate.approvalComment,
+    reviewPack: {
+      gate: { id: approval.gate.id, status: "APPROVED" },
+      readiness: { status: "READY", blockers: [] },
+      summary: { readyForApproval: true, blockerCount: 0 },
+    },
+  });
+  addAuditEventInStore(nextStore, {
+    id: `audit-${approvalPackId}`,
+    projectId: approval.gate.projectId,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "GATE_APPROVED",
+    objectType: "gate",
+    objectId: approval.gate.id,
+    payload: {
+      nextPhaseId: approval.project.currentPhaseId,
+      comment: approval.gate.approvalComment,
+      approvalPackId,
+    },
+    createdAt: approvedAt,
+  });
+  addNotificationInStore(nextStore, {
+    id: `notification-${approvalPackId}`,
+    projectId: approval.gate.projectId,
+    userId: "user-project-manager",
+    title: "阶段门已批准",
+    message: `${approval.phase.name} 阶段门已批准。`,
+    type: "INFO",
+    status: "UNREAD",
+    objectType: "gate",
+    objectId: approval.gate.id,
+    createdAt: approvedAt,
+  });
+  return { previousStore, nextStore, gateId, approvalPackId };
+}
+
 function queryRunnerSequence(rowsList) {
   let index = 0;
   return () => ({ status: 0, signal: null, stdout: `${JSON.stringify(rowsList[Math.min(index++, rowsList.length - 1)])}\n`, stderr: "" });
@@ -377,6 +447,43 @@ test("human review transaction rejects unrelated artifact changes", () => {
   );
 });
 
+test("gate approval transaction advances project atomically", () => {
+  const { previousStore, nextStore, gateId, approvalPackId } = gateApprovalChangedStores();
+  const transaction = buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId });
+
+  assert.match(transaction.applySql, /^-- Native incremental gate-approval transaction/m);
+  assert.match(transaction.applySql, /DO \$hardware_flow\$[\s\S]*UPDATE gates SET [\s\S]*status = 'APPROVED'/);
+  assert.match(transaction.applySql, /IF NOT FOUND THEN[\s\S]*RAISE EXCEPTION 'gates changed concurrently or row is missing: gate-evt_exit'/);
+  assert.match(transaction.applySql, /INSERT INTO gate_approval_packs[\s\S]*INSERT INTO audit_events[\s\S]*INSERT INTO notifications[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*DELETE FROM gate_approval_packs/);
+  assert.match(transaction.rollbackSql, /current_phase_id = 'phase-evt_exit'/);
+  assert.deepEqual(transaction.changedProjectFields, ["current_phase_id"]);
+  assert.deepEqual(transaction.changedGateIds, ["gate-dvt_exit", "gate-evt_exit"]);
+  assert.deepEqual(transaction.changedPhaseIds, ["phase-dvt_exit", "phase-evt_exit"]);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("gate approval transaction supports final phase completion", () => {
+  const { previousStore, nextStore, gateId, approvalPackId } = gateApprovalChangedStores({ final: true });
+  const transaction = buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId });
+
+  assert.match(transaction.applySql, /UPDATE projects SET status = 'COMPLETED'/);
+  assert.deepEqual(transaction.changedProjectFields, ["status"]);
+  assert.deepEqual(transaction.changedGateIds, [gateId]);
+  assert.deepEqual(transaction.changedPhaseIds, [nextStore.gates.find((gate) => gate.id === gateId).phaseId]);
+});
+
+test("gate approval transaction rejects unrelated phase changes", () => {
+  const { previousStore, nextStore, gateId, approvalPackId } = gateApprovalChangedStores();
+  nextStore.phases.find((phase) => phase.id === "phase-dvt_exit").name = "Unexpected";
+
+  assert.throws(
+    () => buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId }),
+    /unsupported next phase changes/,
+  );
+});
+
 test("incremental role pair transaction executes and verifies the complete store", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
   const { previousStore, nextStore } = changedStores();
@@ -453,6 +560,24 @@ test("incremental human review transaction executes and reports its mutation ide
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "human-review-submit", workPackageId, artifactId, reviewId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental gate approval transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, gateId, approvalPackId } = gateApprovalChangedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "gate-approval", gateId, approvalPackId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "gate-approval", gateId, approvalPackId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

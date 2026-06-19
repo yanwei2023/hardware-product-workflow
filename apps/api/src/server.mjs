@@ -3487,7 +3487,13 @@ export function approveGate(gateId, body = {}) {
     objectType: "gate",
     objectId: gate.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "gate-approval",
+      gateId: gate.id,
+      approvalPackId: approvalPack.id,
+    },
+  });
 
   return {
     statusCode: 200,
