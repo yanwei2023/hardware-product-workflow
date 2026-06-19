@@ -21,6 +21,7 @@ import {
 import {
   buildGateApprovalTransaction,
   buildNotificationReadTransaction,
+  buildProjectNotificationsReadTransaction,
   buildRiskTransaction,
   buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
@@ -151,6 +152,31 @@ function notificationReadStores() {
   const notificationId = "notification-read-target";
   markNotificationReadInStore(nextStore, notificationId, { readAt: "2026-06-14T03:00:00.000Z" });
   return { previousStore, nextStore, notificationId };
+}
+
+function projectNotificationsReadStores() {
+  const previousStore = createDemoStore();
+  const projectId = previousStore.activeProjectId;
+  const userId = "user-project-manager";
+  for (const id of ["notification-read-target-a", "notification-read-target-b"]) {
+    addNotificationInStore(previousStore, {
+      id,
+      projectId,
+      userId,
+      title: `待读通知 ${id}`,
+      message: "需要确认。",
+      type: "INFO",
+      status: "UNREAD",
+      objectType: "project",
+      objectId: projectId,
+      createdAt: "2026-06-14T02:30:00.000Z",
+    });
+  }
+  const nextStore = structuredClone(previousStore);
+  for (const notificationId of ["notification-read-target-a", "notification-read-target-b"]) {
+    markNotificationReadInStore(nextStore, notificationId, { readAt: "2026-06-14T03:00:00.000Z" });
+  }
+  return { previousStore, nextStore, projectId, userId, notificationIds: ["notification-read-target-a", "notification-read-target-b"] };
 }
 
 function riskStatusChangedStores() {
@@ -508,6 +534,30 @@ test("notification read transaction rejects unrelated in-memory changes", () => 
   );
 });
 
+test("project notifications read transaction marks all scoped notifications read", () => {
+  const { previousStore, nextStore, projectId, userId, notificationIds } = projectNotificationsReadStores();
+  const transaction = buildProjectNotificationsReadTransaction({ previousStore, nextStore, projectId, userId });
+
+  assert.match(transaction.applySql, /^-- Native incremental project-notifications-read transaction/m);
+  assert.equal((transaction.applySql.match(/UPDATE notifications SET status = 'READ'/g) || []).length, 2);
+  assert.match(transaction.applySql, /project_id = 'project-smart-controller'/);
+  assert.match(transaction.applySql, /user_id = 'user-project-manager'/);
+  assert.match(transaction.rollbackSql, /SET status = 'UNREAD', read_at = NULL/);
+  assert.deepEqual(transaction.notificationIds, notificationIds);
+  assert.equal(transaction.auditEventCount, 0);
+  assert.equal(transaction.notificationCount, 2);
+});
+
+test("project notifications read transaction rejects notifications outside the user scope", () => {
+  const { previousStore, nextStore, projectId, userId } = projectNotificationsReadStores();
+  nextStore.notifications.find((notification) => notification.id === "notification-read-target-b").userId = "user-quality-lead";
+
+  assert.throws(
+    () => buildProjectNotificationsReadTransaction({ previousStore, nextStore, projectId, userId }),
+    /outside the user/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -697,6 +747,24 @@ test("incremental notification transaction executes and reports its mutation ide
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "notification-read", notificationId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental project notifications transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, projectId, userId, notificationIds } = projectNotificationsReadStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "project-notifications-read", projectId, userId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "project-notifications-read", notificationIds, projectId, userId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

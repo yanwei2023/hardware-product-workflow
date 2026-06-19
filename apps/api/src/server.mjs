@@ -2786,7 +2786,16 @@ export function markUserNotificationsRead(userId) {
   const project = currentProject();
   const updatedCount = markProjectUserNotificationsReadInStore(store, project.id, userId);
 
-  persistStore();
+  const persistenceOptions = updatedCount > 0
+    ? {
+        incrementalMutation: {
+          kind: "project-notifications-read",
+          projectId: project.id,
+          userId,
+        },
+      }
+    : {};
+  persistStore(persistenceOptions);
 
   return {
     statusCode: 200,

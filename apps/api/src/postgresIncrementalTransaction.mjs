@@ -406,6 +406,87 @@ export function buildNotificationReadTransaction({ previousStore, nextStore, not
   };
 }
 
+export function buildProjectNotificationsReadTransaction({ previousStore, nextStore, projectId, userId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  assertOnlyTablesChanged(storeDelta, ["notifications"], "project notifications read transaction");
+
+  const notificationDelta = storeDelta.tables.notifications;
+  if (notificationDelta.missingInDatabase.length > 0 || notificationDelta.missingInStore.length > 0) {
+    throw new Error("project notifications read transaction contains unsupported notification row additions or deletions");
+  }
+  if (notificationDelta.changed.length === 0) {
+    throw new Error(`project notifications read transaction did not change notifications for ${projectId}/${userId}`);
+  }
+
+  const previousById = new Map(previousRows.notifications.map((row) => [row.id, row]));
+  const nextById = new Map(nextRows.notifications.map((row) => [row.id, row]));
+  const allowedFields = new Set(["read_at", "status"]);
+  const changedNotifications = notificationDelta.changed.map((change) => {
+    const previousNotification = previousById.get(change.id);
+    const nextNotification = nextById.get(change.id);
+    if (!previousNotification || !nextNotification) {
+      throw new Error(`notification not found for incremental transaction: ${change.id}`);
+    }
+    if (previousNotification.project_id !== projectId || nextNotification.project_id !== projectId) {
+      throw new Error("project notifications read transaction contains notifications outside the project");
+    }
+    if (previousNotification.user_id !== userId || nextNotification.user_id !== userId) {
+      throw new Error("project notifications read transaction contains notifications outside the user");
+    }
+    if (previousNotification.status !== "UNREAD" || nextNotification.status !== "READ" || !nextNotification.read_at) {
+      throw new Error("project notifications read transaction requires UNREAD notifications to become READ with read_at timestamps");
+    }
+    const unsupportedFields = change.fields.filter((field) => !allowedFields.has(field));
+    if (unsupportedFields.length > 0 || change.fields.length === 0) {
+      throw new Error("project notifications read transaction contains unsupported notification changes");
+    }
+    return { change, previousNotification, nextNotification };
+  });
+
+  const updateSql = changedNotifications.flatMap(({ change, previousNotification, nextNotification }) => [
+    `  UPDATE notifications SET status = ${sqlString(nextNotification.status)}, read_at = ${sqlString(nextNotification.read_at)} WHERE id = ${sqlString(change.id)} AND project_id = ${sqlString(projectId)} AND user_id = ${sqlString(userId)} AND status = ${sqlString(previousNotification.status)} AND read_at IS NOT DISTINCT FROM ${sqlNullable(previousNotification.read_at)};`,
+    "  IF NOT FOUND THEN",
+    `    RAISE EXCEPTION 'notification read state changed concurrently or notification is missing: ${change.id}';`,
+    "  END IF;",
+  ]);
+  const rollbackSql = changedNotifications.map(({ change, previousNotification, nextNotification }) =>
+    `UPDATE notifications SET status = ${sqlString(previousNotification.status)}, read_at = ${sqlNullable(previousNotification.read_at)} WHERE id = ${sqlString(change.id)} AND project_id = ${sqlString(projectId)} AND user_id = ${sqlString(userId)} AND status = ${sqlString(nextNotification.status)} AND read_at IS NOT DISTINCT FROM ${sqlString(nextNotification.read_at)};`,
+  );
+
+  return {
+    kind: "project-notifications-read",
+    projectId,
+    userId,
+    notificationIds: changedNotifications.map(({ change }) => change.id),
+    auditEventCount: 0,
+    notificationCount: changedNotifications.length,
+    applySql: [
+      "-- Native incremental project-notifications-read transaction",
+      "BEGIN;",
+      "SELECT pg_advisory_xact_lock(724311);",
+      "DO $hardware_flow$",
+      "BEGIN",
+      ...updateSql,
+      "END;",
+      "$hardware_flow$;",
+      "COMMIT;",
+      "",
+    ].join("\n"),
+    rollbackSql: [
+      "-- Compensating project-notifications-read transaction",
+      "BEGIN;",
+      "SELECT pg_advisory_xact_lock(724311);",
+      ...rollbackSql,
+      "COMMIT;",
+      "",
+    ].join("\n"),
+    previousRows,
+    nextRows,
+  };
+}
+
 const riskMutationFieldAllowlist = {
   "risk-status-update": new Set([
     "status",
@@ -914,6 +995,13 @@ export function executePostgresIncrementalTransaction({
       });
     } else if (mutation?.kind === "notification-read") {
       transaction = buildNotificationReadTransaction({ previousStore, nextStore, notificationId: mutation.notificationId });
+    } else if (mutation?.kind === "project-notifications-read") {
+      transaction = buildProjectNotificationsReadTransaction({
+        previousStore,
+        nextStore,
+        projectId: mutation.projectId,
+        userId: mutation.userId,
+      });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "human-review-submit") {
@@ -961,7 +1049,10 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
         ...(transaction.evidenceRefId ? { evidenceRefId: transaction.evidenceRefId } : {}),
         ...(transaction.notificationId ? { notificationId: transaction.notificationId } : {}),
+        ...(transaction.notificationIds ? { notificationIds: transaction.notificationIds } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
+        ...(transaction.projectId ? { projectId: transaction.projectId } : {}),
+        ...(transaction.userId ? { userId: transaction.userId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),
         ...(transaction.reviewId ? { reviewId: transaction.reviewId } : {}),
         ...(transaction.gateId ? { gateId: transaction.gateId } : {}),
