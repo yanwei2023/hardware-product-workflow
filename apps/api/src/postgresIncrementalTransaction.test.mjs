@@ -11,6 +11,7 @@ import {
   addWorkPackageEvidenceRefInStore,
   approveGateInStore,
   completeRiskMitigationInStore,
+  markNotificationReadInStore,
   submitHumanReviewInStore,
   updateRiskMitigationInStore,
   updateRolePairOwnerInStore,
@@ -19,6 +20,7 @@ import {
 } from "./storeRepository.mjs";
 import {
   buildGateApprovalTransaction,
+  buildNotificationReadTransaction,
   buildRiskTransaction,
   buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
@@ -129,6 +131,26 @@ function evidenceChangedStores({ file = false } = {}) {
     createdAt: evidenceRef.createdAt,
   });
   return { previousStore, nextStore, workPackageId, evidenceRefId: evidenceRef.id };
+}
+
+function notificationReadStores() {
+  const previousStore = createDemoStore();
+  addNotificationInStore(previousStore, {
+    id: "notification-read-target",
+    projectId: previousStore.activeProjectId,
+    userId: "user-project-manager",
+    title: "待读通知",
+    message: "需要确认。",
+    type: "INFO",
+    status: "UNREAD",
+    objectType: "project",
+    objectId: previousStore.activeProjectId,
+    createdAt: "2026-06-14T02:30:00.000Z",
+  });
+  const nextStore = structuredClone(previousStore);
+  const notificationId = "notification-read-target";
+  markNotificationReadInStore(nextStore, notificationId, { readAt: "2026-06-14T03:00:00.000Z" });
+  return { previousStore, nextStore, notificationId };
 }
 
 function riskStatusChangedStores() {
@@ -454,6 +476,38 @@ test("work package evidence transaction rejects unrelated evidence changes", () 
   );
 });
 
+test("notification read transaction marks one notification read with compensation", () => {
+  const { previousStore, nextStore, notificationId } = notificationReadStores();
+  const transaction = buildNotificationReadTransaction({ previousStore, nextStore, notificationId });
+
+  assert.match(transaction.applySql, /^-- Native incremental notification-read transaction/m);
+  assert.match(transaction.applySql, /UPDATE notifications SET status = 'READ', read_at = '2026-06-14T03:00:00.000Z'/);
+  assert.match(transaction.applySql, /status = 'UNREAD'[\s\S]*read_at IS NOT DISTINCT FROM NULL/);
+  assert.match(transaction.rollbackSql, /SET status = 'UNREAD', read_at = NULL/);
+  assert.equal(transaction.auditEventCount, 0);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("notification read transaction supports refreshing an existing read timestamp", () => {
+  const { previousStore, nextStore, notificationId } = notificationReadStores();
+  markNotificationReadInStore(previousStore, notificationId, { readAt: "2026-06-14T02:00:00.000Z" });
+
+  const transaction = buildNotificationReadTransaction({ previousStore, nextStore, notificationId });
+
+  assert.match(transaction.applySql, /status = 'READ'[\s\S]*read_at IS NOT DISTINCT FROM '2026-06-14T02:00:00.000Z'/);
+  assert.match(transaction.rollbackSql, /SET status = 'READ', read_at = '2026-06-14T02:00:00.000Z'/);
+});
+
+test("notification read transaction rejects unrelated in-memory changes", () => {
+  const { previousStore, nextStore, notificationId } = notificationReadStores();
+  nextStore.projects[0].status = "UNRELATED_CHANGE";
+
+  assert.throws(
+    () => buildNotificationReadTransaction({ previousStore, nextStore, notificationId }),
+    /contains unrelated store changes: projects/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -625,6 +679,24 @@ test("incremental work package evidence transaction executes and reports its mut
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "work-package-evidence-add", workPackageId, evidenceRefId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental notification transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, notificationId } = notificationReadStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "notification-read", notificationId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "notification-read", notificationId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -335,6 +335,77 @@ export function buildWorkPackageScheduleTransaction({ previousStore, nextStore, 
   };
 }
 
+export function buildNotificationReadTransaction({ previousStore, nextStore, notificationId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousNotification = previousRows.notifications.find((row) => row.id === notificationId);
+  const nextNotification = nextRows.notifications.find((row) => row.id === notificationId);
+  if (!previousNotification || !nextNotification) {
+    throw new Error(`notification not found for incremental transaction: ${notificationId}`);
+  }
+  if (previousNotification.status === nextNotification.status && previousNotification.read_at === nextNotification.read_at) {
+    throw new Error(`notification read state did not change: ${notificationId}`);
+  }
+  if (nextNotification.status !== "READ" || !nextNotification.read_at) {
+    throw new Error("notification read transaction requires a READ status and read_at timestamp");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["notifications"], "notification read transaction");
+  const notificationDelta = storeDelta.tables.notifications;
+  const changedFields = notificationDelta.changed[0]?.fields || [];
+  const allowedFields = new Set(["read_at", "status"]);
+  if (
+    notificationDelta.missingInDatabase.length > 0 ||
+    notificationDelta.missingInStore.length > 0 ||
+    notificationDelta.changed.length !== 1 ||
+    notificationDelta.changed[0].id !== notificationId ||
+    changedFields.some((field) => !allowedFields.has(field)) ||
+    changedFields.length === 0
+  ) {
+    throw new Error("notification read transaction contains unsupported notification changes");
+  }
+
+  const applySql = [
+    "-- Native incremental notification-read transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE notifications SET status = ${sqlString(nextNotification.status)}, read_at = ${sqlString(nextNotification.read_at)} WHERE id = ${sqlString(notificationId)} AND status = ${sqlString(previousNotification.status)} AND read_at IS NOT DISTINCT FROM ${sqlNullable(previousNotification.read_at)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'notification read state changed concurrently or notification is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating notification-read transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `UPDATE notifications SET status = ${sqlString(previousNotification.status)}, read_at = ${sqlNullable(previousNotification.read_at)} WHERE id = ${sqlString(notificationId)} AND status = ${sqlString(nextNotification.status)} AND read_at IS NOT DISTINCT FROM ${sqlString(nextNotification.read_at)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "notification-read",
+    notificationId,
+    previousStatus: previousNotification.status,
+    status: nextNotification.status,
+    previousReadAt: previousNotification.read_at,
+    readAt: nextNotification.read_at,
+    auditEventCount: 0,
+    notificationCount: 1,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 const riskMutationFieldAllowlist = {
   "risk-status-update": new Set([
     "status",
@@ -841,6 +912,8 @@ export function executePostgresIncrementalTransaction({
         workPackageId: mutation.workPackageId,
         evidenceRefId: mutation.evidenceRefId,
       });
+    } else if (mutation?.kind === "notification-read") {
+      transaction = buildNotificationReadTransaction({ previousStore, nextStore, notificationId: mutation.notificationId });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "human-review-submit") {
@@ -887,6 +960,7 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.rolePairId ? { rolePairId: transaction.rolePairId } : {}),
         ...(transaction.workPackageId ? { workPackageId: transaction.workPackageId } : {}),
         ...(transaction.evidenceRefId ? { evidenceRefId: transaction.evidenceRefId } : {}),
+        ...(transaction.notificationId ? { notificationId: transaction.notificationId } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),
         ...(transaction.reviewId ? { reviewId: transaction.reviewId } : {}),

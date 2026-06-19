@@ -2760,8 +2760,18 @@ export function markNotificationRead(notificationId, body = {}) {
     };
   }
 
+  const previousStatus = notification.status;
+  const previousReadAt = notification.readAt || null;
   markNotificationReadInStore(store, notification.id);
-  persistStore();
+  const persistenceOptions = previousStatus === notification.status && previousReadAt === (notification.readAt || null)
+    ? {}
+    : {
+        incrementalMutation: {
+          kind: "notification-read",
+          notificationId: notification.id,
+        },
+      };
+  persistStore(persistenceOptions);
 
   return {
     statusCode: 200,
