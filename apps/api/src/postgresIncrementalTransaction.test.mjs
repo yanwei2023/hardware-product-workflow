@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { createDemoStore } from "./demoStoreFactory.mjs";
 import {
+  addAgentJobInStore,
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
@@ -21,6 +22,7 @@ import {
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import {
+  buildAgentJobQueueTransaction,
   buildConditionalApprovalCompletionTransaction,
   buildGateApprovalTransaction,
   buildNotificationReadTransaction,
@@ -235,6 +237,42 @@ function riskCreatedStores() {
     createdAt: "2026-06-14T02:45:00.000Z",
   });
   return { previousStore, nextStore, riskId };
+}
+
+function agentJobQueuedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const agentJobId = "agent-job-evt-test-plan";
+  const projectId = nextStore.activeProjectId;
+  const workPackageId = "wp-evt_exit-evt_test_plan";
+  addAgentJobInStore(nextStore, {
+    id: agentJobId,
+    projectId,
+    workPackageId,
+    agentKey: "test-agent",
+    inputRefs: ["artifact:queued-agent"],
+    draftMarkdown: "## 测试计划\n\n- 覆盖热测试。",
+    requestedByUserId: "user-project-manager",
+    status: "QUEUED",
+    createdAt: "2026-06-14T02:50:00.000Z",
+    startedAt: null,
+    completedAt: null,
+    resultStatusCode: null,
+    agentRunId: null,
+    error: "",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-agent-job-queued",
+    projectId,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "AGENT_JOB_QUEUED",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: { agentJobId, agentKey: "test-agent" },
+    createdAt: "2026-06-14T02:50:00.000Z",
+  });
+  return { previousStore, nextStore, agentJobId, workPackageId };
 }
 
 function riskStatusChangedStores() {
@@ -683,6 +721,44 @@ test("risk create transaction rejects multiple inserted risks", () => {
   );
 });
 
+test("agent job queue transaction inserts job and audit atomically", () => {
+  const { previousStore, nextStore, agentJobId } = agentJobQueuedStores();
+  const transaction = buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId });
+
+  assert.match(transaction.applySql, /^-- Native incremental agent-job-queue transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO agent_jobs/);
+  assert.match(transaction.applySql, /artifact:queued-agent/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*AGENT_JOB_QUEUED/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*DELETE FROM agent_jobs/);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("agent job queue transaction rejects multiple inserted jobs", () => {
+  const { previousStore, nextStore, agentJobId } = agentJobQueuedStores();
+  addAgentJobInStore(nextStore, {
+    id: "agent-job-extra",
+    projectId: nextStore.activeProjectId,
+    workPackageId: "wp-evt_exit-evt_test_plan",
+    agentKey: "test-agent",
+    inputRefs: [],
+    draftMarkdown: null,
+    requestedByUserId: "user-project-manager",
+    status: "QUEUED",
+    createdAt: "2026-06-14T02:51:00.000Z",
+    startedAt: null,
+    completedAt: null,
+    resultStatusCode: null,
+    agentRunId: null,
+    error: "",
+  });
+
+  assert.throws(
+    () => buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId }),
+    /requires exactly one inserted agent job/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -936,6 +1012,24 @@ test("incremental risk create transaction executes and reports its mutation iden
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "risk-create", riskId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental agent job queue transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, agentJobId, workPackageId } = agentJobQueuedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "agent-job-queue", agentJobId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "agent-job-queue", workPackageId, agentJobId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

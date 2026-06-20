@@ -185,6 +185,25 @@ function renderRiskInsert(row) {
   ].join(", ")});`;
 }
 
+function renderAgentJobInsert(row) {
+  return `INSERT INTO agent_jobs (id, project_id, work_package_id, agent_key, input_refs, draft_markdown, requested_by_user_id, status, created_at, started_at, completed_at, result_status_code, agent_run_id, error) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.project_id),
+    sqlString(row.work_package_id),
+    sqlString(row.agent_key),
+    sqlJson(row.input_refs),
+    sqlNullable(row.draft_markdown),
+    sqlString(row.requested_by_user_id),
+    sqlString(row.status),
+    sqlString(row.created_at),
+    sqlNullable(row.started_at),
+    sqlNullable(row.completed_at),
+    sqlNullable(row.result_status_code),
+    sqlNullable(row.agent_run_id),
+    sqlString(row.error),
+  ].join(", ")});`;
+}
+
 function renderUpdateSet(row, fields) {
   return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
 }
@@ -716,6 +735,76 @@ export function buildRiskCreateTransaction({ previousStore, nextStore, riskId } 
   };
 }
 
+export function buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const agentJobs = insertedRows(previousRows, nextRows, "agent_jobs");
+  const agentJob = agentJobs.find((row) => row.id === agentJobId) || null;
+  if (agentJobs.length !== 1 || !agentJob) {
+    throw new Error("agent job queue transaction requires exactly one inserted agent job");
+  }
+  if (
+    agentJob.status !== "QUEUED" ||
+    !agentJob.project_id ||
+    !agentJob.work_package_id ||
+    !agentJob.agent_key ||
+    !agentJob.requested_by_user_id ||
+    !agentJob.created_at
+  ) {
+    throw new Error("agent job queue transaction requires a complete QUEUED agent job row");
+  }
+
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "AGENT_JOB_QUEUED") {
+    throw new Error("agent job queue transaction requires exactly one AGENT_JOB_QUEUED audit event");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["agent_jobs", "audit_events"], "agent job queue transaction");
+  assertInsertedSideEffects(storeDelta, "agent job queue transaction");
+  const agentJobDelta = storeDelta.tables.agent_jobs;
+  if (
+    agentJobDelta.missingInDatabase.length > 0 ||
+    agentJobDelta.missingInStore.length !== 1 ||
+    agentJobDelta.missingInStore[0] !== agentJobId ||
+    agentJobDelta.changed.length > 0
+  ) {
+    throw new Error("agent job queue transaction contains unsupported agent job changes");
+  }
+
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental agent-job-queue transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderAgentJobInsert(agentJob),
+    ...auditEvents.map(renderAuditInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating agent-job-queue transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM agent_jobs WHERE id = ${sqlString(agentJobId)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "agent-job-queue",
+    agentJobId,
+    workPackageId: agentJob.work_package_id,
+    auditEventCount: auditEvents.length,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1185,6 +1274,8 @@ export function executePostgresIncrementalTransaction({
       transaction = buildRiskCreateTransaction({ previousStore, nextStore, riskId: mutation.riskId });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
+    } else if (mutation?.kind === "agent-job-queue") {
+      transaction = buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId: mutation.agentJobId });
     } else if (mutation?.kind === "human-review-submit") {
       transaction = buildHumanReviewTransaction({
         previousStore,
@@ -1234,6 +1325,7 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.notificationId ? { notificationId: transaction.notificationId } : {}),
         ...(transaction.notificationIds ? { notificationIds: transaction.notificationIds } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
+        ...(transaction.agentJobId ? { agentJobId: transaction.agentJobId } : {}),
         ...(transaction.projectId ? { projectId: transaction.projectId } : {}),
         ...(transaction.userId ? { userId: transaction.userId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),

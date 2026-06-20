@@ -2670,7 +2670,12 @@ export function enqueueAgentJob(body = {}) {
     agentJobId: job.id,
     agentKey: job.agentKey,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "agent-job-queue",
+      agentJobId: job.id,
+    },
+  });
 
   return {
     statusCode: 201,
