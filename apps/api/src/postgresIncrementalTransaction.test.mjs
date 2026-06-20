@@ -8,6 +8,7 @@ import {
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   approveGateInStore,
   completeReviewConditionsInStore,
@@ -24,6 +25,7 @@ import {
   buildGateApprovalTransaction,
   buildNotificationReadTransaction,
   buildProjectNotificationsReadTransaction,
+  buildRiskCreateTransaction,
   buildRiskTransaction,
   buildHumanReviewTransaction,
   buildRolePairOwnerTransaction,
@@ -179,6 +181,60 @@ function projectNotificationsReadStores() {
     markNotificationReadInStore(nextStore, notificationId, { readAt: "2026-06-14T03:00:00.000Z" });
   }
   return { previousStore, nextStore, projectId, userId, notificationIds: ["notification-read-target-a", "notification-read-target-b"] };
+}
+
+function riskCreatedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const riskId = "risk-evt_exit-supply-delay";
+  const projectId = nextStore.activeProjectId;
+  const phaseId = "phase-evt_exit";
+  addRiskInStore(nextStore, {
+    id: riskId,
+    projectId,
+    phaseId,
+    title: "关键物料交期不确定",
+    severity: "HIGH",
+    status: "OPEN",
+    createdByUserId: "user-project-manager",
+    createdAt: "2026-06-14T02:45:00.000Z",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-risk-created",
+    projectId,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "RISK_CREATED",
+    objectType: "risk",
+    objectId: riskId,
+    payload: { phaseId, severity: "HIGH" },
+    createdAt: "2026-06-14T02:45:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: "notification-risk-created-pm",
+    projectId,
+    userId: "user-project-manager",
+    title: "新风险待处理",
+    message: "关键物料交期不确定 已创建，严重度为 HIGH。",
+    type: "ACTION",
+    status: "UNREAD",
+    objectType: "risk",
+    objectId: riskId,
+    createdAt: "2026-06-14T02:45:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: "notification-risk-created-quality",
+    projectId,
+    userId: "user-quality-lead",
+    title: "新风险待处理",
+    message: "关键物料交期不确定 已创建，严重度为 HIGH。",
+    type: "ACTION",
+    status: "UNREAD",
+    objectType: "risk",
+    objectId: riskId,
+    createdAt: "2026-06-14T02:45:00.000Z",
+  });
+  return { previousStore, nextStore, riskId };
 }
 
 function riskStatusChangedStores() {
@@ -595,6 +651,38 @@ test("project notifications read transaction rejects notifications outside the u
   );
 });
 
+test("risk create transaction inserts risk, audit, and notifications atomically", () => {
+  const { previousStore, nextStore, riskId } = riskCreatedStores();
+  const transaction = buildRiskCreateTransaction({ previousStore, nextStore, riskId });
+
+  assert.match(transaction.applySql, /^-- Native incremental risk-create transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO risks/);
+  assert.match(transaction.applySql, /关键物料交期不确定/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*RISK_CREATED[\s\S]*INSERT INTO notifications/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*DELETE FROM risks/);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 2);
+});
+
+test("risk create transaction rejects multiple inserted risks", () => {
+  const { previousStore, nextStore, riskId } = riskCreatedStores();
+  addRiskInStore(nextStore, {
+    id: "risk-extra",
+    projectId: nextStore.activeProjectId,
+    phaseId: "phase-evt_exit",
+    title: "额外风险",
+    severity: "LOW",
+    status: "OPEN",
+    createdByUserId: "user-project-manager",
+    createdAt: "2026-06-14T02:46:00.000Z",
+  });
+
+  assert.throws(
+    () => buildRiskCreateTransaction({ previousStore, nextStore, riskId }),
+    /requires exactly one inserted risk/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -830,6 +918,24 @@ test("incremental project notifications transaction executes and reports its mut
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "project-notifications-read", notificationIds, projectId, userId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental risk create transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, riskId } = riskCreatedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "risk-create", riskId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "risk-create", riskId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -3426,7 +3426,12 @@ function createRiskForCurrentPhase(body = {}, options = {}) {
     objectType: "risk",
     objectId: risk.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "risk-create",
+      riskId: risk.id,
+    },
+  });
 
   return {
     statusCode: 201,

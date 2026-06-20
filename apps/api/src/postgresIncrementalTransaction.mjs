@@ -156,6 +156,35 @@ function renderGateApprovalPackInsert(row) {
   ].join(", ")});`;
 }
 
+function renderRiskInsert(row) {
+  return `INSERT INTO risks (id, project_id, phase_id, title, severity, status, owner_role_pair_id, mitigation, mitigation_owner_user_id, mitigation_due_at, mitigation_status, mitigation_updated_at, mitigation_updated_by_user_id, mitigation_completed_at, mitigation_completed_by_user_id, mitigation_completion_comment, accepted_by_user_id, accepted_at, accepted_comment, closed_by_user_id, closed_at, closed_comment, created_by_user_id, created_at) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.project_id),
+    sqlString(row.phase_id),
+    sqlString(row.title),
+    sqlString(row.severity),
+    sqlString(row.status),
+    sqlNullable(row.owner_role_pair_id),
+    sqlString(row.mitigation),
+    sqlNullable(row.mitigation_owner_user_id),
+    sqlNullable(row.mitigation_due_at),
+    sqlNullable(row.mitigation_status),
+    sqlNullable(row.mitigation_updated_at),
+    sqlNullable(row.mitigation_updated_by_user_id),
+    sqlNullable(row.mitigation_completed_at),
+    sqlNullable(row.mitigation_completed_by_user_id),
+    sqlString(row.mitigation_completion_comment),
+    sqlNullable(row.accepted_by_user_id),
+    sqlNullable(row.accepted_at),
+    sqlString(row.accepted_comment),
+    sqlNullable(row.closed_by_user_id),
+    sqlNullable(row.closed_at),
+    sqlString(row.closed_comment),
+    sqlString(row.created_by_user_id),
+    sqlString(row.created_at),
+  ].join(", ")});`;
+}
+
 function renderUpdateSet(row, fields) {
   return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
 }
@@ -609,6 +638,75 @@ export function buildRiskTransaction({ previousStore, nextStore, riskId, kind } 
     kind,
     riskId,
     changedFields,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
+export function buildRiskCreateTransaction({ previousStore, nextStore, riskId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const risks = insertedRows(previousRows, nextRows, "risks");
+  const risk = risks.find((row) => row.id === riskId) || null;
+  if (risks.length !== 1 || !risk) {
+    throw new Error("risk create transaction requires exactly one inserted risk");
+  }
+  if (risk.status !== "OPEN" || !risk.project_id || !risk.phase_id || !risk.created_by_user_id || !risk.created_at) {
+    throw new Error("risk create transaction requires a complete OPEN risk row");
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "RISK_CREATED") {
+    throw new Error("risk create transaction requires exactly one RISK_CREATED audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("risk create transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["risks", "notifications", "audit_events"], "risk create transaction");
+  assertInsertedSideEffects(storeDelta, "risk create transaction");
+  const riskDelta = storeDelta.tables.risks;
+  if (
+    riskDelta.missingInDatabase.length > 0 ||
+    riskDelta.missingInStore.length !== 1 ||
+    riskDelta.missingInStore[0] !== riskId ||
+    riskDelta.changed.length > 0
+  ) {
+    throw new Error("risk create transaction contains unsupported risk changes");
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental risk-create transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderRiskInsert(risk),
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating risk-create transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM risks WHERE id = ${sqlString(riskId)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "risk-create",
+    riskId,
     auditEventCount: auditEvents.length,
     notificationCount: notifications.length,
     applySql,
@@ -1083,6 +1181,8 @@ export function executePostgresIncrementalTransaction({
         projectId: mutation.projectId,
         userId: mutation.userId,
       });
+    } else if (mutation?.kind === "risk-create") {
+      transaction = buildRiskCreateTransaction({ previousStore, nextStore, riskId: mutation.riskId });
     } else if (mutation?.kind?.startsWith("risk-")) {
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "human-review-submit") {
