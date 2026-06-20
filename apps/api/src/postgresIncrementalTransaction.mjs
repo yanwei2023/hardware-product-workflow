@@ -742,6 +742,87 @@ export function buildHumanReviewTransaction({ previousStore, nextStore, workPack
   };
 }
 
+export function buildConditionalApprovalCompletionTransaction({ previousStore, nextStore, reviewId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousReview = previousRows.reviews.find((row) => row.id === reviewId);
+  const nextReview = nextRows.reviews.find((row) => row.id === reviewId);
+  if (!previousReview || !nextReview) {
+    throw new Error(`review not found for incremental transaction: ${reviewId}`);
+  }
+  if (previousReview.decision !== "APPROVE_WITH_CONDITIONS") {
+    throw new Error("conditional approval completion transaction requires an APPROVE_WITH_CONDITIONS review");
+  }
+  if (!nextReview.conditions_completed_at || !nextReview.conditions_completed_by_user_id) {
+    throw new Error("conditional approval completion transaction requires completion metadata");
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "CONDITIONAL_APPROVAL_COMPLETED") {
+    throw new Error("conditional approval completion transaction requires exactly one CONDITIONAL_APPROVAL_COMPLETED audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("conditional approval completion transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["reviews", "notifications", "audit_events"], "conditional approval completion transaction");
+  assertInsertedSideEffects(storeDelta, "conditional approval completion transaction");
+  assertNoRowAddsOrDeletes(storeDelta, "reviews", "conditional approval completion");
+  const reviewChanged = changedRowForId(storeDelta, "reviews", reviewId, "conditional approval completion");
+  const allowedFields = new Set(["conditions_completed_at", "conditions_completed_by_user_id", "conditions_completion_comment"]);
+  const unsupportedFields = reviewChanged.fields.filter((field) => !allowedFields.has(field));
+  if (unsupportedFields.length > 0) {
+    throw new Error(`conditional approval completion transaction contains unsupported review fields: ${unsupportedFields.join(", ")}`);
+  }
+  if (reviewChanged.fields.length === 0) {
+    throw new Error(`conditional approval completion transaction did not change review fields: ${reviewId}`);
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental conditional-approval-complete transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE reviews SET ${renderUpdateSet(nextReview, reviewChanged.fields)} WHERE id = ${sqlString(reviewId)} AND ${renderPreviousConditions(previousReview, reviewChanged.fields)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'review completion state changed concurrently or review is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating conditional-approval-complete transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `UPDATE reviews SET ${renderUpdateSet(previousReview, reviewChanged.fields)} WHERE id = ${sqlString(reviewId)} AND ${renderPreviousConditions(nextReview, reviewChanged.fields)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "conditional-approval-complete",
+    reviewId,
+    changedReviewFields: reviewChanged.fields,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildWorkPackageEvidenceTransaction({ previousStore, nextStore, workPackageId, evidenceRefId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1012,6 +1093,8 @@ export function executePostgresIncrementalTransaction({
         artifactId: mutation.artifactId,
         reviewId: mutation.reviewId,
       });
+    } else if (mutation?.kind === "conditional-approval-complete") {
+      transaction = buildConditionalApprovalCompletionTransaction({ previousStore, nextStore, reviewId: mutation.reviewId });
     } else if (mutation?.kind === "gate-approval") {
       transaction = buildGateApprovalTransaction({
         previousStore,

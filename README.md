@@ -128,4 +128,4 @@ docs/postgres-migration.md
 - `HARDWARE_FLOW_RUNTIME_WRITE_MODE=auto` 默认把 PostgreSQL 启动快照置为只读，HTTP 门禁与 React 工作台共同阻止修改，并导出 `hardware_flow_runtime_writable` 指标。
 - `HARDWARE_FLOW_RUNTIME_PERSISTENCE_BACKEND=postgres-mirror` 提供严格的运行时镜像写入：JSON 原子落盘后执行 PostgreSQL 精确镜像和全量写后校验；失败时恢复上一份 JSON 与内存状态并返回 503。PostgreSQL 启动快照只有显式配置该后端后才允许 `read-write`。
 - `npm run runtime:persistence-check` 可在 API 启动前独立执行持久化门禁；`postgres-mirror` 会只读比较完整 JSON store 与数据库，缺连接、读取失败或任一表漂移都会返回非零状态，API 启动时也执行同一门禁并失败关闭。
-- 角色负责人变更、工作包计划日期更新、工作包证据引用新增、人工审核提交、风险接受/关闭、风险缓解计划更新、缓解完成、阶段门批准、单条通知已读和项目内用户通知批量已读已接入原生 PostgreSQL 增量事务链路：业务状态、审计事件和站内通知在同一事务提交或更新，并执行全表写后校验；校验漂移时运行补偿事务恢复旧值并删除本次审计/通知/批准包/证据引用。其他业务写入暂时继续使用精确镜像。
+- 角色负责人变更、工作包计划日期更新、工作包证据引用新增、人工审核提交、有条件批准条款完成、风险接受/关闭、风险缓解计划更新、缓解完成、阶段门批准、单条通知已读和项目内用户通知批量已读已接入原生 PostgreSQL 增量事务链路：业务状态、审计事件和站内通知在同一事务提交或更新，并执行全表写后校验；校验漂移时运行补偿事务恢复旧值并删除本次审计/通知/批准包/证据引用。其他业务写入暂时继续使用精确镜像。

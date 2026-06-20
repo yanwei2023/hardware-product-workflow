@@ -3159,7 +3159,12 @@ export function completeConditionalApproval(reviewId, body = {}) {
     objectType: "review",
     objectId: review.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "conditional-approval-complete",
+      reviewId: review.id,
+    },
+  });
   return {
     statusCode: 200,
     body: {

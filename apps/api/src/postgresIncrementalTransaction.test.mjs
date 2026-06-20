@@ -10,6 +10,7 @@ import {
   addNotificationInStore,
   addWorkPackageEvidenceRefInStore,
   approveGateInStore,
+  completeReviewConditionsInStore,
   completeRiskMitigationInStore,
   markNotificationReadInStore,
   submitHumanReviewInStore,
@@ -19,6 +20,7 @@ import {
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import {
+  buildConditionalApprovalCompletionTransaction,
   buildGateApprovalTransaction,
   buildNotificationReadTransaction,
   buildProjectNotificationsReadTransaction,
@@ -335,6 +337,41 @@ function humanReviewChangedStores(decision = "APPROVE") {
   return { previousStore, nextStore, workPackageId, artifactId, reviewId: review.id };
 }
 
+function conditionalApprovalCompletedStores() {
+  const seeded = humanReviewChangedStores("APPROVE_WITH_CONDITIONS");
+  const previousStore = seeded.nextStore;
+  const nextStore = structuredClone(previousStore);
+  completeReviewConditionsInStore(nextStore, seeded.reviewId, {
+    completedAt: "2026-06-14T06:30:00.000Z",
+    completedByUserId: "user-test-lead",
+    completionComment: "低温启动测试已补充。",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-conditional-approval-complete",
+    projectId: nextStore.activeProjectId,
+    actorType: "human",
+    actorId: "user-test-lead",
+    eventType: "CONDITIONAL_APPROVAL_COMPLETED",
+    objectType: "review",
+    objectId: seeded.reviewId,
+    payload: { workPackageId: seeded.workPackageId, conditions: ["补充低温启动测试"], comment: "低温启动测试已补充。" },
+    createdAt: "2026-06-14T06:30:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: "notification-conditional-approval-complete",
+    projectId: nextStore.activeProjectId,
+    userId: "user-project-manager",
+    title: "有条件批准条款已完成",
+    message: "EVT 测试计划 的补充条款已由 user-test-lead 完成。",
+    type: "INFO",
+    status: "UNREAD",
+    objectType: "review",
+    objectId: seeded.reviewId,
+    createdAt: "2026-06-14T06:30:00.000Z",
+  });
+  return { previousStore, nextStore, reviewId: seeded.reviewId };
+}
+
 function gateApprovalChangedStores({ final = false } = {}) {
   const previousStore = createDemoStore();
   const project = previousStore.projects.find((item) => item.id === previousStore.activeProjectId);
@@ -634,6 +671,34 @@ test("human review transaction rejects unrelated artifact changes", () => {
   );
 });
 
+test("conditional approval completion transaction updates review completion fields atomically", () => {
+  const { previousStore, nextStore, reviewId } = conditionalApprovalCompletedStores();
+  const transaction = buildConditionalApprovalCompletionTransaction({ previousStore, nextStore, reviewId });
+
+  assert.match(transaction.applySql, /^-- Native incremental conditional-approval-complete transaction/m);
+  assert.match(transaction.applySql, /UPDATE reviews SET [\s\S]*conditions_completed_at = '2026-06-14T06:30:00.000Z'/);
+  assert.match(transaction.applySql, /conditions_completed_by_user_id = 'user-test-lead'/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*CONDITIONAL_APPROVAL_COMPLETED[\s\S]*INSERT INTO notifications/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*conditions_completed_at = NULL/);
+  assert.deepEqual(transaction.changedReviewFields, [
+    "conditions_completed_at",
+    "conditions_completed_by_user_id",
+    "conditions_completion_comment",
+  ]);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("conditional approval completion transaction rejects unsupported review changes", () => {
+  const { previousStore, nextStore, reviewId } = conditionalApprovalCompletedStores();
+  nextStore.reviews.find((review) => review.id === reviewId).comment = "unexpected";
+
+  assert.throws(
+    () => buildConditionalApprovalCompletionTransaction({ previousStore, nextStore, reviewId }),
+    /unsupported review fields: comment/,
+  );
+});
+
 test("gate approval transaction advances project atomically", () => {
   const { previousStore, nextStore, gateId, approvalPackId } = gateApprovalChangedStores();
   const transaction = buildGateApprovalTransaction({ previousStore, nextStore, gateId, approvalPackId });
@@ -801,6 +866,24 @@ test("incremental human review transaction executes and reports its mutation ide
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "human-review-submit", workPackageId, artifactId, reviewId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental conditional approval completion transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, reviewId } = conditionalApprovalCompletedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "conditional-approval-complete", reviewId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "conditional-approval-complete", reviewId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
