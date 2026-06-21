@@ -221,6 +221,20 @@ function renderAgentRunInsert(row) {
   ].join(", ")});`;
 }
 
+function renderArtifactInsert(row) {
+  return `INSERT INTO artifact_versions (id, work_package_id, artifact_type, version, status, object_key, content_json, created_by_actor, created_at) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.work_package_id),
+    sqlString(row.artifact_type),
+    sqlString(row.version),
+    sqlString(row.status),
+    sqlNullable(row.object_key),
+    sqlJson(row.content_json),
+    sqlString(row.created_by_actor),
+    sqlString(row.created_at),
+  ].join(", ")});`;
+}
+
 function renderUpdateSet(row, fields) {
   return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
 }
@@ -920,6 +934,129 @@ export function buildAgentOutputInvalidTransaction({ previousStore, nextStore, w
   };
 }
 
+export function buildAgentOutputReadyTransaction({ previousStore, nextStore, workPackageId, agentRunId, artifactId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousWorkPackage = previousRows.work_packages.find((row) => row.id === workPackageId);
+  const nextWorkPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  if (!previousWorkPackage || !nextWorkPackage) {
+    throw new Error(`work package not found for agent output ready transaction: ${workPackageId}`);
+  }
+  if (nextWorkPackage.status !== "AGENT_DRAFT_READY" || previousWorkPackage.status === nextWorkPackage.status) {
+    throw new Error("agent output ready transaction requires work package status to change to AGENT_DRAFT_READY");
+  }
+
+  const agentRuns = insertedRows(previousRows, nextRows, "agent_runs");
+  const agentRun = agentRuns.find((row) => row.id === agentRunId) || null;
+  if (agentRuns.length !== 1 || !agentRun || agentRun.work_package_id !== workPackageId) {
+    throw new Error("agent output ready transaction requires exactly one inserted agent run for the work package");
+  }
+  if (agentRun.status !== "OUTPUT_READY") {
+    throw new Error("agent output ready transaction requires an OUTPUT_READY agent run");
+  }
+
+  const artifacts = insertedRows(previousRows, nextRows, "artifact_versions");
+  const artifact = artifacts.find((row) => row.id === artifactId) || null;
+  if (artifacts.length !== 1 || !artifact || artifact.work_package_id !== workPackageId) {
+    throw new Error("agent output ready transaction requires exactly one inserted artifact for the work package");
+  }
+  if (artifact.status !== "PENDING_REVIEW" || !artifact.created_by_actor) {
+    throw new Error("agent output ready transaction requires a PENDING_REVIEW artifact");
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "AGENT_OUTPUT_READY") {
+    throw new Error("agent output ready transaction requires exactly one AGENT_OUTPUT_READY audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("agent output ready transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(
+    storeDelta,
+    ["work_packages", "agent_runs", "artifact_versions", "notifications", "audit_events"],
+    "agent output ready transaction",
+  );
+  assertInsertedSideEffects(storeDelta, "agent output ready transaction");
+  const workPackageDelta = storeDelta.tables.work_packages;
+  if (
+    workPackageDelta.missingInDatabase.length > 0 ||
+    workPackageDelta.missingInStore.length > 0 ||
+    workPackageDelta.changed.length !== 1 ||
+    workPackageDelta.changed[0].id !== workPackageId ||
+    workPackageDelta.changed[0].fields.join(",") !== "status"
+  ) {
+    throw new Error("agent output ready transaction contains unsupported work package changes");
+  }
+  const agentRunDelta = storeDelta.tables.agent_runs;
+  if (
+    agentRunDelta.missingInDatabase.length > 0 ||
+    agentRunDelta.missingInStore.length !== 1 ||
+    agentRunDelta.missingInStore[0] !== agentRunId ||
+    agentRunDelta.changed.length > 0
+  ) {
+    throw new Error("agent output ready transaction contains unsupported agent run changes");
+  }
+  const artifactDelta = storeDelta.tables.artifact_versions;
+  if (
+    artifactDelta.missingInDatabase.length > 0 ||
+    artifactDelta.missingInStore.length !== 1 ||
+    artifactDelta.missingInStore[0] !== artifactId ||
+    artifactDelta.changed.length > 0
+  ) {
+    throw new Error("agent output ready transaction contains unsupported artifact changes");
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental agent-output-ready transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderAgentRunInsert(agentRun),
+    renderArtifactInsert(artifact),
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE work_packages SET status = ${sqlString(nextWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(previousWorkPackage.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'work package changed concurrently or work package is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating agent-output-ready transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM artifact_versions WHERE id = ${sqlString(artifactId)};`,
+    `DELETE FROM agent_runs WHERE id = ${sqlString(agentRunId)};`,
+    `UPDATE work_packages SET status = ${sqlString(previousWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(nextWorkPackage.status)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "agent-output-ready",
+    workPackageId,
+    agentRunId,
+    artifactId,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1397,6 +1534,14 @@ export function executePostgresIncrementalTransaction({
         nextStore,
         workPackageId: mutation.workPackageId,
         agentRunId: mutation.agentRunId,
+      });
+    } else if (mutation?.kind === "agent-output-ready") {
+      transaction = buildAgentOutputReadyTransaction({
+        previousStore,
+        nextStore,
+        workPackageId: mutation.workPackageId,
+        agentRunId: mutation.agentRunId,
+        artifactId: mutation.artifactId,
       });
     } else if (mutation?.kind === "human-review-submit") {
       transaction = buildHumanReviewTransaction({

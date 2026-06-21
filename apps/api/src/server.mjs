@@ -2991,7 +2991,14 @@ export function runAgentWorkPackage(body) {
     objectType: "workPackage",
     objectId: workPackage.id,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "agent-output-ready",
+      workPackageId: workPackage.id,
+      agentRunId: agentRun.id,
+      artifactId: artifact.id,
+    },
+  });
 
   return { statusCode: 201, body: { agentRun, artifact, workPackage, artifactTemplate } };
 }
