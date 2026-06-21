@@ -204,6 +204,23 @@ function renderAgentJobInsert(row) {
   ].join(", ")});`;
 }
 
+function renderAgentRunInsert(row) {
+  return `INSERT INTO agent_runs (id, work_package_id, agent_key, status, input_refs, output_ref, artifact_template_key, required_sections, required_review_roles, validation_json, created_at, completed_at) VALUES (${[
+    sqlString(row.id),
+    sqlString(row.work_package_id),
+    sqlString(row.agent_key),
+    sqlString(row.status),
+    sqlJson(row.input_refs),
+    sqlNullable(row.output_ref),
+    sqlNullable(row.artifact_template_key),
+    sqlJson(row.required_sections),
+    sqlJson(row.required_review_roles),
+    sqlValue(row.validation_json),
+    sqlString(row.created_at),
+    sqlNullable(row.completed_at),
+  ].join(", ")});`;
+}
+
 function renderUpdateSet(row, fields) {
   return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
 }
@@ -805,6 +822,104 @@ export function buildAgentJobQueueTransaction({ previousStore, nextStore, agentJ
   };
 }
 
+export function buildAgentOutputInvalidTransaction({ previousStore, nextStore, workPackageId, agentRunId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousWorkPackage = previousRows.work_packages.find((row) => row.id === workPackageId);
+  const nextWorkPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  if (!previousWorkPackage || !nextWorkPackage) {
+    throw new Error(`work package not found for agent output invalid transaction: ${workPackageId}`);
+  }
+  if (nextWorkPackage.status !== "NEEDS_AGENT_REVISION" || previousWorkPackage.status === nextWorkPackage.status) {
+    throw new Error("agent output invalid transaction requires work package status to change to NEEDS_AGENT_REVISION");
+  }
+
+  const agentRuns = insertedRows(previousRows, nextRows, "agent_runs");
+  const agentRun = agentRuns.find((row) => row.id === agentRunId) || null;
+  if (agentRuns.length !== 1 || !agentRun || agentRun.work_package_id !== workPackageId) {
+    throw new Error("agent output invalid transaction requires exactly one inserted agent run for the work package");
+  }
+  if (agentRun.status !== "OUTPUT_INVALID" || !agentRun.validation_json) {
+    throw new Error("agent output invalid transaction requires an OUTPUT_INVALID agent run with validation details");
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== "AGENT_OUTPUT_INVALID") {
+    throw new Error("agent output invalid transaction requires exactly one AGENT_OUTPUT_INVALID audit event");
+  }
+  if (notifications.length === 0) {
+    throw new Error("agent output invalid transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["work_packages", "agent_runs", "notifications", "audit_events"], "agent output invalid transaction");
+  assertInsertedSideEffects(storeDelta, "agent output invalid transaction");
+  const workPackageDelta = storeDelta.tables.work_packages;
+  if (
+    workPackageDelta.missingInDatabase.length > 0 ||
+    workPackageDelta.missingInStore.length > 0 ||
+    workPackageDelta.changed.length !== 1 ||
+    workPackageDelta.changed[0].id !== workPackageId ||
+    workPackageDelta.changed[0].fields.join(",") !== "status"
+  ) {
+    throw new Error("agent output invalid transaction contains unsupported work package changes");
+  }
+  const agentRunDelta = storeDelta.tables.agent_runs;
+  if (
+    agentRunDelta.missingInDatabase.length > 0 ||
+    agentRunDelta.missingInStore.length !== 1 ||
+    agentRunDelta.missingInStore[0] !== agentRunId ||
+    agentRunDelta.changed.length > 0
+  ) {
+    throw new Error("agent output invalid transaction contains unsupported agent run changes");
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental agent-output-invalid transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderAgentRunInsert(agentRun),
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE work_packages SET status = ${sqlString(nextWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(previousWorkPackage.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'work package changed concurrently or work package is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating agent-output-invalid transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `DELETE FROM agent_runs WHERE id = ${sqlString(agentRunId)};`,
+    `UPDATE work_packages SET status = ${sqlString(previousWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(nextWorkPackage.status)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "agent-output-invalid",
+    workPackageId,
+    agentRunId,
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1276,6 +1391,13 @@ export function executePostgresIncrementalTransaction({
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "agent-job-queue") {
       transaction = buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId: mutation.agentJobId });
+    } else if (mutation?.kind === "agent-output-invalid") {
+      transaction = buildAgentOutputInvalidTransaction({
+        previousStore,
+        nextStore,
+        workPackageId: mutation.workPackageId,
+        agentRunId: mutation.agentRunId,
+      });
     } else if (mutation?.kind === "human-review-submit") {
       transaction = buildHumanReviewTransaction({
         previousStore,
@@ -1326,6 +1448,7 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.notificationIds ? { notificationIds: transaction.notificationIds } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
         ...(transaction.agentJobId ? { agentJobId: transaction.agentJobId } : {}),
+        ...(transaction.agentRunId ? { agentRunId: transaction.agentRunId } : {}),
         ...(transaction.projectId ? { projectId: transaction.projectId } : {}),
         ...(transaction.userId ? { userId: transaction.userId } : {}),
         ...(transaction.artifactId ? { artifactId: transaction.artifactId } : {}),

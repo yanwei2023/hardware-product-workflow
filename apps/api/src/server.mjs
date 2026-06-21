@@ -2936,7 +2936,13 @@ export function runAgentWorkPackage(body) {
       objectType: "workPackage",
       objectId: workPackage.id,
     });
-    persistStore();
+    persistStore({
+      incrementalMutation: {
+        kind: "agent-output-invalid",
+        workPackageId: workPackage.id,
+        agentRunId: failedRun.id,
+      },
+    });
 
     return {
       statusCode: 422,
