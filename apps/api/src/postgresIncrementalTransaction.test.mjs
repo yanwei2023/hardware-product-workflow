@@ -12,6 +12,7 @@ import {
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
+  completeAgentJobInStore,
   approveGateInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
@@ -19,6 +20,7 @@ import {
   recordInvalidAgentOutputInStore,
   recordReadyAgentOutputInStore,
   restoreProjectInStore,
+  startAgentJobInStore,
   submitHumanReviewInStore,
   updateRiskMitigationInStore,
   updateRolePairOwnerInStore,
@@ -26,6 +28,7 @@ import {
   updateWorkPackageScheduleInStore,
 } from "./storeRepository.mjs";
 import {
+  buildAgentJobProcessTransaction,
   buildAgentJobQueueTransaction,
   buildAgentOutputInvalidTransaction,
   buildAgentOutputReadyTransaction,
@@ -326,6 +329,114 @@ function agentJobQueuedStores() {
     objectId: workPackageId,
     payload: { agentJobId, agentKey: "test-agent" },
     createdAt: "2026-06-14T02:50:00.000Z",
+  });
+  return { previousStore, nextStore, agentJobId, workPackageId };
+}
+
+function agentJobProcessedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const agentJobId = "agent-job-process-target";
+  const projectId = nextStore.activeProjectId;
+  const workPackageId = "wp-evt_exit-evt_test_report";
+  const queuedJob = {
+    id: agentJobId,
+    projectId,
+    workPackageId,
+    agentKey: "test_agent",
+    inputRefs: ["artifact:thermal-test"],
+    draftMarkdown: "## 测试结论\n\n通过。\n\n## 问题列表\n\n无。\n\n## 证据\n\n实验室记录。",
+    requestedByUserId: "user-test-lead",
+    status: "QUEUED",
+    createdAt: "2026-06-14T04:00:00.000Z",
+    startedAt: null,
+    completedAt: null,
+    resultStatusCode: null,
+    agentRunId: null,
+    error: "",
+  };
+  addAgentJobInStore(previousStore, structuredClone(queuedJob));
+  addAgentJobInStore(nextStore, structuredClone(queuedJob));
+  startAgentJobInStore(nextStore, agentJobId, { startedAt: "2026-06-14T04:01:00.000Z" });
+  recordReadyAgentOutputInStore(
+    nextStore,
+    workPackageId,
+    {
+      id: "agent-run-process-target",
+      workPackageId,
+      agentKey: "test_agent",
+      status: "OUTPUT_READY",
+      inputRefs: ["artifact:thermal-test"],
+      artifactTemplateKey: "evt_test_report_v0_1",
+      requiredSections: ["测试结论", "问题列表", "证据"],
+      requiredReviewRoles: ["测试负责人"],
+      validation: {
+        status: "PASSED",
+        missingSections: [],
+        unexpectedSections: [],
+      },
+      createdAt: "2026-06-14T04:02:00.000Z",
+      completedAt: "2026-06-14T04:02:00.000Z",
+    },
+    {
+      id: "artifact-agent-job-process",
+      workPackageId,
+      artifactType: "EVT_TEST_REPORT",
+      status: "PENDING_REVIEW",
+      version: "0.1",
+      createdByActor: "agent:test_agent",
+      createdAt: "2026-06-14T04:02:00.000Z",
+      content: {
+        title: "EVT 测试报告草稿",
+        summary: "Agent 处理队列任务生成草稿。",
+        evidenceRefs: ["artifact:thermal-test"],
+      },
+    },
+  );
+  addAuditEventInStore(nextStore, {
+    id: "audit-agent-output-ready-process",
+    projectId,
+    actorType: "agent",
+    actorId: "test_agent",
+    eventType: "AGENT_OUTPUT_READY",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: { artifactId: "artifact-agent-job-process" },
+    createdAt: "2026-06-14T04:02:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: "notification-agent-job-process-ready",
+    projectId,
+    userId: "user-test-lead",
+    title: "工作包待审核",
+    message: "EVT 测试报告 已生成 Agent 草稿，等待人类负责人审核。",
+    type: "ACTION",
+    status: "UNREAD",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    createdAt: "2026-06-14T04:02:00.000Z",
+  });
+  completeAgentJobInStore(nextStore, agentJobId, {
+    status: "COMPLETED",
+    resultStatusCode: 200,
+    agentRunId: "agent-run-process-target",
+    completedAt: "2026-06-14T04:03:00.000Z",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-agent-job-processed",
+    projectId,
+    actorType: "system",
+    actorId: "agent-worker",
+    eventType: "AGENT_JOB_PROCESSED",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: {
+      agentJobId,
+      status: "COMPLETED",
+      resultStatusCode: 200,
+      agentRunId: "agent-run-process-target",
+    },
+    createdAt: "2026-06-14T04:03:00.000Z",
   });
   return { previousStore, nextStore, agentJobId, workPackageId };
 }
@@ -970,6 +1081,24 @@ test("agent job queue transaction rejects multiple inserted jobs", () => {
   );
 });
 
+test("agent job process transaction updates job, output, work package, and audit atomically", () => {
+  const { previousStore, nextStore, agentJobId } = agentJobProcessedStores();
+  const transaction = buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId });
+
+  assert.equal(transaction.mutationKind, "agent-job-process");
+  assert.equal(transaction.mutationId, agentJobId);
+  assert.match(transaction.applySql, /^-- Native incremental agent-job-process transaction/m);
+  assert.match(transaction.applySql, /UPDATE agent_jobs SET/);
+  assert.match(transaction.applySql, /INSERT INTO agent_runs/);
+  assert.match(transaction.applySql, /INSERT INTO artifact_versions/);
+  assert.match(transaction.applySql, /UPDATE work_packages SET status = 'AGENT_DRAFT_READY'/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*AGENT_OUTPUT_READY[\s\S]*AGENT_JOB_PROCESSED/);
+  assert.match(transaction.applySql, /INSERT INTO notifications/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*DELETE FROM artifact_versions[\s\S]*DELETE FROM agent_runs[\s\S]*UPDATE work_packages[\s\S]*UPDATE agent_jobs/);
+  assert.equal(transaction.auditEventCount, 2);
+  assert.equal(transaction.notificationCount, 1);
+});
+
 test("agent output invalid transaction records failed run and notification atomically", () => {
   const { previousStore, nextStore, workPackageId, agentRunId } = agentOutputInvalidStores();
   const transaction = buildAgentOutputInvalidTransaction({ previousStore, nextStore, workPackageId, agentRunId });
@@ -1345,6 +1474,29 @@ test("incremental agent job queue transaction executes and reports its mutation 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "agent-job-queue", workPackageId, agentJobId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental agent job process transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, agentJobId, workPackageId } = agentJobProcessedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "agent-job-process", agentJobId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, {
+    kind: "agent-job-process",
+    workPackageId,
+    agentJobId,
+    agentRunId: "agent-run-process-target",
+  });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -1230,6 +1230,24 @@ test("agent run endpoint rejects malformed input refs", async () => {
 
   assert.equal(result.status, 400);
   assert.equal(result.body.error, "inputRefs 必须是数组");
+});
+
+test("agent work package can defer persistence for queued processing", () => {
+  const result = workflow.runAgentWorkPackage(
+    {
+      workPackageId: "wp-evt_exit-evt_test_report",
+      agentKey: "test_agent",
+      inputRefs: ["artifact:queued-input"],
+    },
+    { persistOutput: false },
+  );
+
+  assert.equal(result.statusCode, 201);
+  const diskStore = JSON.parse(readFileSync(process.env.HARDWARE_FLOW_STORE_PATH, "utf8"));
+  assert.equal(
+    diskStore.agentRuns.some((run) => run.id === result.body.agentRun.id),
+    false,
+  );
 });
 
 test("agent job queue creates and processes work asynchronously", async () => {
