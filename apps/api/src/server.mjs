@@ -2709,7 +2709,7 @@ export function processNextAgentJob(body = {}) {
     agentKey: queuedJob.agentKey,
     inputRefs: queuedJob.inputRefs,
     ...(queuedJob.draftMarkdown ? { draftMarkdown: queuedJob.draftMarkdown } : {}),
-  });
+  }, { persist: false });
 
   completeAgentJobInStore(store, queuedJob.id, {
     status: result.statusCode >= 200 && result.statusCode < 300 ? "COMPLETED" : "FAILED",
@@ -2723,7 +2723,12 @@ export function processNextAgentJob(body = {}) {
     resultStatusCode: queuedJob.resultStatusCode,
     agentRunId: queuedJob.agentRunId,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "agent-job-process",
+      agentJobId: queuedJob.id,
+    },
+  });
 
   return {
     statusCode: queuedJob.status === "COMPLETED" ? 200 : 422,
@@ -2869,7 +2874,7 @@ function createGateApprovalPack(gate, reviewPack, approval) {
   });
 }
 
-export function runAgentWorkPackage(body) {
+export function runAgentWorkPackage(body, { persist = true } = {}) {
   const workPackage = findWorkPackage(store, body.workPackageId);
   if (!workPackage) {
     return { statusCode: 404, body: { error: "工作包不存在" } };
@@ -2946,13 +2951,15 @@ export function runAgentWorkPackage(body) {
       objectType: "workPackage",
       objectId: workPackage.id,
     });
-    persistStore({
-      incrementalMutation: {
-        kind: "agent-output-invalid",
-        workPackageId: workPackage.id,
-        agentRunId: failedRun.id,
-      },
-    });
+    if (persist) {
+      persistStore({
+        incrementalMutation: {
+          kind: "agent-output-invalid",
+          workPackageId: workPackage.id,
+          agentRunId: failedRun.id,
+        },
+      });
+    }
 
     return {
       statusCode: 422,
@@ -3001,14 +3008,16 @@ export function runAgentWorkPackage(body) {
     objectType: "workPackage",
     objectId: workPackage.id,
   });
-  persistStore({
-    incrementalMutation: {
-      kind: "agent-output-ready",
-      workPackageId: workPackage.id,
-      agentRunId: agentRun.id,
-      artifactId: artifact.id,
-    },
-  });
+  if (persist) {
+    persistStore({
+      incrementalMutation: {
+        kind: "agent-output-ready",
+        workPackageId: workPackage.id,
+        agentRunId: agentRun.id,
+        artifactId: artifact.id,
+      },
+    });
+  }
 
   return { statusCode: 201, body: { agentRun, artifact, workPackage, artifactTemplate } };
 }

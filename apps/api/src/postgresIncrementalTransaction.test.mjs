@@ -27,6 +27,7 @@ import {
 } from "./storeRepository.mjs";
 import {
   buildAgentJobQueueTransaction,
+  buildAgentJobProcessTransaction,
   buildAgentOutputInvalidTransaction,
   buildAgentOutputReadyTransaction,
   buildConditionalApprovalCompletionTransaction,
@@ -447,6 +448,114 @@ function agentOutputReadyStores() {
     createdAt: "2026-06-14T03:05:00.000Z",
   });
   return { previousStore, nextStore, workPackageId, agentRunId, artifactId };
+}
+
+function agentJobProcessedStores({ invalid = false } = {}) {
+  const previousStore = createDemoStore();
+  const agentJobId = `agent-job-process-${invalid ? "invalid" : "ready"}`;
+  const workPackageId = "wp-evt_exit-evt_test_report";
+  const projectId = previousStore.activeProjectId;
+  addAgentJobInStore(previousStore, {
+    id: agentJobId,
+    projectId,
+    workPackageId,
+    agentKey: "test_agent",
+    inputRefs: ["artifact:thermal-test"],
+    draftMarkdown: invalid ? "## 缺少必需章节\n\n待补充。" : null,
+    requestedByUserId: "user-project-manager",
+    status: "QUEUED",
+    createdAt: "2026-06-14T03:08:00.000Z",
+    startedAt: null,
+    completedAt: null,
+    resultStatusCode: null,
+    agentRunId: null,
+    error: "",
+  });
+
+  const nextStore = structuredClone(previousStore);
+  const job = nextStore.agentJobs.find((item) => item.id === agentJobId);
+  job.status = "RUNNING";
+  job.startedAt = "2026-06-14T03:10:00.000Z";
+  const agentRunId = `agent-run-process-${invalid ? "invalid" : "ready"}`;
+  const validation = invalid
+    ? { status: "FAILED", missingSections: ["测试结论"], unexpectedSections: [] }
+    : { status: "PASSED", missingSections: [], unexpectedSections: [] };
+  const agentRun = {
+    id: agentRunId,
+    workPackageId,
+    agentKey: "test_agent",
+    status: invalid ? "OUTPUT_INVALID" : "OUTPUT_READY",
+    inputRefs: ["artifact:thermal-test"],
+    artifactTemplateKey: "evt_test_report_v0_1",
+    requiredSections: ["测试结论"],
+    requiredReviewRoles: ["测试负责人"],
+    validation,
+    createdAt: "2026-06-14T03:10:00.000Z",
+    completedAt: "2026-06-14T03:10:00.000Z",
+  };
+  let artifactId = null;
+  if (invalid) {
+    recordInvalidAgentOutputInStore(nextStore, workPackageId, agentRun);
+  } else {
+    artifactId = "artifact-agent-job-process-ready";
+    recordReadyAgentOutputInStore(nextStore, workPackageId, agentRun, {
+      id: artifactId,
+      workPackageId,
+      artifactType: "EVT_TEST_REPORT",
+      status: "PENDING_REVIEW",
+      version: "0.1",
+      createdByActor: "agent:test_agent",
+      createdAt: "2026-06-14T03:10:00.000Z",
+      content: {
+        title: "EVT 测试报告草稿",
+        summary: "Agent 已生成草稿。",
+        evidenceRefs: ["artifact:thermal-test"],
+        templateKey: "evt_test_report_v0_1",
+        validation,
+      },
+    });
+  }
+  addAuditEventInStore(nextStore, {
+    id: `audit-agent-job-output-${invalid ? "invalid" : "ready"}`,
+    projectId,
+    actorType: "agent",
+    actorId: "test_agent",
+    eventType: invalid ? "AGENT_OUTPUT_INVALID" : "AGENT_OUTPUT_READY",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: invalid ? { validation } : { artifactId },
+    createdAt: "2026-06-14T03:10:00.000Z",
+  });
+  addNotificationInStore(nextStore, {
+    id: `notification-agent-job-output-${invalid ? "invalid" : "ready"}`,
+    projectId,
+    userId: "user-test-lead",
+    title: invalid ? "Agent 输出未通过模板校验" : "工作包待审核",
+    message: invalid ? "EVT 测试报告 需要重新生成或补齐必需章节。" : "EVT 测试报告 已生成 Agent 草稿，等待人类负责人审核。",
+    type: invalid ? "WARNING" : "ACTION",
+    status: "UNREAD",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    createdAt: "2026-06-14T03:10:00.000Z",
+  });
+  job.status = invalid ? "FAILED" : "COMPLETED";
+  job.completedAt = "2026-06-14T03:11:00.000Z";
+  job.resultStatusCode = invalid ? 422 : 201;
+  job.agentRunId = agentRunId;
+  job.error = invalid ? "Agent 输出未满足交付物模板要求，不能进入人类审核" : "";
+  addAuditEventInStore(nextStore, {
+    id: `audit-agent-job-processed-${invalid ? "invalid" : "ready"}`,
+    projectId,
+    actorType: "system",
+    actorId: "agent-worker",
+    eventType: "AGENT_JOB_PROCESSED",
+    objectType: "workPackage",
+    objectId: workPackageId,
+    payload: { agentJobId, status: job.status, resultStatusCode: job.resultStatusCode, agentRunId },
+    createdAt: "2026-06-14T03:11:00.000Z",
+  });
+
+  return { previousStore, nextStore, agentJobId, workPackageId, agentRunId, artifactId };
 }
 
 function riskStatusChangedStores() {
@@ -1038,6 +1147,49 @@ test("agent output ready transaction rejects multiple artifact insertions", () =
   );
 });
 
+test("agent job process transaction completes queued job with output atomically", () => {
+  const { previousStore, nextStore, agentJobId, workPackageId, agentRunId, artifactId } = agentJobProcessedStores();
+  const transaction = buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId });
+
+  assert.match(transaction.applySql, /^-- Native incremental agent-job-process transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO agent_runs/);
+  assert.match(transaction.applySql, /INSERT INTO artifact_versions/);
+  assert.match(transaction.applySql, /UPDATE work_packages SET status = 'AGENT_DRAFT_READY'/);
+  assert.match(transaction.applySql, /UPDATE agent_jobs SET [\s\S]*status = 'COMPLETED'/);
+  assert.match(transaction.applySql, /AGENT_OUTPUT_READY[\s\S]*AGENT_JOB_PROCESSED/);
+  assert.match(transaction.rollbackSql, /DELETE FROM notifications[\s\S]*DELETE FROM audit_events[\s\S]*DELETE FROM artifact_versions[\s\S]*DELETE FROM agent_runs/);
+  assert.equal(transaction.workPackageId, workPackageId);
+  assert.equal(transaction.agentRunId, agentRunId);
+  assert.equal(transaction.artifactId, artifactId);
+  assert.equal(transaction.auditEventCount, 2);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("agent job process transaction records invalid output failure without artifact", () => {
+  const { previousStore, nextStore, agentJobId, agentRunId } = agentJobProcessedStores({ invalid: true });
+  const transaction = buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId });
+
+  assert.match(transaction.applySql, /OUTPUT_INVALID/);
+  assert.match(transaction.applySql, /UPDATE work_packages SET status = 'NEEDS_AGENT_REVISION'/);
+  assert.match(transaction.applySql, /UPDATE agent_jobs SET [\s\S]*status = 'FAILED'/);
+  assert.doesNotMatch(transaction.applySql, /INSERT INTO artifact_versions/);
+  assert.match(transaction.rollbackSql, /DELETE FROM agent_runs[\s\S]*UPDATE agent_jobs SET [\s\S]*status = 'QUEUED'/);
+  assert.equal(transaction.agentRunId, agentRunId);
+  assert.equal(transaction.artifactId, undefined);
+  assert.equal(transaction.auditEventCount, 2);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("agent job process transaction rejects unrelated job changes", () => {
+  const { previousStore, nextStore, agentJobId } = agentJobProcessedStores();
+  nextStore.agentJobs.find((job) => job.id === agentJobId).requestedByUserId = "user-quality-lead";
+
+  assert.throws(
+    () => buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId }),
+    /unsupported job fields: requested_by_user_id/,
+  );
+});
+
 test("risk status transaction updates decision fields, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskStatusChangedStores();
   const transaction = buildRiskTransaction({ previousStore, nextStore, riskId, kind: "risk-status-update" });
@@ -1381,6 +1533,24 @@ test("incremental agent output ready transaction executes and reports its mutati
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "agent-output-ready", workPackageId, agentRunId, artifactId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental agent job process transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, agentJobId, workPackageId, agentRunId, artifactId } = agentJobProcessedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "agent-job-process", agentJobId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "agent-job-process", workPackageId, agentJobId, agentRunId, artifactId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

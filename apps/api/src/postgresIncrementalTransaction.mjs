@@ -1057,6 +1057,171 @@ export function buildAgentOutputReadyTransaction({ previousStore, nextStore, wor
   };
 }
 
+export function buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousJob = previousRows.agent_jobs.find((row) => row.id === agentJobId);
+  const nextJob = nextRows.agent_jobs.find((row) => row.id === agentJobId);
+  if (!previousJob || !nextJob) {
+    throw new Error(`agent job not found for incremental transaction: ${agentJobId}`);
+  }
+  if (previousJob.status !== "QUEUED" || !["COMPLETED", "FAILED"].includes(nextJob.status)) {
+    throw new Error("agent job process transaction requires a QUEUED job to become COMPLETED or FAILED");
+  }
+  if (!nextJob.started_at || !nextJob.completed_at || !nextJob.result_status_code) {
+    throw new Error("agent job process transaction requires job timing and result metadata");
+  }
+
+  const workPackageId = nextJob.work_package_id;
+  const previousWorkPackage = previousRows.work_packages.find((row) => row.id === workPackageId);
+  const nextWorkPackage = nextRows.work_packages.find((row) => row.id === workPackageId);
+  if (!previousWorkPackage || !nextWorkPackage) {
+    throw new Error(`work package not found for agent job process transaction: ${workPackageId}`);
+  }
+
+  const agentRuns = insertedRows(previousRows, nextRows, "agent_runs");
+  const agentRun = agentRuns.find((row) => row.id === nextJob.agent_run_id) || null;
+  if (agentRuns.length !== 1 || !agentRun || agentRun.work_package_id !== workPackageId) {
+    throw new Error("agent job process transaction requires exactly one inserted agent run for the job work package");
+  }
+
+  const artifacts = insertedRows(previousRows, nextRows, "artifact_versions");
+  const artifact = artifacts[0] || null;
+  const success = nextJob.status === "COMPLETED";
+  if (success) {
+    if (agentRun.status !== "OUTPUT_READY" || artifacts.length !== 1 || artifact.work_package_id !== workPackageId) {
+      throw new Error("completed agent job process transaction requires one ready output artifact");
+    }
+    if (nextWorkPackage.status !== "AGENT_DRAFT_READY") {
+      throw new Error("completed agent job process transaction requires work package status AGENT_DRAFT_READY");
+    }
+  } else {
+    if (agentRun.status !== "OUTPUT_INVALID" || !agentRun.validation_json || artifacts.length !== 0) {
+      throw new Error("failed agent job process transaction requires one invalid output run and no artifact");
+    }
+    if (nextWorkPackage.status !== "NEEDS_AGENT_REVISION") {
+      throw new Error("failed agent job process transaction requires work package status NEEDS_AGENT_REVISION");
+    }
+  }
+
+  const notifications = insertedRows(previousRows, nextRows, "notifications");
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  const outputAuditType = success ? "AGENT_OUTPUT_READY" : "AGENT_OUTPUT_INVALID";
+  if (
+    auditEvents.length !== 2 ||
+    !auditEvents.some((row) => row.event_type === outputAuditType) ||
+    !auditEvents.some((row) => row.event_type === "AGENT_JOB_PROCESSED")
+  ) {
+    throw new Error(`agent job process transaction requires ${outputAuditType} and AGENT_JOB_PROCESSED audit events`);
+  }
+  if (notifications.length === 0) {
+    throw new Error("agent job process transaction requires at least one notification");
+  }
+
+  assertOnlyTablesChanged(
+    storeDelta,
+    ["agent_jobs", "work_packages", "agent_runs", "artifact_versions", "notifications", "audit_events"],
+    "agent job process transaction",
+  );
+  assertInsertedSideEffects(storeDelta, "agent job process transaction");
+
+  const agentJobChanged = changedRowForId(storeDelta, "agent_jobs", agentJobId, "agent job process");
+  const allowedJobFields = new Set(["status", "started_at", "completed_at", "result_status_code", "agent_run_id", "error"]);
+  const unsupportedJobFields = agentJobChanged.fields.filter((field) => !allowedJobFields.has(field));
+  if (unsupportedJobFields.length > 0) {
+    throw new Error(`agent job process transaction contains unsupported job fields: ${unsupportedJobFields.join(", ")}`);
+  }
+
+  const workPackageChanged = changedRowForId(storeDelta, "work_packages", workPackageId, "agent job process");
+  if (workPackageChanged.fields.join(",") !== "status") {
+    throw new Error("agent job process transaction contains unsupported work package changes");
+  }
+
+  const agentRunDelta = storeDelta.tables.agent_runs;
+  if (
+    agentRunDelta.missingInDatabase.length > 0 ||
+    agentRunDelta.missingInStore.length !== 1 ||
+    agentRunDelta.missingInStore[0] !== agentRun.id ||
+    agentRunDelta.changed.length > 0
+  ) {
+    throw new Error("agent job process transaction contains unsupported agent run changes");
+  }
+
+  const artifactDelta = storeDelta.tables.artifact_versions;
+  if (success) {
+    if (
+      artifactDelta.missingInDatabase.length > 0 ||
+      artifactDelta.missingInStore.length !== 1 ||
+      artifactDelta.missingInStore[0] !== artifact.id ||
+      artifactDelta.changed.length > 0
+    ) {
+      throw new Error("agent job process transaction contains unsupported artifact changes");
+    }
+  } else if (
+    artifactDelta.missingInDatabase.length > 0 ||
+    artifactDelta.missingInStore.length > 0 ||
+    artifactDelta.changed.length > 0
+  ) {
+    throw new Error("failed agent job process transaction must not change artifacts");
+  }
+
+  const notificationIds = notifications.map((row) => row.id);
+  const auditIds = auditEvents.map((row) => row.id);
+  const artifactInsertSql = artifact ? [renderArtifactInsert(artifact)] : [];
+  const artifactRollbackSql = artifact ? [`DELETE FROM artifact_versions WHERE id = ${sqlString(artifact.id)};`] : [];
+  const applySql = [
+    "-- Native incremental agent-job-process transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    renderAgentRunInsert(agentRun),
+    ...artifactInsertSql,
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE work_packages SET status = ${sqlString(nextWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(previousWorkPackage.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'work package changed concurrently or work package is missing';",
+    "  END IF;",
+    `  UPDATE agent_jobs SET ${renderUpdateSet(nextJob, agentJobChanged.fields)} WHERE id = ${sqlString(agentJobId)} AND ${renderPreviousConditions(previousJob, agentJobChanged.fields)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'agent job changed concurrently or job is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    ...notifications.map(renderNotificationInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating agent-job-process transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM notifications WHERE id IN (${notificationIds.map(sqlString).join(", ")});`,
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    ...artifactRollbackSql,
+    `DELETE FROM agent_runs WHERE id = ${sqlString(agentRun.id)};`,
+    `UPDATE agent_jobs SET ${renderUpdateSet(previousJob, agentJobChanged.fields)} WHERE id = ${sqlString(agentJobId)} AND ${renderPreviousConditions(nextJob, agentJobChanged.fields)};`,
+    `UPDATE work_packages SET status = ${sqlString(previousWorkPackage.status)} WHERE id = ${sqlString(workPackageId)} AND status IS NOT DISTINCT FROM ${sqlString(nextWorkPackage.status)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "agent-job-process",
+    agentJobId,
+    workPackageId,
+    agentRunId: agentRun.id,
+    ...(artifact ? { artifactId: artifact.id } : {}),
+    auditEventCount: auditEvents.length,
+    notificationCount: notifications.length,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1622,6 +1787,8 @@ export function executePostgresIncrementalTransaction({
       transaction = buildRiskTransaction({ previousStore, nextStore, riskId: mutation.riskId, kind: mutation.kind });
     } else if (mutation?.kind === "agent-job-queue") {
       transaction = buildAgentJobQueueTransaction({ previousStore, nextStore, agentJobId: mutation.agentJobId });
+    } else if (mutation?.kind === "agent-job-process") {
+      transaction = buildAgentJobProcessTransaction({ previousStore, nextStore, agentJobId: mutation.agentJobId });
     } else if (mutation?.kind === "agent-output-invalid") {
       transaction = buildAgentOutputInvalidTransaction({
         previousStore,
