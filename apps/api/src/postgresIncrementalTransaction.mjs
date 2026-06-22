@@ -1057,6 +1057,100 @@ export function buildAgentOutputReadyTransaction({ previousStore, nextStore, wor
   };
 }
 
+export function buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousProject = previousRows.projects.find((row) => row.id === projectId);
+  const nextProject = nextRows.projects.find((row) => row.id === projectId);
+  if (!previousProject || !nextProject) {
+    throw new Error(`project not found for lifecycle transaction: ${projectId}`);
+  }
+
+  const expectedAuditType = kind === "project-archive"
+    ? "PROJECT_ARCHIVED"
+    : kind === "project-restore"
+      ? "PROJECT_RESTORED"
+      : null;
+  if (!expectedAuditType) {
+    throw new Error(`unsupported project lifecycle transaction kind: ${kind || "missing"}`);
+  }
+  if (kind === "project-archive" && nextProject.status !== "ARCHIVED") {
+    throw new Error("project archive transaction requires project status ARCHIVED");
+  }
+  if (kind === "project-restore" && (previousProject.status !== "ARCHIVED" || nextProject.status === "ARCHIVED")) {
+    throw new Error("project restore transaction requires status to leave ARCHIVED");
+  }
+
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  if (auditEvents.length !== 1 || auditEvents[0].event_type !== expectedAuditType) {
+    throw new Error(`project lifecycle transaction requires exactly one ${expectedAuditType} audit event`);
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["projects", "audit_events"], "project lifecycle transaction");
+  assertInsertedSideEffects(storeDelta, "project lifecycle transaction");
+  const projectDelta = storeDelta.tables.projects;
+  if (
+    projectDelta.missingInDatabase.length > 0 ||
+    projectDelta.missingInStore.length > 0 ||
+    projectDelta.changed.length !== 1 ||
+    projectDelta.changed[0].id !== projectId
+  ) {
+    throw new Error("project lifecycle transaction contains unsupported project changes");
+  }
+
+  const changedFields = projectDelta.changed[0].fields;
+  const allowedFields = kind === "project-archive"
+    ? ["status", "archived_at", "archived_by_user_id"]
+    : ["status"];
+  const unsupportedFields = changedFields.filter((field) => !allowedFields.includes(field));
+  if (unsupportedFields.length > 0) {
+    throw new Error(`project lifecycle transaction contains unsupported project fields: ${unsupportedFields.join(", ")}`);
+  }
+  if (!changedFields.includes("status")) {
+    throw new Error("project lifecycle transaction requires project status to change");
+  }
+
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    `-- Native incremental ${kind} transaction`,
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE projects SET ${renderUpdateSet(nextProject, changedFields)} WHERE id = ${sqlString(projectId)} AND ${renderPreviousConditions(previousProject, changedFields)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'project changed concurrently or project is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    ...auditEvents.map(renderAuditInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    `-- Compensating ${kind} transaction`,
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    `UPDATE projects SET ${renderUpdateSet(previousProject, changedFields)} WHERE id = ${sqlString(projectId)} AND ${renderPreviousConditions(nextProject, changedFields)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind,
+    projectId,
+    changedProjectFields: changedFields,
+    auditEventCount: auditEvents.length,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
 export function buildHumanReviewTransaction({ previousStore, nextStore, workPackageId, artifactId, reviewId } = {}) {
   const previousRows = mapStoreToPostgresRows(previousStore);
   const nextRows = mapStoreToPostgresRows(nextStore);
@@ -1542,6 +1636,13 @@ export function executePostgresIncrementalTransaction({
         workPackageId: mutation.workPackageId,
         agentRunId: mutation.agentRunId,
         artifactId: mutation.artifactId,
+      });
+    } else if (mutation?.kind === "project-archive" || mutation?.kind === "project-restore") {
+      transaction = buildProjectLifecycleTransaction({
+        previousStore,
+        nextStore,
+        projectId: mutation.projectId,
+        kind: mutation.kind,
       });
     } else if (mutation?.kind === "human-review-submit") {
       transaction = buildHumanReviewTransaction({

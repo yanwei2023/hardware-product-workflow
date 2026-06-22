@@ -2269,7 +2269,12 @@ export function archiveProject(projectId, body = {}) {
   audit("PROJECT_ARCHIVED", "human", project.archivedByUserId, "project", project.id, {
     previousStatus: project.previousStatus,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "project-archive",
+      projectId: project.id,
+    },
+  });
 
   return {
     statusCode: 200,
@@ -2299,7 +2304,12 @@ export function restoreProject(projectId, body = {}) {
   audit("PROJECT_RESTORED", "human", project.restoredByUserId, "project", project.id, {
     restoredStatus: restoreResult.restoredStatus,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "project-restore",
+      projectId: project.id,
+    },
+  });
 
   return {
     statusCode: 200,

@@ -11,12 +11,14 @@ import {
   addNotificationInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
+  archiveProjectInStore,
   approveGateInStore,
   completeReviewConditionsInStore,
   completeRiskMitigationInStore,
   markNotificationReadInStore,
   recordInvalidAgentOutputInStore,
   recordReadyAgentOutputInStore,
+  restoreProjectInStore,
   submitHumanReviewInStore,
   updateRiskMitigationInStore,
   updateRolePairOwnerInStore,
@@ -31,6 +33,7 @@ import {
   buildGateApprovalTransaction,
   buildNotificationReadTransaction,
   buildProjectNotificationsReadTransaction,
+  buildProjectLifecycleTransaction,
   buildRiskCreateTransaction,
   buildRiskTransaction,
   buildHumanReviewTransaction,
@@ -187,6 +190,54 @@ function projectNotificationsReadStores() {
     markNotificationReadInStore(nextStore, notificationId, { readAt: "2026-06-14T03:00:00.000Z" });
   }
   return { previousStore, nextStore, projectId, userId, notificationIds: ["notification-read-target-a", "notification-read-target-b"] };
+}
+
+function projectArchivedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const projectId = nextStore.activeProjectId;
+  archiveProjectInStore(nextStore, projectId, {
+    archivedAt: "2026-06-14T03:10:00.000Z",
+    archivedByUserId: "user-project-manager",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-project-archived",
+    projectId,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "PROJECT_ARCHIVED",
+    objectType: "project",
+    objectId: projectId,
+    payload: { previousStatus: "IN_PROGRESS" },
+    createdAt: "2026-06-14T03:10:00.000Z",
+  });
+  return { previousStore, nextStore, projectId };
+}
+
+function projectRestoredStores() {
+  const previousStore = createDemoStore();
+  const projectId = previousStore.activeProjectId;
+  archiveProjectInStore(previousStore, projectId, {
+    archivedAt: "2026-06-14T03:10:00.000Z",
+    archivedByUserId: "user-project-manager",
+  });
+  const nextStore = structuredClone(previousStore);
+  restoreProjectInStore(nextStore, projectId, {
+    restoredAt: "2026-06-14T03:20:00.000Z",
+    restoredByUserId: "user-project-manager",
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-project-restored",
+    projectId,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "PROJECT_RESTORED",
+    objectType: "project",
+    objectId: projectId,
+    payload: { restoredStatus: "IN_PROGRESS" },
+    createdAt: "2026-06-14T03:20:00.000Z",
+  });
+  return { previousStore, nextStore, projectId };
 }
 
 function riskCreatedStores() {
@@ -812,6 +863,43 @@ test("project notifications read transaction rejects notifications outside the u
   );
 });
 
+test("project archive transaction updates project status and audit atomically", () => {
+  const { previousStore, nextStore, projectId } = projectArchivedStores();
+  const transaction = buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind: "project-archive" });
+
+  assert.match(transaction.applySql, /^-- Native incremental project-archive transaction/m);
+  assert.match(transaction.applySql, /UPDATE projects SET [\s\S]*status = 'ARCHIVED'/);
+  assert.match(transaction.applySql, /archived_at = '2026-06-14T03:10:00.000Z'/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*PROJECT_ARCHIVED/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*UPDATE projects SET [\s\S]*status = 'IN_PROGRESS'/);
+  assert.deepEqual(transaction.changedProjectFields, ["archived_at", "archived_by_user_id", "status"]);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("project restore transaction updates project status and audit atomically", () => {
+  const { previousStore, nextStore, projectId } = projectRestoredStores();
+  const transaction = buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind: "project-restore" });
+
+  assert.match(transaction.applySql, /^-- Native incremental project-restore transaction/m);
+  assert.match(transaction.applySql, /UPDATE projects SET status = 'IN_PROGRESS'/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*PROJECT_RESTORED/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*UPDATE projects SET status = 'ARCHIVED'/);
+  assert.deepEqual(transaction.changedProjectFields, ["status"]);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("project lifecycle transaction rejects unrelated project fields", () => {
+  const { previousStore, nextStore, projectId } = projectArchivedStores();
+  nextStore.projects.find((project) => project.id === projectId).name = "改名项目";
+
+  assert.throws(
+    () => buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind: "project-archive" }),
+    /unsupported project fields: name/,
+  );
+});
+
 test("risk create transaction inserts risk, audit, and notifications atomically", () => {
   const { previousStore, nextStore, riskId } = riskCreatedStores();
   const transaction = buildRiskCreateTransaction({ previousStore, nextStore, riskId });
@@ -1185,6 +1273,42 @@ test("incremental project notifications transaction executes and reports its mut
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "project-notifications-read", notificationIds, projectId, userId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental project archive transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, projectId } = projectArchivedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "project-archive", projectId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "project-archive", projectId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental project restore transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, projectId } = projectRestoredStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "project-restore", projectId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "project-restore", projectId });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
