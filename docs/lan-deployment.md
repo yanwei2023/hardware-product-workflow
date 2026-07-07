@@ -42,6 +42,26 @@ http://本机内网IP:3001
 http://192.168.1.20:3001
 ```
 
+## 部署交接清单
+
+交给非核心开发同事执行前，先确认这些信息已经写在交接记录里：
+
+- 运行目录：项目根目录的绝对路径。
+- 启动命令：本机试用用 `npm start`，局域网试点用 `npm run start:lan`。
+- 端口：默认 `3001`；如被占用，记录实际 `PORT`。
+- 数据目录：默认 `data/demo-store.json`，容器部署时记录挂载的 volume 或宿主机路径。
+- 访问保护：是否设置 `HARDWARE_FLOW_PILOT_ACCESS_CODE`，以及访问码由谁保管。
+- 发布校验：试点前运行 `npm run pilot:check`，并保留 `/tmp/hardware-flow-pilot-archive`。
+- 归档入口：先打开 `/tmp/hardware-flow-pilot-archive/pilot-archive-index.md`，再按场景进入范围策略、部署演练、交接走查、告警建议、回滚卡片、反馈台账、M7 backlog 模板或 M6 收尾判定。
+- 交接走查：按 `/tmp/hardware-flow-pilot-archive/pilot-handoff-walkthrough.md` 让操作者复述范围、启动检查、报错上报、回滚路径和复盘记录。
+- 收尾判定：走查后填写 `/tmp/hardware-flow-pilot-archive/pilot-m6-closeout.md`，确认 M6 是 `PASS`、`PASS_WITH_NOTES` 还是 `BLOCKED`。
+- 部署演练：按 `/tmp/hardware-flow-pilot-archive/pilot-deployment-drill.md` 留存 `/ready`、`/runtime/network`、`/runtime/config`、`/storage/doctor`、访问码保管人和 PostgreSQL 默认策略记录。
+- 告警建议：按 `/tmp/hardware-flow-pilot-archive/pilot-ops-alerts.md` 观察 `/ops/summary`、`/metrics`、HTTP 5xx、运行时持久化和 store 健康。
+- M7 反馈闭环：按 `/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md` 汇总反馈，再用 `/tmp/hardware-flow-pilot-archive/pilot-m7-backlog.md` 把 `PLANNED` 项整理成带负责人、Ready 条件和验收证据的 M7 条目。
+- 回滚材料：确认 `pilot-rollback-card.md`、最近检查点和 `.bak` 都可用。
+
+启动后必须访问 `/ready`、`/ops/summary`、`/storage/doctor`、`/runtime/config` 和 `/runtime/network`。这些端点都正常后，再把页面“项目 -> 本地数据状态 -> 访问地址”里的推荐 URL 发给参与者。
+
 ## 试点访问码
 
 局域网试点建议设置轻量访问码，避免同网段成员直接打开页面：

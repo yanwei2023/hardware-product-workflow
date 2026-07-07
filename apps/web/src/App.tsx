@@ -976,6 +976,10 @@ function PilotReadiness({ opsSummary, pilotLaunch, pilotReadiness }: any) {
       <div className="actions">
         <button className="ghost" onClick={() => openApiPath("/pilot/readiness")}>打开就绪 JSON</button>
         <button className="ghost" onClick={() => openApiPath("/pilot/checklist")}>打开演练清单</button>
+        {pilotReadiness.links?.feedbackPlan ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.feedbackPlan)}>反馈计划</button> : null}
+        {pilotReadiness.links?.feedbackTriage ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.feedbackTriage)}>反馈分诊</button> : null}
+        {pilotReadiness.links?.m7Backlog ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.m7Backlog)}>M7 Backlog</button> : null}
+        {pilotReadiness.links?.m7BacklogMarkdown ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.m7BacklogMarkdown)}>M7 模板</button> : null}
         {pilotReadiness.links?.opsSummary ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.opsSummary)}>运维摘要</button> : null}
         {pilotReadiness.links?.metrics ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.metrics)}>Metrics</button> : null}
         {pilotReadiness.links?.storageStatus ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.storageStatus)}>Store 状态</button> : null}

@@ -235,6 +235,11 @@ function renderArtifactInsert(row) {
   ].join(", ")});`;
 }
 
+function renderRowInsert(table, row) {
+  const columns = Object.keys(row);
+  return `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${columns.map((column) => sqlValue(row[column])).join(", ")});`;
+}
+
 function renderUpdateSet(row, fields) {
   return fields.map((field) => `${field} = ${sqlValue(row[field])}`).join(", ");
 }
@@ -561,6 +566,389 @@ export function buildProjectNotificationsReadTransaction({ previousStore, nextSt
       "COMMIT;",
       "",
     ].join("\n"),
+    previousRows,
+    nextRows,
+  };
+}
+
+export function buildGateReadinessRefreshTransaction({ previousStore, nextStore, gateId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const previousGate = previousRows.gates.find((row) => row.id === gateId);
+  const nextGate = nextRows.gates.find((row) => row.id === gateId);
+  if (!previousGate || !nextGate) {
+    throw new Error(`gate not found for incremental transaction: ${gateId}`);
+  }
+  const previousPhase = previousRows.phases.find((row) => row.id === previousGate.phase_id);
+  const nextPhase = nextRows.phases.find((row) => row.id === previousGate.phase_id);
+  if (!previousPhase || !nextPhase) {
+    throw new Error(`gate readiness graph is incomplete for incremental transaction: ${gateId}`);
+  }
+  if (nextGate.phase_id !== previousGate.phase_id || nextPhase.id !== previousPhase.id) {
+    throw new Error("gate readiness transaction cannot move gates between phases");
+  }
+  if (previousGate.status === nextGate.status && previousPhase.status === nextPhase.status) {
+    throw new Error(`gate readiness did not change: ${gateId}`);
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["gates", "phases"], "gate readiness refresh transaction");
+  const gateDelta = storeDelta.tables.gates;
+  const phaseDelta = storeDelta.tables.phases;
+  const gateChanged = changedRowForId(storeDelta, "gates", gateId, "gate readiness refresh");
+  const phaseChanged = changedRowForId(storeDelta, "phases", previousPhase.id, "gate readiness refresh");
+  if (
+    gateDelta.missingInDatabase.length > 0 ||
+    gateDelta.missingInStore.length > 0 ||
+    gateDelta.changed.length !== 1 ||
+    phaseDelta.missingInDatabase.length > 0 ||
+    phaseDelta.missingInStore.length > 0 ||
+    phaseDelta.changed.length !== 1 ||
+    gateChanged.fields.join(",") !== "status" ||
+    phaseChanged.fields.join(",") !== "status"
+  ) {
+    throw new Error("gate readiness refresh transaction contains unsupported status changes");
+  }
+
+  const applySql = [
+    "-- Native incremental gate-readiness-refresh transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "DO $hardware_flow$",
+    "BEGIN",
+    `  UPDATE gates SET status = ${sqlString(nextGate.status)} WHERE id = ${sqlString(gateId)} AND status IS NOT DISTINCT FROM ${sqlString(previousGate.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'gate readiness changed concurrently or gate is missing';",
+    "  END IF;",
+    `  UPDATE phases SET status = ${sqlString(nextPhase.status)} WHERE id = ${sqlString(previousPhase.id)} AND status IS NOT DISTINCT FROM ${sqlString(previousPhase.status)};`,
+    "  IF NOT FOUND THEN",
+    "    RAISE EXCEPTION 'phase readiness changed concurrently or phase is missing';",
+    "  END IF;",
+    "END;",
+    "$hardware_flow$;",
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating gate-readiness-refresh transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `UPDATE phases SET status = ${sqlString(previousPhase.status)} WHERE id = ${sqlString(previousPhase.id)} AND status IS NOT DISTINCT FROM ${sqlString(nextPhase.status)};`,
+    `UPDATE gates SET status = ${sqlString(previousGate.status)} WHERE id = ${sqlString(gateId)} AND status IS NOT DISTINCT FROM ${sqlString(nextGate.status)};`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "gate-readiness-refresh",
+    gateId,
+    phaseId: previousPhase.id,
+    changedGateFields: gateChanged.fields,
+    changedPhaseFields: phaseChanged.fields,
+    auditEventCount: 0,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
+export function buildPermissionDeniedAuditTransaction({ previousStore, nextStore, auditEventId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  const auditEvents = insertedRows(previousRows, nextRows, "audit_events");
+  const auditEvent = auditEvents.find((row) => row.id === auditEventId) || null;
+  if (auditEvents.length !== 1 || !auditEvent) {
+    throw new Error("permission denied audit transaction requires exactly one inserted audit event");
+  }
+  if (!String(auditEvent.event_type || "").endsWith("_DENIED")) {
+    throw new Error("permission denied audit transaction requires a *_DENIED audit event");
+  }
+
+  assertOnlyTablesChanged(storeDelta, ["audit_events"], "permission denied audit transaction");
+  const auditDelta = storeDelta.tables.audit_events;
+  if (
+    auditDelta.missingInDatabase.length > 0 ||
+    auditDelta.missingInStore.length !== 1 ||
+    auditDelta.missingInStore[0] !== auditEventId ||
+    auditDelta.changed.length > 0
+  ) {
+    throw new Error("permission denied audit transaction contains unsupported audit event changes");
+  }
+
+  const auditIds = auditEvents.map((row) => row.id);
+  const applySql = [
+    "-- Native incremental permission-denied-audit transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    ...auditEvents.map(renderAuditInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating permission-denied-audit transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    `DELETE FROM audit_events WHERE id IN (${auditIds.map(sqlString).join(", ")});`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "permission-denied-audit",
+    auditEventId,
+    auditEventCount: auditEvents.length,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
+const projectCreateTables = [
+  "projects",
+  "phases",
+  "gates",
+  "role_pairs",
+  "work_packages",
+  "gate_requirements",
+  "audit_events",
+];
+
+const projectImportTables = [
+  "projects",
+  "phases",
+  "gates",
+  "role_pairs",
+  "work_packages",
+  "gate_requirements",
+  "artifact_versions",
+  "reviews",
+  "risks",
+  "agent_runs",
+  "agent_jobs",
+  "agent_findings",
+  "work_package_evidence_refs",
+  "gate_approval_packs",
+  "notifications",
+  "audit_events",
+];
+
+const projectImportInsertOrder = projectImportTables;
+const projectImportDeleteOrder = [...projectImportTables].reverse();
+
+function assertOnlyInsertedRows(storeDelta, table, expectedIds, label) {
+  const detail = storeDelta.tables[table];
+  const expected = [...expectedIds].sort();
+  if (
+    detail.missingInDatabase.length > 0 ||
+    detail.changed.length > 0 ||
+    JSON.stringify(detail.missingInStore) !== JSON.stringify(expected)
+  ) {
+    throw new Error(`${label} transaction contains unsupported ${table} changes`);
+  }
+}
+
+export function buildProjectCreateTransaction({ previousStore, nextStore, projectId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  assertOnlyTablesChanged(storeDelta, projectCreateTables, "project create transaction");
+
+  const insertedByTable = Object.fromEntries(projectCreateTables.map((table) => [table, insertedRows(previousRows, nextRows, table)]));
+  const project = insertedByTable.projects.find((row) => row.id === projectId) || null;
+  if (insertedByTable.projects.length !== 1 || !project) {
+    throw new Error("project create transaction requires exactly one inserted project");
+  }
+  if (project.cloned_from_project_id || project.source_exported_at || project.archived_at || project.status !== "IN_PROGRESS") {
+    throw new Error("project create transaction only supports newly generated active projects");
+  }
+
+  const auditEvents = insertedByTable.audit_events;
+  if (
+    auditEvents.length !== 1 ||
+    auditEvents[0].event_type !== "PROJECT_CREATED" ||
+    auditEvents[0].project_id !== projectId ||
+    auditEvents[0].object_id !== projectId
+  ) {
+    throw new Error("project create transaction requires exactly one PROJECT_CREATED audit event for the project");
+  }
+
+  for (const table of projectCreateTables) {
+    assertOnlyInsertedRows(storeDelta, table, insertedByTable[table].map((row) => row.id), "project create");
+  }
+  for (const table of ["phases", "gates", "role_pairs", "work_packages"]) {
+    if (insertedByTable[table].length === 0 || insertedByTable[table].some((row) => row.project_id !== projectId)) {
+      throw new Error(`project create transaction requires inserted ${table} rows scoped to the project`);
+    }
+  }
+  if (insertedByTable.gate_requirements.length === 0) {
+    throw new Error("project create transaction requires inserted gate requirement rows");
+  }
+
+  const insertedCounts = Object.fromEntries(projectCreateTables.map((table) => [table, insertedByTable[table].length]));
+  const deleteIds = (table) => insertedByTable[table].map((row) => row.id);
+  const deleteSql = (table) => `DELETE FROM ${table} WHERE id IN (${deleteIds(table).map(sqlString).join(", ")});`;
+  const applySql = [
+    "-- Native incremental project-create transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "SET CONSTRAINTS ALL DEFERRED;",
+    ...insertedByTable.projects.map((row) => renderRowInsert("projects", row)),
+    ...insertedByTable.phases.map((row) => renderRowInsert("phases", row)),
+    ...insertedByTable.gates.map((row) => renderRowInsert("gates", row)),
+    ...insertedByTable.role_pairs.map((row) => renderRowInsert("role_pairs", row)),
+    ...insertedByTable.work_packages.map((row) => renderRowInsert("work_packages", row)),
+    ...insertedByTable.gate_requirements.map((row) => renderRowInsert("gate_requirements", row)),
+    ...auditEvents.map(renderAuditInsert),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating project-create transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    deleteSql("audit_events"),
+    deleteSql("gate_requirements"),
+    deleteSql("work_packages"),
+    deleteSql("role_pairs"),
+    deleteSql("gates"),
+    deleteSql("phases"),
+    deleteSql("projects"),
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "project-create",
+    projectId,
+    insertedCounts,
+    auditEventCount: auditEvents.length,
+    notificationCount: 0,
+    applySql,
+    rollbackSql,
+    previousRows,
+    nextRows,
+  };
+}
+
+function insertedRowsByTable(previousRows, nextRows, tables) {
+  return Object.fromEntries(tables.map((table) => [table, insertedRows(previousRows, nextRows, table)]));
+}
+
+function deleteInsertedRowsSql(table, rows) {
+  return rows.length > 0
+    ? `DELETE FROM ${table} WHERE id IN (${rows.map((row) => row.id).map(sqlString).join(", ")});`
+    : `-- ${table}: no inserted rows to delete.`;
+}
+
+function requireRowsScopedToProject(rows, table, projectId) {
+  if (rows.some((row) => row.project_id !== projectId)) {
+    throw new Error(`project import transaction contains ${table} rows outside the imported project`);
+  }
+}
+
+function assertProjectImportScope(insertedByTable, projectId) {
+  const phaseIds = new Set(insertedByTable.phases.map((row) => row.id));
+  const gateIds = new Set(insertedByTable.gates.map((row) => row.id));
+  const workPackageIds = new Set(insertedByTable.work_packages.map((row) => row.id));
+  const agentRunIds = new Set(insertedByTable.agent_runs.map((row) => row.id));
+
+  for (const table of ["phases", "gates", "role_pairs", "work_packages", "risks", "work_package_evidence_refs", "gate_approval_packs", "notifications", "audit_events"]) {
+    requireRowsScopedToProject(insertedByTable[table], table, projectId);
+  }
+  if (insertedByTable.gates.some((row) => !phaseIds.has(row.phase_id))) {
+    throw new Error("project import transaction contains gate rows outside imported phases");
+  }
+  if (insertedByTable.work_packages.some((row) => !phaseIds.has(row.phase_id))) {
+    throw new Error("project import transaction contains work package rows outside imported phases");
+  }
+  if (insertedByTable.work_packages.some((row) => !insertedByTable.role_pairs.some((pair) => pair.id === row.role_pair_id))) {
+    throw new Error("project import transaction contains work package rows outside imported role pairs");
+  }
+  if (insertedByTable.gate_requirements.some((row) => !gateIds.has(row.gate_id) || !workPackageIds.has(row.work_package_id))) {
+    throw new Error("project import transaction contains gate requirement rows outside imported graph");
+  }
+  if (insertedByTable.artifact_versions.some((row) => !workPackageIds.has(row.work_package_id))) {
+    throw new Error("project import transaction contains artifact rows outside imported work packages");
+  }
+  if (insertedByTable.reviews.some((row) => !workPackageIds.has(row.work_package_id))) {
+    throw new Error("project import transaction contains review rows outside imported work packages");
+  }
+  if (insertedByTable.risks.some((row) => !phaseIds.has(row.phase_id))) {
+    throw new Error("project import transaction contains risk rows outside imported phases");
+  }
+  if (insertedByTable.agent_runs.some((row) => !workPackageIds.has(row.work_package_id))) {
+    throw new Error("project import transaction contains agent run rows outside imported work packages");
+  }
+  if (insertedByTable.agent_jobs.some((row) => row.project_id !== projectId || !workPackageIds.has(row.work_package_id) || (row.agent_run_id && !agentRunIds.has(row.agent_run_id)))) {
+    throw new Error("project import transaction contains agent job rows outside imported graph");
+  }
+  if (insertedByTable.agent_findings.some((row) => !workPackageIds.has(row.work_package_id) || !agentRunIds.has(row.agent_run_id))) {
+    throw new Error("project import transaction contains agent finding rows outside imported graph");
+  }
+  if (insertedByTable.gate_approval_packs.some((row) => !gateIds.has(row.gate_id) || !phaseIds.has(row.phase_id))) {
+    throw new Error("project import transaction contains gate approval pack rows outside imported graph");
+  }
+}
+
+export function buildProjectImportTransaction({ previousStore, nextStore, projectId } = {}) {
+  const previousRows = mapStoreToPostgresRows(previousStore);
+  const nextRows = mapStoreToPostgresRows(nextStore);
+  const storeDelta = comparePostgresRows(previousRows, nextRows);
+  assertOnlyTablesChanged(storeDelta, projectImportTables, "project import transaction");
+
+  const insertedByTable = insertedRowsByTable(previousRows, nextRows, projectImportTables);
+  const project = insertedByTable.projects.find((row) => row.id === projectId) || null;
+  if (insertedByTable.projects.length !== 1 || !project) {
+    throw new Error("project import transaction requires exactly one inserted project");
+  }
+
+  for (const table of projectImportTables) {
+    assertOnlyInsertedRows(storeDelta, table, insertedByTable[table].map((row) => row.id), "project import");
+  }
+  assertProjectImportScope(insertedByTable, projectId);
+
+  const importAuditEvents = insertedByTable.audit_events.filter((row) =>
+    row.project_id === projectId &&
+    row.object_type === "project" &&
+    row.object_id === projectId &&
+    (row.event_type === "PROJECT_IMPORTED" || row.event_type === "PROJECT_CLONED")
+  );
+  if (importAuditEvents.length !== 1) {
+    throw new Error("project import transaction requires exactly one PROJECT_IMPORTED or PROJECT_CLONED audit event");
+  }
+
+  const insertedCounts = Object.fromEntries(projectImportTables.map((table) => [table, insertedByTable[table].length]));
+  const applySql = [
+    "-- Native incremental project-import transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    "SET CONSTRAINTS ALL DEFERRED;",
+    ...projectImportInsertOrder.flatMap((table) => insertedByTable[table].map((row) => renderRowInsert(table, row))),
+    "COMMIT;",
+    "",
+  ].join("\n");
+  const rollbackSql = [
+    "-- Compensating project-import transaction",
+    "BEGIN;",
+    "SELECT pg_advisory_xact_lock(724311);",
+    ...projectImportDeleteOrder.map((table) => deleteInsertedRowsSql(table, insertedByTable[table])),
+    "COMMIT;",
+    "",
+  ].join("\n");
+
+  return {
+    kind: "project-import",
+    projectId,
+    insertedCounts,
+    auditEventCount: insertedByTable.audit_events.length,
+    notificationCount: insertedByTable.notifications.length,
+    applySql,
+    rollbackSql,
     previousRows,
     nextRows,
   };
@@ -1766,6 +2154,10 @@ export function executePostgresIncrementalTransaction({
         projectId: mutation.projectId,
         userId: mutation.userId,
       });
+    } else if (mutation?.kind === "gate-readiness-refresh") {
+      transaction = buildGateReadinessRefreshTransaction({ previousStore, nextStore, gateId: mutation.gateId });
+    } else if (mutation?.kind === "permission-denied-audit") {
+      transaction = buildPermissionDeniedAuditTransaction({ previousStore, nextStore, auditEventId: mutation.auditEventId });
     } else if (mutation?.kind === "risk-create") {
       transaction = buildRiskCreateTransaction({ previousStore, nextStore, riskId: mutation.riskId });
     } else if (mutation?.kind?.startsWith("risk-")) {
@@ -1796,6 +2188,10 @@ export function executePostgresIncrementalTransaction({
         projectId: mutation.projectId,
         kind: mutation.kind,
       });
+    } else if (mutation?.kind === "project-create") {
+      transaction = buildProjectCreateTransaction({ previousStore, nextStore, projectId: mutation.projectId });
+    } else if (mutation?.kind === "project-import") {
+      transaction = buildProjectImportTransaction({ previousStore, nextStore, projectId: mutation.projectId });
     } else if (mutation?.kind === "human-review-submit") {
       transaction = buildHumanReviewTransaction({
         previousStore,
@@ -1844,6 +2240,7 @@ export function executePostgresIncrementalTransaction({
         ...(transaction.evidenceRefId ? { evidenceRefId: transaction.evidenceRefId } : {}),
         ...(transaction.notificationId ? { notificationId: transaction.notificationId } : {}),
         ...(transaction.notificationIds ? { notificationIds: transaction.notificationIds } : {}),
+        ...(transaction.auditEventId ? { auditEventId: transaction.auditEventId } : {}),
         ...(transaction.riskId ? { riskId: transaction.riskId } : {}),
         ...(transaction.agentJobId ? { agentJobId: transaction.agentJobId } : {}),
         ...(transaction.agentRunId ? { agentRunId: transaction.agentRunId } : {}),

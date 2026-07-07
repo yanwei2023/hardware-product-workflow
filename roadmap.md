@@ -25,9 +25,9 @@
 | M2 | React 工作台与内部试点体验 | Done | React 工作台、角色负责人配置、工作包计划、证据、审核包、风险台账、待办和通知 | 试点用户无需直接改 JSON，即可完成主要流程操作 |
 | M3 | 本地持久化、备份与运行自检 | Done | JSON store 原子写入、备份恢复、store doctor、ready/health/runtime config/metrics | 运行状态可观测；数据文件异常能被启动或自检流程发现 |
 | M4 | PostgreSQL 迁移与镜像链路 | Done | 初始化迁移、导出/导入包、preflight、rows 反向恢复、store/database 比较、受控 sync | PostgreSQL 与 JSON store 可互相校验；迁移和镜像前后无数据漂移 |
-| M5 | PostgreSQL 增量事务写入扩展 | In Progress | 关键业务写入的原生 PostgreSQL 增量事务、写后校验和补偿事务 | 高价值写入路径在 PostgreSQL 模式下具备事务一致性、审计一致性和失败补偿 |
-| M6 | 内部试点发布与部署固化 | Planned | 试点发布包、部署手册、回滚手册、试点检查清单、运维告警建议 | 一名非开发同事可按文档在局域网环境部署、升级、回滚和执行试点检查 |
-| M7 | 试点反馈闭环与产品化增强 | Planned | 反馈台账、权限细化、流程模板增强、仪表盘和报表、Agent 任务队列优化 | 根据试点反馈形成稳定迭代清单，并完成高优先级体验和稳定性改进 |
+| M5 | PostgreSQL 增量事务写入扩展 | Done | 关键业务写入的原生 PostgreSQL 增量事务、写后校验和补偿事务 | 高价值写入路径在 PostgreSQL 模式下具备事务一致性、审计一致性和失败补偿 |
+| M6 | 内部试点发布与部署固化 | In Progress | 试点发布包、部署手册、回滚手册、试点检查清单、运维告警建议 | 一名非开发同事可按文档在局域网环境部署、升级、回滚和执行试点检查 |
+| M7 | 试点反馈闭环与产品化增强 | In Progress | 反馈台账、权限细化、流程模板增强、仪表盘和报表、Agent 任务队列优化 | 根据试点反馈形成稳定迭代清单，并完成高优先级体验和稳定性改进 |
 
 ## 近期重点
 
@@ -74,7 +74,30 @@
 | 2026-06-22 | M0-M4 | Done | 已具备项目骨架、流程主干、React 工作台、本地持久化、PostgreSQL 迁移和镜像校验链路。 | 继续收敛 M5 增量事务写入覆盖范围。 |
 | 2026-06-22 | M5 | In Progress | 多条关键业务写入已接入 PostgreSQL 增量事务链路，并包含审计、通知、写后校验和失败补偿。 | 梳理剩余写入接口，按风险优先级逐步迁移。 |
 | 2026-06-22 | M5 | In Progress | Agent 队列处理 `agent-job-process` 已接入原生 PostgreSQL 增量事务，覆盖任务状态、Agent 输出、草稿交付物、工作包状态、审计和通知。 | 继续评估权限拒绝审计、项目创建和项目导入等剩余裸持久化路径是否适合增量化。 |
-| 2026-06-22 | M6 | Planned | 内部试点发布与部署固化尚未正式启动。 | 在 M5 稳定后补齐部署检查清单和回滚演练。 |
+| 2026-06-27 | M5 | In Progress | 权限拒绝审计已接入 `permission-denied-audit` 原生 PostgreSQL 增量事务，覆盖人工审核/批准、风险接受/关闭和阶段门批准的拒绝审计写入。 | 继续评估项目创建、项目导入/克隆和存储恢复等仍使用精确镜像或全量持久化的路径。 |
+| 2026-06-27 | M5 | In Progress | 标准项目创建已接入 `project-create` 原生 PostgreSQL 增量事务，覆盖模板生成的项目、阶段、阶段门、角色负责人、工作包、门禁要求和创建审计。 | 项目导入/克隆仍因携带历史快照和复杂关联暂不复用该窄事务；下一步评估是否做独立导入事务或保留精确镜像。 |
+| 2026-06-27 | M5 | In Progress | 项目导入/克隆已接入 `project-import` 原生 PostgreSQL 增量事务，允许完整项目快照历史表插入，并拒绝对既有行的漂移修改。 | 剩余存储恢复、检查点恢复和演示数据重置属于运维级全量替换路径，下一步评估是否保持精确镜像并补充限制说明。 |
+| 2026-06-30 | M5 | In Progress | 项目选择已从 PostgreSQL exact mirror 空跑路径中拆出，作为 `active-project-select` local-only mutation 持久化，并新增 local-only 指标。 | 继续保留存储恢复、检查点恢复和演示数据重置为运维级全量替换路径，补齐试点文档中的边界说明。 |
+| 2026-06-30 | M5 | In Progress | 备份恢复、检查点恢复和演示数据重置已显式标记为 operational full-replace，继续使用 PostgreSQL 精确镜像和全表校验，并新增独立指标。 | 继续盘点 `checkGate` 等读时派生状态刷新是否需要独立增量事务或改为只读计算。 |
+| 2026-06-30 | M5 | In Progress | `checkGate` 读时派生状态刷新已接入 `gate-readiness-refresh` 原生 PostgreSQL 增量事务，仅允许对应阶段门和阶段状态变更。 | 服务端持久化调用已全部标注为增量、local-only 或 operational full-replace；下一步可进入 M5 收尾复核。 |
+| 2026-07-01 | M5 | In Progress | 已补充服务端持久化意图回归测试，防止新增未分类 `persistStore()` 调用。 | 继续执行 M5 release 级验证，并准备进入 M6 试点部署固化。 |
+| 2026-07-02 | M5 | Done | `npm run release:check` 与 `npm run pilot:check` 已通过，覆盖 API 测试、React 构建、smoke、store doctor、运行时持久化门禁、PostgreSQL 迁移/导出/恢复/导入包校验、sync 预览、试点演练和归档包生成。 | 进入 M6，固化内部试点发布、部署、检查和回滚流程。 |
+| 2026-07-02 | M6 | In Progress | 内部试点发布与部署固化启动，已补充试点候选包门禁、部署交接清单和回滚演练步骤。 | 下一步做一次按手册执行的人工部署演练，并记录首批试点用户范围与 PostgreSQL 默认策略。 |
+| 2026-07-02 | M6 | In Progress | 试点归档包新增 `pilot-deployment-drill.md` 和 `pilot-deployment-drill.json`，把发布候选包、局域网启动、访问码、诊断端点、回滚材料和 PostgreSQL 默认策略变成可复核交接材料。 | 下一步用真实局域网机器执行一次演练，并根据操作者反馈调整清单颗粒度。 |
+| 2026-07-02 | M6 | In Progress | 试点归档包新增 `pilot-feedback-ledger.md` 和 `pilot-feedback-ledger.json`，把现场问题、建议和观察项按类型、优先级、状态、负责人和后续节点汇总，默认映射到 M7。 | 下一步确认首批试点用户范围，并在真实试点后用反馈台账生成 M7 优先级清单。 |
+| 2026-07-02 | M6 | In Progress | 试点归档包新增 `pilot-trial-scope.md` 和 `pilot-trial-scope.json`，记录首批 4-8 人试点范围、角色、EVT 到 DVT 阶段边界、JSON 默认写入源和 PostgreSQL 迁移验证策略。 | 下一步由试点负责人填写真正的部门、人数和项目类型，并用归档包作为现场交接材料。 |
+| 2026-07-04 | M6 | In Progress | 试点归档包新增 `pilot-ops-alerts.md` 和 `pilot-ops-alerts.json`，记录 `/ready`、`/ops/summary`、`/metrics`、store、网络和运行时持久化的观察规则与 S1/S2/S3 处置建议。 | 下一步按真实局域网试点演练这些告警规则，并根据现场误报/漏报调整阈值。 |
+| 2026-07-04 | M6 | In Progress | 试点归档包新增 `pilot-archive-index.md` 和 `pilot-archive-index.json`，为非开发操作者提供先读顺序、按场景找文件和完整文件清单。 | 下一步用真实试点归档包做一次交接走查，压缩重复材料并确认 M6 是否可收尾。 |
+| 2026-07-06 | M6 | In Progress | 试点归档包新增 `pilot-handoff-walkthrough.md` 和 `pilot-handoff-walkthrough.json`，把归档入口、启动检查、现场报错、回滚路径和复盘记录串成一份非开发交接走查清单。 | 下一步让真实操作者按走查清单执行一次，并据此判断 M6 发布材料是否可收尾。 |
+| 2026-07-06 | M6 | In Progress | 试点归档包新增 `pilot-m6-closeout.md` 和 `pilot-m6-closeout.json`，把归档完整性、交接走查、回滚路径、反馈闭环和 PostgreSQL 默认策略整理成 M6 收尾判定表。 | 下一步由真实操作者完成交接走查后填写收尾结论，并把未决事项转入 M7 或明确暂缓。 |
+| 2026-07-07 | M6 | In Progress | 归档包总目录补充 `pilot-handoff-walkthrough.md` 和 `pilot-m6-closeout.md` 的先读入口，并新增交接走查与 M6 收尾场景导航。 | 下一步做一次真实归档包材料压缩走查，确认总目录是否已经足够承担唯一入口。 |
+| 2026-07-07 | M6 | In Progress | 已新增 `docs/completion-plan.md`，明确当前项目从工作区冻结、真实交接走查、M6 关闭到 M7 启动的最短完成路径。 | 下一步停止扩展 M6 功能，先完成当前批次提交准备，再按 `pilot-handoff-walkthrough.md` 和 `pilot-m6-closeout.md` 执行真实走查。 |
+| 2026-07-07 | M6 | In Progress | 已新增 `docs/release-freeze-2026-07-07.md`，冻结当前 M5/M6 连续开发批次的范围、关键交付物、归档包入口、验证命令和剩余外部验收。 | 下一步只做提交/PR 与真实操作者走查；非必要不再追加 M6 功能。 |
+| 2026-07-07 | M7 | In Progress | 新增 `/pilot/feedback-plan` 只读端点和工作台入口，把试点反馈台账字段、优先级、状态和 M7 后续动作暴露为可检查 API。 | 真实试点后先收敛 P0/P1 反馈，再把 PLANNED 项转入 M7 实施计划。 |
+| 2026-07-07 | M7 | In Progress | 新增 `/pilot/feedback-triage` 只读端点和工作台入口，固化 P0/P1/P2/P3 分流、状态流转和进入 M7 计划前的证据条件。 | 真实复盘时按分诊规则把 P0/P1 先落到负责人和验证证据，再批量处理 P2/P3。 |
+| 2026-07-07 | M7 | In Progress | 新增 `/pilot/m7-backlog` 只读端点和工作台入口，定义 M7 backlog 字段、排序规则、Ready 条件、默认分桶和验收证据。 | 真实复盘后把 PLANNED 反馈转换为可验收的 M7 条目，并先处理稳定性与核心流程项。 |
+| 2026-07-07 | M7 | In Progress | 新增 `/pilot/m7-backlog.md` Markdown 模板入口，便于试点复盘会把 PLANNED 反馈直接整理成可贴入纪要的 backlog 表格。 | 下一步在真实反馈产生后，用该模板生成首批 M7 P0/P1 实施清单。 |
+| 2026-07-07 | M7 | In Progress | 试点归档包新增 `pilot-m7-backlog.md` 和 `pilot-m7-backlog.json`，并在归档总目录和交接走查中把会后复盘指向 M7 backlog 模板。 | 真实走查后用离线归档包完成一次从反馈台账到 M7 backlog 的复盘演练。 |
 
 ## 每次迭代更新规则
 

@@ -130,6 +130,34 @@ test("PostgreSQL mirror persistence commits only after verified synchronization"
   assert.equal(status.lastPostgresWriteMode, "exact-mirror");
 });
 
+test("PostgreSQL mirror persistence records operational full replacements", () => {
+  const syncCalls = [];
+  const persistence = createRuntimePersistence({
+    initialStore: { value: 1 },
+    backend: "postgres-mirror",
+    databaseUrl: "postgres://example",
+    startupChecker: () => ({ required: true, ready: true, inSync: true, summary: {}, errors: [] }),
+    saveStore: () => {},
+    synchronize: (options) => {
+      syncCalls.push(options);
+      return { ok: true, errors: [] };
+    },
+    incrementalSynchronize: () => assert.fail("operational full replacements must use exact mirroring"),
+  });
+
+  const status = persistence.persist(
+    { value: 2 },
+    { fullReplaceMutation: { kind: "storage-backup-restore" } },
+  );
+
+  assert.equal(syncCalls.length, 1);
+  assert.equal(syncCalls[0].confirm, true);
+  assert.equal(status.operationalFullReplaceCount, 1);
+  assert.equal(status.exactMirrorTransactionCount, 1);
+  assert.equal(status.incrementalTransactionCount, 0);
+  assert.equal(status.lastPostgresWriteMode, "operational-full-replace");
+});
+
 test("PostgreSQL mirror persistence routes supported mutations through the incremental writer", () => {
   const calls = [];
   const persistence = createRuntimePersistence({
@@ -156,6 +184,37 @@ test("PostgreSQL mirror persistence routes supported mutations through the incre
   assert.equal(status.incrementalTransactionCount, 1);
   assert.equal(status.exactMirrorTransactionCount, 0);
   assert.equal(status.lastPostgresWriteMode, "incremental-transaction");
+});
+
+test("PostgreSQL mirror persistence records local-only mutations without database synchronization", () => {
+  const writes = [];
+  const persistence = createRuntimePersistence({
+    initialStore: { activeProjectId: "project-a", projects: [{ id: "project-a" }, { id: "project-b" }] },
+    backend: "postgres-mirror",
+    databaseUrl: "postgres://example",
+    startupChecker: () => ({ required: true, ready: true, inSync: true, summary: {}, errors: [] }),
+    saveStore: (store) => writes.push(structuredClone(store)),
+    synchronize: () => assert.fail("local-only mutations must not exact mirror PostgreSQL"),
+    incrementalSynchronize: () => assert.fail("local-only mutations must not use incremental PostgreSQL"),
+  });
+
+  const nextStore = { activeProjectId: "project-b", projects: [{ id: "project-a" }, { id: "project-b" }] };
+  const status = persistence.persist(
+    nextStore,
+    {
+      persistedAt: new Date("2026-06-13T01:30:00.000Z"),
+      localOnlyMutation: { kind: "active-project-select", projectId: "project-b" },
+    },
+  );
+
+  assert.deepEqual(writes, [nextStore]);
+  assert.deepEqual(persistence.getCommittedStore(), nextStore);
+  assert.equal(status.localOnlyMutationCount, 1);
+  assert.equal(status.incrementalTransactionCount, 0);
+  assert.equal(status.exactMirrorTransactionCount, 0);
+  assert.equal(status.lastPostgresWriteMode, "local-only");
+  assert.equal(status.lastPostgresSyncAt, null);
+  assert.equal(status.lastPersistedAt, "2026-06-13T01:30:00.000Z");
 });
 
 test("PostgreSQL mirror failure restores the last committed JSON store", () => {

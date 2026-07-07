@@ -4,11 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createDemoStore } from "./demoStoreFactory.mjs";
+import { buildProjectFromTemplate } from "./templateEngine.mjs";
 import {
   addAgentJobInStore,
   addAuditEventInStore,
   addGateApprovalPackInStore,
   addNotificationInStore,
+  addProjectGraphInStore,
   addRiskInStore,
   addWorkPackageEvidenceRefInStore,
   archiveProjectInStore,
@@ -22,6 +24,7 @@ import {
   restoreProjectInStore,
   startAgentJobInStore,
   submitHumanReviewInStore,
+  updateGateReadinessInStore,
   updateRiskMitigationInStore,
   updateRolePairOwnerInStore,
   updateRiskStatusInStore,
@@ -34,7 +37,11 @@ import {
   buildAgentOutputReadyTransaction,
   buildConditionalApprovalCompletionTransaction,
   buildGateApprovalTransaction,
+  buildGateReadinessRefreshTransaction,
   buildNotificationReadTransaction,
+  buildPermissionDeniedAuditTransaction,
+  buildProjectCreateTransaction,
+  buildProjectImportTransaction,
   buildProjectNotificationsReadTransaction,
   buildProjectLifecycleTransaction,
   buildRiskCreateTransaction,
@@ -195,6 +202,15 @@ function projectNotificationsReadStores() {
   return { previousStore, nextStore, projectId, userId, notificationIds: ["notification-read-target-a", "notification-read-target-b"] };
 }
 
+function gateReadinessRefreshStores() {
+  const previousStore = createDemoStore();
+  const gateId = "gate-evt_exit";
+  updateGateReadinessInStore(previousStore, gateId, "READY");
+  const nextStore = structuredClone(previousStore);
+  updateGateReadinessInStore(nextStore, gateId, "BLOCKED");
+  return { previousStore, nextStore, gateId };
+}
+
 function projectArchivedStores() {
   const previousStore = createDemoStore();
   const nextStore = structuredClone(previousStore);
@@ -241,6 +257,220 @@ function projectRestoredStores() {
     createdAt: "2026-06-14T03:20:00.000Z",
   });
   return { previousStore, nextStore, projectId };
+}
+
+function projectCreatedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const project = {
+    id: "project-smart-lock-v2",
+    name: "智能门锁 V2",
+    productLine: "IoT 产品线",
+    currentPhaseId: "project-smart-lock-v2-phase-initiation",
+    status: "IN_PROGRESS",
+    createdAt: "2026-06-14T03:25:00.000Z",
+  };
+  const generated = buildProjectFromTemplate(project, "initiation");
+  addProjectGraphInStore(nextStore, {
+    project,
+    phases: generated.phases,
+    gates: generated.gates,
+    rolePairs: generated.rolePairs,
+    gateRequirements: generated.gateRequirements,
+    workPackages: generated.workPackages,
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-project-created",
+    projectId: project.id,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "PROJECT_CREATED",
+    objectType: "project",
+    objectId: project.id,
+    payload: { templateKey: "standard_hardware_development_v0_1" },
+    createdAt: "2026-06-14T03:25:00.000Z",
+  });
+  return { previousStore, nextStore, projectId: project.id };
+}
+
+function projectImportedStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const project = {
+    id: "project-imported-history",
+    name: "导入历史项目",
+    productLine: "IoT 产品线",
+    currentPhaseId: "project-imported-history-phase-initiation",
+    status: "IN_PROGRESS",
+    sourceExportedAt: "2026-06-14T03:40:00.000Z",
+    createdAt: "2026-06-14T03:41:00.000Z",
+  };
+  const generated = buildProjectFromTemplate(project, "initiation");
+  const workPackageId = "project-imported-history-wp-initiation-business_case";
+  const gateId = "project-imported-history-gate-initiation";
+  const phaseId = "project-imported-history-phase-initiation";
+  const artifactId = "artifact-imported-business-case";
+  const reviewId = "review-imported-business-case";
+  const agentRunId = "agent-run-imported-business-case";
+  const riskId = "risk-imported-supply";
+  addProjectGraphInStore(nextStore, {
+    project,
+    phases: generated.phases,
+    gates: generated.gates,
+    rolePairs: generated.rolePairs,
+    gateRequirements: generated.gateRequirements,
+    workPackages: generated.workPackages,
+    artifactVersions: [{
+      id: artifactId,
+      workPackageId,
+      artifactType: "BUSINESS_CASE",
+      version: "v1",
+      status: "APPROVED",
+      objectKey: "imported/business-case.md",
+      content: { markdown: "## Business Case\n\nImported." },
+      createdByActor: "agent:product_agent",
+      createdAt: "2026-06-14T03:42:00.000Z",
+    }],
+    reviews: [{
+      id: reviewId,
+      workPackageId,
+      reviewerUserId: "user-product-owner",
+      decision: "APPROVE",
+      comment: "Imported approval.",
+      conditions: [],
+      reviewedAt: "2026-06-14T03:43:00.000Z",
+    }],
+    risks: [{
+      id: riskId,
+      projectId: project.id,
+      phaseId,
+      title: "导入历史供应风险",
+      severity: "HIGH",
+      status: "OPEN",
+      createdByUserId: "user-project-manager",
+      createdAt: "2026-06-14T03:44:00.000Z",
+    }],
+    agentRuns: [{
+      id: agentRunId,
+      workPackageId,
+      agentKey: "product_agent",
+      status: "COMPLETED",
+      inputRefs: [],
+      outputRef: artifactId,
+      artifactTemplateKey: "business_case",
+      requiredSections: ["Business Case"],
+      requiredReviewRoles: ["product_owner"],
+      validation: { valid: true, missingSections: [] },
+      createdAt: "2026-06-14T03:41:30.000Z",
+      completedAt: "2026-06-14T03:42:00.000Z",
+    }],
+    agentJobs: [{
+      id: "agent-job-imported-business-case",
+      projectId: project.id,
+      workPackageId,
+      agentKey: "product_agent",
+      inputRefs: [],
+      draftMarkdown: "## Business Case\n\nImported.",
+      requestedByUserId: "user-project-manager",
+      status: "COMPLETED",
+      createdAt: "2026-06-14T03:41:00.000Z",
+      startedAt: "2026-06-14T03:41:20.000Z",
+      completedAt: "2026-06-14T03:42:00.000Z",
+      resultStatusCode: 201,
+      agentRunId,
+    }],
+    agentFindings: [{
+      id: "finding-imported-business-case",
+      workPackageId,
+      agentRunId,
+      severity: "LOW",
+      status: "OPEN",
+      message: "Imported finding.",
+      evidenceRefs: [],
+    }],
+    evidenceRefs: [{
+      id: "evidence-imported-business-case",
+      projectId: project.id,
+      workPackageId,
+      label: "导入证据",
+      ref: "https://example.test/imported",
+      createdByUserId: "user-project-manager",
+      createdAt: "2026-06-14T03:45:00.000Z",
+    }],
+    gateApprovalPacks: [{
+      id: "gate-pack-imported-initiation",
+      projectId: project.id,
+      gateId,
+      phaseId,
+      approvedByUserId: "user-project-manager",
+      approvedAt: "2026-06-14T03:46:00.000Z",
+      approvalComment: "Imported pack.",
+      reviewPack: { project: { id: project.id }, gate: { id: gateId }, summary: { readyForApproval: true } },
+    }],
+    notifications: [{
+      id: "notification-imported-project",
+      projectId: project.id,
+      userId: "user-project-manager",
+      title: "导入项目通知",
+      message: "Imported notification.",
+      type: "INFO",
+      status: "UNREAD",
+      objectType: "project",
+      objectId: project.id,
+      createdAt: "2026-06-14T03:47:00.000Z",
+    }],
+    auditEvents: [{
+      id: "imported-audit-original-project",
+      projectId: project.id,
+      actorType: "human",
+      actorId: "user-project-manager",
+      eventType: "ORIGINAL_PROJECT_EVENT",
+      objectType: "project",
+      objectId: project.id,
+      payload: {},
+      createdAt: "2026-06-14T03:48:00.000Z",
+    }],
+  });
+  addAuditEventInStore(nextStore, {
+    id: "audit-project-imported",
+    projectId: project.id,
+    actorType: "human",
+    actorId: "user-project-manager",
+    eventType: "PROJECT_IMPORTED",
+    objectType: "project",
+    objectId: project.id,
+    payload: { importedCounts: { projectId: project.id } },
+    createdAt: "2026-06-14T03:49:00.000Z",
+  });
+  return { previousStore, nextStore, projectId: project.id };
+}
+
+function assertProjectCreateCounts(transaction) {
+  assert.equal(transaction.insertedCounts.projects, 1);
+  assert.equal(transaction.insertedCounts.phases, 7);
+  assert.equal(transaction.insertedCounts.gates, 7);
+  assert.equal(transaction.insertedCounts.role_pairs, 10);
+  assert.equal(transaction.insertedCounts.work_packages, 22);
+  assert.equal(transaction.insertedCounts.gate_requirements, 22);
+}
+
+function permissionDeniedAuditStores() {
+  const previousStore = createDemoStore();
+  const nextStore = structuredClone(previousStore);
+  const auditEvent = addAuditEventInStore(nextStore, {
+    id: "audit-human-review-denied",
+    projectId: nextStore.activeProjectId,
+    actorType: "human",
+    actorId: "user-firmware-lead",
+    eventType: "HUMAN_REVIEW_DENIED",
+    objectType: "workPackage",
+    objectId: "wp-evt_exit-evt_test_report",
+    payload: {
+      reason: "reviewer is not the assigned human owner or required reviewer role",
+    },
+    createdAt: "2026-06-14T03:30:00.000Z",
+  });
+  return { previousStore, nextStore, auditEventId: auditEvent.id };
 }
 
 function riskCreatedStores() {
@@ -974,6 +1204,31 @@ test("project notifications read transaction rejects notifications outside the u
   );
 });
 
+test("gate readiness refresh transaction updates gate and phase status atomically", () => {
+  const { previousStore, nextStore, gateId } = gateReadinessRefreshStores();
+  const transaction = buildGateReadinessRefreshTransaction({ previousStore, nextStore, gateId });
+
+  assert.match(transaction.applySql, /^-- Native incremental gate-readiness-refresh transaction/m);
+  assert.match(transaction.applySql, /UPDATE gates SET status = 'GATE_BLOCKED'/);
+  assert.match(transaction.applySql, /UPDATE phases SET status = 'GATE_BLOCKED'/);
+  assert.match(transaction.rollbackSql, /UPDATE phases SET status = 'GATE_READY'/);
+  assert.match(transaction.rollbackSql, /UPDATE gates SET status = 'GATE_READY'/);
+  assert.deepEqual(transaction.changedGateFields, ["status"]);
+  assert.deepEqual(transaction.changedPhaseFields, ["status"]);
+  assert.equal(transaction.auditEventCount, 0);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("gate readiness refresh transaction rejects unrelated changes", () => {
+  const { previousStore, nextStore, gateId } = gateReadinessRefreshStores();
+  nextStore.projects[0].status = "UNRELATED_CHANGE";
+
+  assert.throws(
+    () => buildGateReadinessRefreshTransaction({ previousStore, nextStore, gateId }),
+    /contains unrelated store changes: projects/,
+  );
+});
+
 test("project archive transaction updates project status and audit atomically", () => {
   const { previousStore, nextStore, projectId } = projectArchivedStores();
   const transaction = buildProjectLifecycleTransaction({ previousStore, nextStore, projectId, kind: "project-archive" });
@@ -999,6 +1254,104 @@ test("project restore transaction updates project status and audit atomically", 
   assert.deepEqual(transaction.changedProjectFields, ["status"]);
   assert.equal(transaction.auditEventCount, 1);
   assert.equal(transaction.notificationCount, 0);
+});
+
+test("project create transaction inserts a generated project graph and audit atomically", () => {
+  const { previousStore, nextStore, projectId } = projectCreatedStores();
+  const transaction = buildProjectCreateTransaction({ previousStore, nextStore, projectId });
+
+  assert.equal(transaction.kind, "project-create");
+  assert.equal(transaction.projectId, projectId);
+  assert.match(transaction.applySql, /^-- Native incremental project-create transaction/m);
+  assert.match(transaction.applySql, /SET CONSTRAINTS ALL DEFERRED/);
+  assert.match(transaction.applySql, /INSERT INTO projects[\s\S]*project-smart-lock-v2/);
+  assert.match(transaction.applySql, /INSERT INTO phases[\s\S]*project-smart-lock-v2-phase-initiation/);
+  assert.match(transaction.applySql, /INSERT INTO gates[\s\S]*project-smart-lock-v2-gate-initiation/);
+  assert.match(transaction.applySql, /INSERT INTO role_pairs[\s\S]*project-smart-lock-v2-pair-product_agent/);
+  assert.match(transaction.applySql, /INSERT INTO work_packages[\s\S]*project-smart-lock-v2-wp-initiation-business_case/);
+  assert.match(transaction.applySql, /INSERT INTO gate_requirements[\s\S]*project-smart-lock-v2-req-initiation-business_case/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*PROJECT_CREATED[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*DELETE FROM gate_requirements[\s\S]*DELETE FROM work_packages[\s\S]*DELETE FROM role_pairs[\s\S]*DELETE FROM gates[\s\S]*DELETE FROM phases[\s\S]*DELETE FROM projects/);
+  assertProjectCreateCounts(transaction);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("project create transaction rejects imported history tables", () => {
+  const { previousStore, nextStore, projectId } = projectCreatedStores();
+  nextStore.risks.push({
+    id: "risk-imported-history",
+    projectId,
+    phaseId: "project-smart-lock-v2-phase-initiation",
+    title: "导入历史风险",
+    severity: "HIGH",
+    status: "OPEN",
+    createdByUserId: "user-project-manager",
+    createdAt: "2026-06-14T03:26:00.000Z",
+  });
+
+  assert.throws(
+    () => buildProjectCreateTransaction({ previousStore, nextStore, projectId }),
+    /unrelated store changes: risks/,
+  );
+});
+
+test("project import transaction inserts a full project snapshot atomically", () => {
+  const { previousStore, nextStore, projectId } = projectImportedStores();
+  const transaction = buildProjectImportTransaction({ previousStore, nextStore, projectId });
+
+  assert.equal(transaction.kind, "project-import");
+  assert.equal(transaction.projectId, projectId);
+  assert.match(transaction.applySql, /^-- Native incremental project-import transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO projects[\s\S]*project-imported-history/);
+  assert.match(transaction.applySql, /INSERT INTO artifact_versions[\s\S]*artifact-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO reviews[\s\S]*review-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO risks[\s\S]*risk-imported-supply/);
+  assert.match(transaction.applySql, /INSERT INTO agent_runs[\s\S]*agent-run-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO agent_jobs[\s\S]*agent-job-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO agent_findings[\s\S]*finding-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO work_package_evidence_refs[\s\S]*evidence-imported-business-case/);
+  assert.match(transaction.applySql, /INSERT INTO gate_approval_packs[\s\S]*gate-pack-imported-initiation/);
+  assert.match(transaction.applySql, /INSERT INTO notifications[\s\S]*notification-imported-project/);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*PROJECT_IMPORTED[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events[\s\S]*DELETE FROM notifications[\s\S]*DELETE FROM gate_approval_packs[\s\S]*DELETE FROM work_package_evidence_refs[\s\S]*DELETE FROM agent_findings[\s\S]*DELETE FROM agent_jobs[\s\S]*DELETE FROM agent_runs[\s\S]*DELETE FROM risks[\s\S]*DELETE FROM reviews[\s\S]*DELETE FROM artifact_versions[\s\S]*DELETE FROM gate_requirements[\s\S]*DELETE FROM work_packages[\s\S]*DELETE FROM role_pairs[\s\S]*DELETE FROM gates[\s\S]*DELETE FROM phases[\s\S]*DELETE FROM projects/);
+  assert.equal(transaction.insertedCounts.projects, 1);
+  assert.equal(transaction.insertedCounts.audit_events, 2);
+  assert.equal(transaction.auditEventCount, 2);
+  assert.equal(transaction.notificationCount, 1);
+});
+
+test("project import transaction rejects changes to existing rows", () => {
+  const { previousStore, nextStore, projectId } = projectImportedStores();
+  nextStore.projects.find((project) => project.id === previousStore.activeProjectId).name = "Unexpected rename";
+
+  assert.throws(
+    () => buildProjectImportTransaction({ previousStore, nextStore, projectId }),
+    /unsupported projects changes/,
+  );
+});
+
+test("permission denied audit transaction inserts one denial audit event atomically", () => {
+  const { previousStore, nextStore, auditEventId } = permissionDeniedAuditStores();
+  const transaction = buildPermissionDeniedAuditTransaction({ previousStore, nextStore, auditEventId });
+
+  assert.equal(transaction.kind, "permission-denied-audit");
+  assert.equal(transaction.auditEventId, auditEventId);
+  assert.match(transaction.applySql, /^-- Native incremental permission-denied-audit transaction/m);
+  assert.match(transaction.applySql, /INSERT INTO audit_events[\s\S]*HUMAN_REVIEW_DENIED[\s\S]*COMMIT;/);
+  assert.match(transaction.rollbackSql, /DELETE FROM audit_events WHERE id IN \('audit-human-review-denied'\)/);
+  assert.equal(transaction.auditEventCount, 1);
+  assert.equal(transaction.notificationCount, 0);
+});
+
+test("permission denied audit transaction rejects unrelated business drift", () => {
+  const { previousStore, nextStore, auditEventId } = permissionDeniedAuditStores();
+  nextStore.projects[0].status = "PAUSED";
+
+  assert.throws(
+    () => buildPermissionDeniedAuditTransaction({ previousStore, nextStore, auditEventId }),
+    /unrelated store changes: projects/,
+  );
 });
 
 test("project lifecycle transaction rejects unrelated project fields", () => {
@@ -1405,6 +1758,24 @@ test("incremental project notifications transaction executes and reports its mut
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("incremental gate readiness refresh transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, gateId } = gateReadinessRefreshStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "gate-readiness-refresh", gateId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "gate-readiness-refresh", gateId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("incremental project archive transaction executes and reports its mutation identity", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
   const { previousStore, nextStore, projectId } = projectArchivedStores();
@@ -1438,6 +1809,63 @@ test("incremental project restore transaction executes and reports its mutation 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.mutation, { kind: "project-restore", projectId });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental project create transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, projectId } = projectCreatedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "project-create", projectId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "project-create", projectId });
+  assert.deepEqual(result.counts, { auditEvents: 1, notifications: 0 });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental project import transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, projectId } = projectImportedStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "project-import", projectId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "project-import", projectId });
+  assert.deepEqual(result.counts, { auditEvents: 2, notifications: 1 });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("incremental permission denied audit transaction executes and reports its mutation identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hardware-flow-incremental-"));
+  const { previousStore, nextStore, auditEventId } = permissionDeniedAuditStores();
+  const result = executePostgresIncrementalTransaction({
+    previousStore,
+    nextStore,
+    mutation: { kind: "permission-denied-audit", auditEventId },
+    databaseUrl: "postgres://workflow@localhost/workflow",
+    outputDir: dir,
+    runner: () => ({ status: 0, signal: null, stdout: "COMMIT\n", stderr: "" }),
+    queryRunner: queryRunnerSequence([mapStoreToPostgresRows(nextStore)]),
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.mutation, { kind: "permission-denied-audit", auditEventId });
+  assert.deepEqual(result.counts, { auditEvents: 1, notifications: 0 });
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -53,11 +53,19 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 归档包包含：
 
+- 归档包总目录 `pilot-archive-index.md` 和 `pilot-archive-index.json`，用于告诉非开发同事先看哪些文件，以及现场启动、交接走查、报错、回滚、复盘、数据库演练和 M6 收尾时分别打开哪些材料；
+- 交接走查清单 `pilot-handoff-walkthrough.md` 和 `pilot-handoff-walkthrough.json`，用于让非核心开发同事按入口、启动前检查、现场报错、回滚路径和会后复盘完整走一遍；
+- M6 收尾判定 `pilot-m6-closeout.md` 和 `pilot-m6-closeout.json`，用于在真实操作者走查后判断发布材料是否可按 `PASS`、`PASS_WITH_NOTES` 或 `BLOCKED` 收口；
 - 试点交接页 `pilot-handoff.md`，汇总就绪、试点命令、未完成必需项、数据保护/回滚、试点问题上报、第一轮验收标准、第一轮试点边界、运维、诊断端点、PostgreSQL 导入包、`psql` 命令、受控 `db:import` 命令和导入结果报告复核命令；
 - 现场简报 `pilot-brief.md`，用于会前/会中同步项目、阶段门、必需项、阻塞提醒、命令和诊断链接；
 - 启动判定 `pilot-launch-summary.json`，用于快速判断 `GO`、`GO_WITH_CAUTION` 或 `NO_GO`，并列出硬阻塞、必需待处理项和下一步动作；
+- 试点范围与运行策略 `pilot-trial-scope.md` 和 `pilot-trial-scope.json`，用于记录首批参与角色、人数范围、阶段范围、默认运行时写入源和 PostgreSQL 策略；
 - 试点问题上报模板 `pilot-issue-report.md`，用于记录请求 ID、服务版本、复现步骤、影响范围、诊断端点和是否需要回滚；
+- 试点反馈台账 `pilot-feedback-ledger.md` 和 `pilot-feedback-ledger.json`，用于把问题、建议和观察项按类型、优先级、状态、负责人和后续节点汇总到 M7；
+- M7 backlog 模板 `pilot-m7-backlog.md` 和 `pilot-m7-backlog.json`，用于把 PLANNED 反馈整理成带负责人、Ready 条件和验收证据的实施条目；
 - 回滚卡片 `pilot-rollback-card.md`，用于现场 S1/S2 数据或放行风险时按步骤暂停、诊断、恢复检查点或 `.bak`，并保留恢复证据；
+- 部署演练清单 `pilot-deployment-drill.md` 和 `pilot-deployment-drill.json`，用于按步骤确认发布候选包、检查点、局域网启动、访问码、诊断端点、回滚材料和 PostgreSQL 默认策略；
+- 运维告警建议 `pilot-ops-alerts.md` 和 `pilot-ops-alerts.json`，用于列出试点期间应观察的诊断端点、Prometheus 指标、触发条件和 S1/S2/S3 处置规则；
 - 项目快照 JSON/Markdown；
 - 风险台账 JSON/Markdown；
 - 当前阶段门审核包 JSON/Markdown；
@@ -68,6 +76,18 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 - PostgreSQL 导入包和 `pilot-archive-manifest.json`。
 
 `pilot-archive-manifest.json` 会记录项目、当前阶段门、阻塞数量、试点清单必需项完成度、试点命令、未完成必需项、数据保护/回滚状态、试点问题上报字段、第一轮验收标准、第一轮试点边界、运维摘要 ready 状态、storage 校验结果和 PostgreSQL 导入包校验结果，并汇总运维阻塞/警告数量、HTTP 错误计数、下一步动作、常用诊断端点和 `psql` 导入命令，方便试点负责人快速判断这份材料是否可交付。
+
+## 发布候选包
+
+每次内部试点前，把以下步骤作为发布候选包门禁：
+
+1. 在项目根目录运行 `npm run pilot:check`。
+2. 确认 `/tmp/hardware-flow-pilot-archive/pilot-launch-summary.json` 的结论不是 `NO_GO`。
+3. 确认 `/tmp/hardware-flow-pilot-archive/pilot-archive-index.md`、`pilot-handoff-walkthrough.md`、`pilot-m6-closeout.md`、`pilot-handoff.md`、`pilot-brief.md`、`pilot-trial-scope.md`、`pilot-issue-report.md`、`pilot-feedback-ledger.md`、`pilot-m7-backlog.md`、`pilot-rollback-card.md`、`pilot-deployment-drill.md` 和 `pilot-ops-alerts.md` 都已生成。
+4. 若本轮需要 PostgreSQL 导入演练，在有 `DATABASE_URL` 和 `psql` 的环境运行 `npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict`。
+5. 记录本次服务版本、Git 提交、试点负责人、计划开始时间和数据目录。
+
+第一轮试点默认以 JSON store 为运行时写入源。PostgreSQL 导入包、preflight、启动快照和 `postgres-mirror` 可写桥只作为迁移验证材料；除非现场明确要验证数据库镜像写入，不应把它们作为试点通过条件。
 
 ## 启动方式
 
@@ -106,6 +126,10 @@ http://localhost:3001/ready
 http://localhost:3001/pilot/readiness
 http://localhost:3001/pilot/launch
 http://localhost:3001/pilot/checklist
+http://localhost:3001/pilot/feedback-plan
+http://localhost:3001/pilot/feedback-triage
+http://localhost:3001/pilot/m7-backlog
+http://localhost:3001/pilot/m7-backlog.md
 http://localhost:3001/ops/summary
 http://localhost:3001/storage/status
 http://localhost:3001/storage/doctor
@@ -120,8 +144,12 @@ http://localhost:3001/metrics
 页面“项目 -> 试点就绪总览”会聚合服务状态、本地 store、当前阶段门阻塞、证据齐备度、风险、审计、通知以及常用导出入口。试点负责人可以先看这个面板判断是否可以组织内部评审或试用。
 其中“试点演练清单”会按当前项目数据列出检查点、角色负责人、工作包排期、Agent 草稿、人类审核、风险处置、通知、审计和归档包等事项的 DONE/PENDING 状态；未完成的必需项也会出现在就绪提醒中，可作为试点主持人的现场脚本。
 其中“现场简报”可以一键复制当前项目、阶段门状态、阻塞提醒、试点命令和诊断链接；“建议试点流程”可以一键复制到会议纪要或群消息；“现场问题上报”可以一键复制问题模板；试点命令也可以逐条复制。
+其中“反馈计划”会打开 `/pilot/feedback-plan`，展示 `pilot-feedback-ledger.md` 的字段、优先级、状态和 M7 后续动作。真实试点后先把 P0/P1 写入反馈台账，再在复盘会上明确负责人、状态和后续节点。
+其中“反馈分诊”会打开 `/pilot/feedback-triage`，展示 P0/P1/P2/P3 分流规则、状态流转和进入 M7 计划前必须补齐的证据条件。
+其中“M7 Backlog”会打开 `/pilot/m7-backlog`，展示从 PLANNED 反馈转为 M7 条目时需要填写的字段、排序规则、Ready 条件和验收证据。
+其中“M7 模板”会打开 `/pilot/m7-backlog.md`，导出可贴进复盘纪要的 Markdown 表格模板。
 如果页面操作失败，顶部会以红色提示显示错误内容、请求 ID 和服务版本；试点参与者反馈问题时应一并截图或复制请求 ID。
-归档包中的 `pilot-issue-report.md` 可以直接作为现场问题模板，`pilot-rollback-card.md` 可以直接作为主持人的暂停和恢复清单。S1 代表数据损坏、无法启动、阶段门错误放行或无法回滚；S2 代表工作包生成、审核、风险处理、阶段门批准或导出等核心流程阻塞；S3 代表页面可用性、文案、性能、局域网访问或非关键导出问题。
+归档包中的 `pilot-issue-report.md` 可以直接作为现场问题模板，`pilot-feedback-ledger.md` 用于会后汇总问题、建议和观察项并映射到 M7，`pilot-rollback-card.md` 可以直接作为主持人的暂停和恢复清单。S1 代表数据损坏、无法启动、阶段门错误放行或无法回滚；S2 代表工作包生成、审核、风险处理、阶段门批准或导出等核心流程阻塞；S3 代表页面可用性、文案、性能、局域网访问或非关键导出问题。
 
 试点开始前，建议在“项目 -> 本地数据状态”点击“创建检查点”，标签可使用 `pilot-start` 或当天会议名。检查点是当前 JSON store 的显式副本，适合在试点前后做可控回滚。
 
@@ -179,6 +207,19 @@ npm run store:restore-backup
 如果试点前已经创建检查点，优先在页面“项目 -> 本地数据状态”的“最近检查点”列表中选择目标检查点恢复；也可以直接点击“恢复最新检查点”回到最近一次状态。恢复前系统会保留当前文件的 `.pre-restore-*.bak` 副本，方便二次排查。
 
 如果需要完全回到演示数据，可以在页面点击“重置演示数据”。重置前会保留最近一次旧数据备份；直接调用 `/demo/reset` 时也必须发送 `confirm: true`。
+
+## 回滚演练
+
+试点正式开始前至少做一次短演练，确认主持人知道如何暂停、诊断和恢复：
+
+1. 启动服务后访问 `/ready`、`/storage/status` 和 `/storage/doctor`，确认主 store 有效。
+2. 在页面“项目 -> 本地数据状态”创建检查点，标签使用 `rollback-drill`。
+3. 执行一次低风险写入，例如标记一条通知已读或更新一个非关键工作包排期。
+4. 从页面恢复刚才的检查点，或使用 `npm run store:restore-backup` 验证 `.bak` 恢复路径。
+5. 再次访问 `/ready` 和 `/storage/doctor`，确认恢复后仍有效。
+6. 把恢复前后的请求 ID、服务版本和检查点名称记录到试点归档或会议纪要。
+
+现场出现 S1 或 S2 问题时，先暂停继续写入，保存浏览器截图和请求 ID，再按归档包中的 `pilot-rollback-card.md` 执行。只有在恢复后 `/ready` 与 `/storage/doctor` 都通过，才允许继续试点。
 
 ## 当前不承诺范围
 

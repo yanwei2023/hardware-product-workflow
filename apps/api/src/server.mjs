@@ -30,7 +30,14 @@ import {
   findUser,
   getDemoUsers,
 } from "./permissionStore.mjs";
-import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport, pilotRollbackCard } from "./pilotPlan.mjs";
+import {
+  firstPilotAcceptanceCriteria,
+  firstPilotBoundaries,
+  firstPilotRunbookSteps,
+  pilotFeedbackLedger,
+  pilotIssueReport,
+  pilotRollbackCard,
+} from "./pilotPlan.mjs";
 import {
   addAuditEventInStore,
   addAgentJobInStore,
@@ -767,6 +774,10 @@ export function getPilotReadinessStatus() {
       launch: "/pilot/launch",
       readiness: "/pilot/readiness",
       checklist: "/pilot/checklist",
+      feedbackPlan: "/pilot/feedback-plan",
+      feedbackTriage: "/pilot/feedback-triage",
+      m7Backlog: "/pilot/m7-backlog",
+      m7BacklogMarkdown: "/pilot/m7-backlog.md",
       health: "/health",
       ready: "/ready",
       opsSummary: "/ops/summary",
@@ -780,6 +791,122 @@ export function getPilotReadinessStatus() {
       gateReviewPack: gate ? `/gates/${gate.id}/review-pack.md` : null,
     },
   };
+}
+
+export function getPilotFeedbackPlanStatus() {
+  return {
+    generatedAt: new Date().toISOString(),
+    templateName: pilotFeedbackLedger.templateName,
+    defaultMilestone: pilotFeedbackLedger.defaultMilestone,
+    fields: pilotFeedbackLedger.fields,
+    categories: pilotFeedbackLedger.categories,
+    priorities: pilotFeedbackLedger.priorities,
+    statuses: pilotFeedbackLedger.statuses,
+    severityGuide: pilotFeedbackLedger.severityGuide,
+    links: {
+      archiveFeedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
+      archiveFeedbackLedgerJson: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.json",
+      completionPlan: "docs/completion-plan.md",
+      roadmap: "roadmap.md",
+    },
+    nextActions: [
+      "真实试点后先把 P0/P1 写入 pilot-feedback-ledger.md。",
+      "复盘会上为 P0/P1 明确负责人、状态和后续节点。",
+      "M6 关闭后把 PLANNED 项转入 M7 实施计划。",
+    ],
+  };
+}
+
+export function getPilotFeedbackTriageStatus() {
+  return {
+    generatedAt: new Date().toISOString(),
+    defaultMilestone: pilotFeedbackLedger.defaultMilestone,
+    priorityLanes: pilotFeedbackLedger.triage.priorityLanes,
+    statusTransitions: pilotFeedbackLedger.triage.statusTransitions,
+    readyForPlanningCriteria: pilotFeedbackLedger.triage.readyForPlanningCriteria,
+    links: {
+      feedbackPlan: "/pilot/feedback-plan",
+      archiveFeedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
+      archiveFeedbackLedgerJson: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.json",
+      roadmap: "roadmap.md",
+    },
+    nextActions: [
+      "复盘会上先按 P0/P1/P2/P3 完成反馈分流。",
+      "P0/P1 必须在进入 M7 计划前明确负责人和证据。",
+      "P2/P3 可以批量进入 M7 或记录 DEFERRED 原因。",
+    ],
+  };
+}
+
+export function getPilotM7BacklogStatus() {
+  return {
+    generatedAt: new Date().toISOString(),
+    milestone: pilotFeedbackLedger.defaultMilestone,
+    sourceTemplate: pilotFeedbackLedger.templateName,
+    itemFields: pilotFeedbackLedger.m7Backlog.itemFields,
+    sortOrder: pilotFeedbackLedger.m7Backlog.sortOrder,
+    readyDefinition: pilotFeedbackLedger.m7Backlog.readyDefinition,
+    acceptanceEvidence: pilotFeedbackLedger.m7Backlog.acceptanceEvidence,
+    defaultBuckets: pilotFeedbackLedger.m7Backlog.defaultBuckets,
+    links: {
+      feedbackPlan: "/pilot/feedback-plan",
+      feedbackTriage: "/pilot/feedback-triage",
+      archiveFeedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
+      roadmap: "roadmap.md",
+    },
+    nextActions: [
+      "把 TRIAGED 且满足 Ready 条件的反馈转为 PLANNED backlog 条目。",
+      "先排序 P0/P1，再批量评估 P2/P3。",
+      "每个 backlog 条目必须带验收证据，避免只留下口头结论。",
+    ],
+  };
+}
+
+export function renderPilotM7BacklogMarkdown(backlog) {
+  const readyRows = backlog.readyDefinition.map((item) => `- ${item}`).join("\n");
+  const evidenceRows = backlog.acceptanceEvidence.map((item) => `- ${item}`).join("\n");
+  const bucketRows = backlog.defaultBuckets
+    .map((item) => `| ${item.key} | ${item.label} | ${item.priorityHint} |`)
+    .join("\n");
+  const fieldHeader = `| ${backlog.itemFields.join(" | ")} |`;
+  const fieldDivider = `| ${backlog.itemFields.map(() => "---").join(" | ")} |`;
+  const exampleRow = `| M7-001 | PF-001 | 示例：阶段门材料字段不够 | P1 | 流程适配 | 待定 | PLANNED | M7 | 复测结果或截图 | 阻塞核心流程时补充说明 |`;
+
+  return `# M7 Backlog 计划模板
+
+生成时间：${backlog.generatedAt}
+
+来源模板：${backlog.sourceTemplate}
+目标节点：${backlog.milestone}
+
+## 排序规则
+
+${backlog.sortOrder.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+
+## Ready 条件
+
+${readyRows}
+
+## 验收证据
+
+${evidenceRows}
+
+## 默认分桶
+
+| Key | 名称 | 优先级提示 |
+| --- | --- | --- |
+${bucketRows}
+
+## 条目模板
+
+${fieldHeader}
+${fieldDivider}
+${exampleRow}
+
+## 下一步
+
+${backlog.nextActions.map((item) => `- ${item}`).join("\n")}
+`;
 }
 
 export function getPilotLaunchStatus() {
@@ -911,6 +1038,12 @@ function renderMetrics() {
     "# HELP hardware_flow_runtime_exact_mirror_transactions_total Successful exact-mirror PostgreSQL runtime transactions.",
     "# TYPE hardware_flow_runtime_exact_mirror_transactions_total counter",
     `hardware_flow_runtime_exact_mirror_transactions_total ${runtimePersistence.getStatus().exactMirrorTransactionCount}`,
+    "# HELP hardware_flow_runtime_local_only_mutations_total Runtime mutations persisted only to the JSON store.",
+    "# TYPE hardware_flow_runtime_local_only_mutations_total counter",
+    `hardware_flow_runtime_local_only_mutations_total ${runtimePersistence.getStatus().localOnlyMutationCount}`,
+    "# HELP hardware_flow_runtime_operational_full_replacements_total Operational full-store replacements mirrored to PostgreSQL.",
+    "# TYPE hardware_flow_runtime_operational_full_replacements_total counter",
+    `hardware_flow_runtime_operational_full_replacements_total ${runtimePersistence.getStatus().operationalFullReplaceCount}`,
     "# HELP hardware_flow_shutting_down Whether the process is draining before exit.",
     "# TYPE hardware_flow_shutting_down gauge",
     `hardware_flow_shutting_down ${isShuttingDown ? 1 : 0}`,
@@ -1020,7 +1153,12 @@ export function restoreStorageBackup(body = {}) {
   const restoreResult = restoreStoreFromBackup({ storePath });
   store = loadStoreFromDisk() || createDemoStore();
   ensureStoreShape();
-  persistStore();
+  persistStore({
+    fullReplaceMutation: {
+      kind: "storage-backup-restore",
+      backupPath,
+    },
+  });
 
   return {
     statusCode: 200,
@@ -1093,7 +1231,12 @@ export function restoreStorageCheckpoint(body = {}) {
     });
     store = loadStoreFromDisk() || createDemoStore();
     ensureStoreShape();
-    persistStore();
+    persistStore({
+      fullReplaceMutation: {
+        kind: "storage-checkpoint-restore",
+        checkpointPath: allowedCheckpoint.filePath,
+      },
+    });
 
     return {
       statusCode: 200,
@@ -1118,7 +1261,11 @@ export function restoreStorageCheckpoint(body = {}) {
 export function resetDemoStore() {
   deleteStoreFromDisk();
   store = createDemoStore();
-  persistStore();
+  persistStore({
+    fullReplaceMutation: {
+      kind: "demo-reset",
+    },
+  });
   return getActiveProjectView();
 }
 
@@ -1546,7 +1693,7 @@ async function readJson(req) {
 }
 
 function audit(eventType, actorType, actorId, objectType, objectId, payload = {}) {
-  addAuditEventInStore(store, {
+  return addAuditEventInStore(store, {
     id: randomUUID(),
     projectId: currentProject()?.id || null,
     eventType,
@@ -1556,6 +1703,15 @@ function audit(eventType, actorType, actorId, objectType, objectId, payload = {}
     objectId,
     payload,
     createdAt: new Date().toISOString(),
+  });
+}
+
+function persistPermissionDeniedAudit(auditEvent) {
+  persistStore({
+    incrementalMutation: {
+      kind: "permission-denied-audit",
+      auditEventId: auditEvent.id,
+    },
   });
 }
 
@@ -1609,7 +1765,12 @@ export function checkGate(gateId) {
   }
 
   updateGateReadinessInStore(store, gateId, readiness.status);
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "gate-readiness-refresh",
+      gateId,
+    },
+  });
 
   return readiness;
 }
@@ -1944,7 +2105,12 @@ export function importProjectSnapshot(input = {}) {
     ...(input.importPayload || {}),
     importedCounts: validation.summary,
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "project-import",
+      projectId: project.id,
+    },
+  });
 
   return {
     statusCode: 201,
@@ -2223,7 +2389,12 @@ export function createProject(body = {}) {
   audit("PROJECT_CREATED", "human", body.userId || "user-project-manager", "project", project.id, {
     templateKey: "standard_hardware_development_v0_1",
   });
-  persistStore();
+  persistStore({
+    incrementalMutation: {
+      kind: "project-create",
+      projectId: project.id,
+    },
+  });
 
   return {
     statusCode: 201,
@@ -2240,7 +2411,12 @@ export function selectProject(projectId) {
     };
   }
   selectProjectInStore(store, project.id);
-  persistStore();
+  persistStore({
+    localOnlyMutation: {
+      kind: "active-project-select",
+      projectId: project.id,
+    },
+  });
   return {
     statusCode: 200,
     body: getActiveProjectView(),
@@ -3042,10 +3218,10 @@ export function submitHumanReview(body) {
     loadArtifactTemplateByType(workPackage.requiredArtifactType);
   const permission = canReviewWorkPackage(reviewerUserId, workPackage, rolePair, artifactTemplate);
   if (!permission.allowed) {
-    audit("HUMAN_REVIEW_DENIED", "human", reviewerUserId || "unknown", "workPackage", workPackage.id, {
+    const auditEvent = audit("HUMAN_REVIEW_DENIED", "human", reviewerUserId || "unknown", "workPackage", workPackage.id, {
       reason: permission.reason,
     });
-    persistStore();
+    persistPermissionDeniedAudit(auditEvent);
     return {
       statusCode: 403,
       body: {
@@ -3059,10 +3235,10 @@ export function submitHumanReview(body) {
   if (body.decision === "APPROVE" || body.decision === "APPROVE_WITH_CONDITIONS") {
     const approvePermission = canApproveWorkPackage(reviewerUserId, rolePair);
     if (!approvePermission.allowed) {
-      audit("HUMAN_APPROVAL_DENIED", "human", reviewerUserId || "unknown", "workPackage", workPackage.id, {
+      const auditEvent = audit("HUMAN_APPROVAL_DENIED", "human", reviewerUserId || "unknown", "workPackage", workPackage.id, {
         reason: approvePermission.reason,
       });
-      persistStore();
+      persistPermissionDeniedAudit(auditEvent);
       return {
         statusCode: 403,
         body: {
@@ -3230,10 +3406,10 @@ export function updateRiskStatus(riskId, status, body = {}) {
   if (status === "ACCEPTED") {
     const permission = canAcceptRisk(actorUserId);
     if (!permission.allowed) {
-      audit("RISK_ACCEPT_DENIED", "human", actorUserId || "unknown", "risk", risk.id, {
+      const auditEvent = audit("RISK_ACCEPT_DENIED", "human", actorUserId || "unknown", "risk", risk.id, {
         reason: permission.reason,
       });
-      persistStore();
+      persistPermissionDeniedAudit(auditEvent);
       return {
         statusCode: 403,
         body: {
@@ -3248,10 +3424,10 @@ export function updateRiskStatus(riskId, status, body = {}) {
   if (status === "CLOSED") {
     const permission = canCloseRisk(actorUserId);
     if (!permission.allowed) {
-      audit("RISK_CLOSE_DENIED", "human", actorUserId || "unknown", "risk", risk.id, {
+      const auditEvent = audit("RISK_CLOSE_DENIED", "human", actorUserId || "unknown", "risk", risk.id, {
         reason: permission.reason,
       });
-      persistStore();
+      persistPermissionDeniedAudit(auditEvent);
       return {
         statusCode: 403,
         body: {
@@ -3514,10 +3690,10 @@ export function approveGate(gateId, body = {}) {
   const actorUserId = body.userId || "";
   const permission = canApproveGate(actorUserId);
   if (!permission.allowed) {
-    audit("GATE_APPROVAL_DENIED", "human", actorUserId || "unknown", "gate", gate.id, {
+    const auditEvent = audit("GATE_APPROVAL_DENIED", "human", actorUserId || "unknown", "gate", gate.id, {
       reason: permission.reason,
     });
-    persistStore();
+    persistPermissionDeniedAudit(auditEvent);
     return {
       statusCode: 403,
       body: {
@@ -3789,6 +3965,22 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/checklist") {
       return writeJson(res, 200, getPilotChecklistStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/feedback-plan") {
+      return writeJson(res, 200, getPilotFeedbackPlanStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/feedback-triage") {
+      return writeJson(res, 200, getPilotFeedbackTriageStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/m7-backlog") {
+      return writeJson(res, 200, getPilotM7BacklogStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/m7-backlog.md") {
+      return writeText(res, 200, renderPilotM7BacklogMarkdown(getPilotM7BacklogStatus()), "text/markdown; charset=utf-8");
     }
 
     if (req.method === "GET" && url.pathname === "/runtime/config") {

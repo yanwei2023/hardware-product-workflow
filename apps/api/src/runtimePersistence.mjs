@@ -160,6 +160,8 @@ export function createRuntimePersistence({
   let postgresSyncFailureCount = 0;
   let incrementalTransactionCount = 0;
   let exactMirrorTransactionCount = 0;
+  let localOnlyMutationCount = 0;
+  let operationalFullReplaceCount = 0;
   let lastPostgresWriteMode = null;
   let writeBlocked = false;
 
@@ -175,6 +177,8 @@ export function createRuntimePersistence({
       postgresSyncFailureCount,
       incrementalTransactionCount,
       exactMirrorTransactionCount,
+      localOnlyMutationCount,
+      operationalFullReplaceCount,
       lastPostgresWriteMode,
       writeBlocked,
       ready: startupCheck.ready && !writeBlocked,
@@ -182,17 +186,23 @@ export function createRuntimePersistence({
     };
   }
 
-  function persist(nextStore, { persistedAt = new Date(), incrementalMutation = null } = {}) {
+  function persist(
+    nextStore,
+    { persistedAt = new Date(), incrementalMutation = null, localOnlyMutation = null, fullReplaceMutation = null } = {},
+  ) {
     if (writeBlocked) {
       throw new RuntimePersistenceError("PostgreSQL 持久化状态不确定，写入已锁定；请修复一致性后重启服务");
     }
     const persistedAtIso = persistedAt instanceof Date ? persistedAt.toISOString() : String(persistedAt);
     saveStore(nextStore);
 
-    if (normalizedBackend === "postgres-mirror") {
+    if (normalizedBackend === "postgres-mirror" && localOnlyMutation) {
+      localOnlyMutationCount += 1;
+      lastPostgresWriteMode = "local-only";
+    } else if (normalizedBackend === "postgres-mirror") {
       let syncResult;
       try {
-        syncResult = incrementalMutation
+        syncResult = incrementalMutation && !fullReplaceMutation
           ? incrementalSynchronize({
             previousStore: committedStore,
             nextStore,
@@ -230,7 +240,12 @@ export function createRuntimePersistence({
         lastPostgresWriteMode = "incremental-transaction";
       } else {
         exactMirrorTransactionCount += 1;
-        lastPostgresWriteMode = "exact-mirror";
+        if (fullReplaceMutation) {
+          operationalFullReplaceCount += 1;
+          lastPostgresWriteMode = "operational-full-replace";
+        } else {
+          lastPostgresWriteMode = "exact-mirror";
+        }
       }
       lastPostgresSyncAt = persistedAtIso;
     }

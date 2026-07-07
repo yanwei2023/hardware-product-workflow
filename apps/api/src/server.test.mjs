@@ -22,6 +22,12 @@ beforeEach(() => {
   workflow.resetDemoStore();
 });
 
+test("runtime persistence calls declare their write intent", () => {
+  const source = readFileSync("apps/api/src/server.mjs", "utf8");
+
+  assert.equal(/persistStore\(\s*\)/.test(source), false);
+});
+
 function completeEvtGateForHttpTests() {
   for (const item of [
     ["wp-evt_exit-evt_test_plan", "test_agent", "user-test-lead"],
@@ -166,6 +172,10 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.opsSummary, "/ops/summary");
   assert.equal(result.body.links.launch, "/pilot/launch");
   assert.equal(result.body.links.checklist, "/pilot/checklist");
+  assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
+  assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
+  assert.equal(result.body.links.m7Backlog, "/pilot/m7-backlog");
+  assert.equal(result.body.links.m7BacklogMarkdown, "/pilot/m7-backlog.md");
   assert.equal(result.body.links.metrics, "/metrics");
   assert.equal(result.body.links.storageStatus, "/storage/status");
   assert.equal(result.body.links.storageDoctor, "/storage/doctor");
@@ -204,6 +214,69 @@ test("pilot checklist endpoint reports workflow trial steps", async () => {
   assert.equal(result.body.items.some((item) => item.key === "checkpoint" && item.severity === "REQUIRED"), true);
   assert.equal(result.body.items.some((item) => item.key === "agent_drafts" && item.status === "PENDING"), true);
   assert.equal(result.body.items.some((item) => item.key === "risk_workflow" && item.action.includes("风险")), true);
+});
+
+test("pilot feedback plan endpoint exposes M7 intake fields", async () => {
+  const result = await dispatch("/pilot/feedback-plan");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.templateName, "pilot-feedback-ledger.md");
+  assert.equal(result.body.defaultMilestone, "M7");
+  assert.equal(result.body.fields.includes("后续节点"), true);
+  assert.equal(result.body.categories.includes("部署运维"), true);
+  assert.equal(result.body.priorities.includes("P0"), true);
+  assert.equal(result.body.statuses.includes("OPEN"), true);
+  assert.match(result.body.severityGuide, /P0/);
+  assert.equal(result.body.links.archiveFeedbackLedger, "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md");
+  assert.equal(result.body.links.archiveFeedbackLedgerJson, "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.json");
+  assert.equal(result.body.links.completionPlan, "docs/completion-plan.md");
+  assert.equal(result.body.nextActions.some((item) => item.includes("P0/P1")), true);
+});
+
+test("pilot feedback triage endpoint exposes M7 prioritization rules", async () => {
+  const result = await dispatch("/pilot/feedback-triage");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.defaultMilestone, "M7");
+  assert.equal(result.body.priorityLanes.P0.decision, "FIX_BEFORE_NEXT_PILOT");
+  assert.match(result.body.priorityLanes.P0.trigger, /数据/);
+  assert.equal(result.body.priorityLanes.P1.decision, "PLAN_IN_M7");
+  assert.equal(result.body.statusTransitions.OPEN.next.includes("TRIAGED"), true);
+  assert.equal(result.body.statusTransitions.TRIAGED.next.includes("PLANNED"), true);
+  assert.equal(result.body.readyForPlanningCriteria.includes("负责人已明确"), true);
+  assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
+  assert.equal(result.body.links.archiveFeedbackLedger, "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md");
+  assert.equal(result.body.nextActions.some((item) => item.includes("P0/P1")), true);
+});
+
+test("pilot M7 backlog endpoint exposes planning template", async () => {
+  const result = await dispatch("/pilot/m7-backlog");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.milestone, "M7");
+  assert.equal(result.body.sourceTemplate, "pilot-feedback-ledger.md");
+  assert.equal(result.body.itemFields.includes("验收证据"), true);
+  assert.equal(result.body.sortOrder[0], "P0");
+  assert.equal(result.body.readyDefinition.includes("负责人已明确"), true);
+  assert.equal(result.body.acceptanceEvidence.includes("复测结果或截图"), true);
+  assert.equal(result.body.defaultBuckets.some((item) => item.key === "stability" && item.priorityHint === "P0/P1"), true);
+  assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
+  assert.equal(result.body.links.archiveFeedbackLedger, "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md");
+  assert.equal(result.body.nextActions.some((item) => item.includes("PLANNED")), true);
+});
+
+test("pilot M7 backlog markdown endpoint exports a meeting-ready template", async () => {
+  const result = await dispatch("/pilot/m7-backlog.md");
+
+  assert.equal(result.status, 200);
+  assert.match(result.headers["content-type"], /text\/markdown/);
+  assert.match(result.body, /# M7 Backlog 计划模板/);
+  assert.match(result.body, /pilot-feedback-ledger\.md/);
+  assert.match(result.body, /## Ready 条件/);
+  assert.match(result.body, /负责人已明确/);
+  assert.match(result.body, /## 验收证据/);
+  assert.match(result.body, /复测结果或截图/);
+  assert.match(result.body, /\| Backlog ID \| 来源反馈编号 \| 标题 \| 优先级 \|/);
 });
 
 test("runtime config endpoint reports non-secret deployment settings", async () => {
@@ -266,6 +339,8 @@ test("read-only runtime serves reads and rejects mutations before body parsing",
   assert.match(metricsResult.body, /hardware_flow_runtime_persistence_ready 1/);
   assert.match(metricsResult.body, /hardware_flow_runtime_incremental_transactions_total 0/);
   assert.match(metricsResult.body, /hardware_flow_runtime_exact_mirror_transactions_total 0/);
+  assert.match(metricsResult.body, /hardware_flow_runtime_local_only_mutations_total 0/);
+  assert.match(metricsResult.body, /hardware_flow_runtime_operational_full_replacements_total 0/);
 });
 
 test("runtime network endpoint reports local and LAN access hints", async () => {
@@ -338,6 +413,7 @@ test("metrics endpoint exposes Prometheus-compatible gauges", async () => {
   assert.match(result.body, /hardware_flow_active_open_high_risks 1/);
   assert.match(result.body, /hardware_flow_active_gate_ready 0/);
   assert.match(result.body, /# TYPE hardware_flow_http_requests_total counter/);
+  assert.match(result.body, /# TYPE hardware_flow_runtime_local_only_mutations_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_client_errors_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_errors_total counter/);
   assert.match(result.body, /# TYPE hardware_flow_http_request_duration_ms_total counter/);

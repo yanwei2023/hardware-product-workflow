@@ -25,6 +25,13 @@
 |---|---|---|
 | `GET` | `/health` | 检查后台是否运行 |
 | `GET` | `/ready` | 检查 API 与本地 store 是否就绪 |
+| `GET` | `/pilot/readiness` | 查看试点就绪聚合状态、阻塞提醒和常用诊断链接 |
+| `GET` | `/pilot/launch` | 查看试点 go/no-go 判定、必需未完成项和下一步动作 |
+| `GET` | `/pilot/checklist` | 查看试点演练清单和 DONE/PENDING 状态 |
+| `GET` | `/pilot/feedback-plan` | 查看反馈台账字段、优先级、状态和 M7 接入动作 |
+| `GET` | `/pilot/feedback-triage` | 查看反馈进入 M7 backlog 的优先级分流和状态流转规则 |
+| `GET` | `/pilot/m7-backlog` | 查看 M7 backlog 条目字段、排序规则、Ready 条件和验收证据 |
+| `GET` | `/pilot/m7-backlog.md` | 导出可贴进复盘纪要的 M7 backlog Markdown 模板 |
 | `GET` | `/runtime/config` | 查看非敏感运行配置和静态资源模式 |
 | `GET` | `/metrics` | 导出 Prometheus 文本格式运行指标 |
 | `GET` | `/storage/status` | 查看当前 JSON 存储文件与项目统计 |

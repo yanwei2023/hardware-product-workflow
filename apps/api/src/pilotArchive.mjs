@@ -4,13 +4,27 @@ import { getStorePath, loadStoreFromDisk } from "./persistence.mjs";
 import { assertValidPostgresExport } from "./postgresExportReport.mjs";
 import { buildPostgresImportManifest, verifyPostgresImportBundle } from "./postgresImportBundle.mjs";
 import { mapStoreToPostgresRows, renderPostgresSeedSql } from "./postgresMapper.mjs";
-import { firstPilotAcceptanceCriteria, firstPilotBoundaries, firstPilotRunbookSteps, pilotIssueReport, pilotRollbackCard } from "./pilotPlan.mjs";
+import {
+  firstPilotAcceptanceCriteria,
+  firstPilotBoundaries,
+  firstPilotRunbookSteps,
+  pilotArchiveIndex,
+  pilotDeploymentDrill,
+  pilotFeedbackLedger,
+  pilotHandoffWalkthrough,
+  pilotIssueReport,
+  pilotM6Closeout,
+  pilotOpsAlerts,
+  pilotRollbackCard,
+  pilotTrialScope,
+} from "./pilotPlan.mjs";
 import {
   createDemoStore,
   getDemoProject,
   getGateApprovalPack,
   getGateReviewPack,
   getOpsSummaryStatus,
+  getPilotM7BacklogStatus,
   getPilotChecklistStatus,
   getPilotLaunchStatus,
   getPilotReadinessStatus,
@@ -20,6 +34,7 @@ import {
   getStorageDoctorStatus,
   getStorageStatus,
   renderGateReviewPackMarkdown,
+  renderPilotM7BacklogMarkdown,
   renderProjectSnapshotMarkdown,
   renderRiskRegisterMarkdown,
 } from "./server.mjs";
@@ -302,6 +317,305 @@ ${evidenceRows}
 `;
 }
 
+function renderPilotDeploymentDrillMarkdown(manifest) {
+  const drill = manifest.deploymentDrill || {};
+  const dataProtection = manifest.dataProtection || {};
+  const stepRows = (drill.steps || [])
+    .map((item, index) => `${index + 1}. ${item.title}\n   - 命令/动作：\`${item.command}\`\n   - 留存证据：${item.evidence}`)
+    .join("\n");
+  const evidenceRows = (drill.requiredEvidence || []).map((item) => `- ${item}`).join("\n") || "- 暂无证据要求。";
+
+  return `# 内部试点部署演练清单
+
+生成时间：${manifest.generatedAt}
+
+## 默认策略
+
+- 运行时写入源：JSON store
+- PostgreSQL 策略：${drill.postgresDefaultPolicy === "migration_verification_only" ? "仅作为迁移验证材料" : drill.postgresDefaultPolicy || "-"}
+- Store：\`${dataProtection.storePath || "-"}\`
+- 备份：\`${dataProtection.backupPath || "-"}\`
+- 回滚卡片：\`${manifest.files?.rollbackCardMarkdown || "pilot-rollback-card.md"}\`
+
+## 演练步骤
+
+${stepRows || "暂无演练步骤。"}
+
+## 必留证据
+
+${evidenceRows}
+
+## 通过条件
+
+- \`/ready\` 返回 200。
+- \`/storage/doctor\` 显示 store 有效。
+- \`/runtime/network\` 显示可用的局域网访问地址。
+- 试点访问码保管人明确。
+- 检查点或 \`.bak\` 恢复路径明确。
+- PostgreSQL 默认策略已记录；未执行严格数据库写入演练时，不把 \`DATABASE_URL\` 或 \`psql\` 缺失视为阻塞。
+`;
+}
+
+function renderPilotFeedbackLedgerMarkdown(manifest) {
+  const ledger = manifest.feedbackLedger || {};
+  const fieldRows = (ledger.fields || []).map((item) => `- ${item}`).join("\n") || "- 暂无字段。";
+  const categoryRows = (ledger.categories || []).map((item) => `- ${item}`).join("\n") || "- 暂无分类。";
+  const priorityRows = (ledger.priorities || []).map((item) => `- ${item}`).join("\n") || "- 暂无优先级。";
+  const statusRows = (ledger.statuses || []).map((item) => `- ${item}`).join("\n") || "- 暂无状态。";
+
+  return `# 内部试点反馈台账
+
+生成时间：${manifest.generatedAt}
+
+## 使用说明
+
+- 单个故障或阻塞先填写 \`${manifest.files?.issueReportMarkdown || "pilot-issue-report.md"}\`。
+- 会后把所有问题、建议和观察项汇总到本台账。
+- 默认后续节点：${ledger.defaultMilestone || "M7"}。
+- P0/P1 需要在试点复盘会上明确负责人和下一步。
+
+## 字段
+
+${fieldRows}
+
+## 分类
+
+${categoryRows}
+
+## 优先级
+
+${priorityRows}
+
+## 状态
+
+${statusRows}
+
+## 严重度规则
+
+${ledger.severityGuide || "-"}
+
+## 台账模板
+
+| 编号 | 来源 | 反馈类型 | 严重度 | 优先级 | 状态 | 摘要 | 复现或证据 | 负责人 | 后续节点 | 下一步 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PF-001 | 试点会议/问题上报 | 流程适配 | S2 | P1 | OPEN | 示例：阶段门材料字段不够 | 请求 ID、截图或归档文件路径 | 待定 | ${ledger.defaultMilestone || "M7"} | 复盘会确认是否进入 M7 |
+`;
+}
+
+function renderPilotTrialScopeMarkdown(manifest) {
+  const scope = manifest.trialScope || {};
+  const roleRows = (scope.roles || []).map((item) => `- ${item}`).join("\n") || "- 暂无角色。";
+  const prerequisiteRows = (scope.prerequisites || []).map((item) => `- ${item}`).join("\n") || "- 暂无前置条件。";
+  const excludedRows = (scope.excludedScopes || []).map((item) => `- ${item}`).join("\n") || "- 暂无排除项。";
+  const pendingRows = (scope.pendingDecisions || []).map((item) => `- ${item}`).join("\n") || "- 暂无待确认事项。";
+
+  return `# 内部试点范围与运行策略
+
+生成时间：${manifest.generatedAt}
+
+## 决策
+
+- 参与人数：${scope.participantRange || "-"} 人。
+- 试点项目：${scope.projectRecommendation || "-"}。
+- 阶段范围：${scope.phaseRange || "-"}。
+- 默认运行时写入源：JSON store。
+- PostgreSQL 策略：${scope.postgresPolicy === "migration_verification_only" ? "仅作为迁移验证材料" : scope.postgresPolicy || "-"}。
+
+## 参与角色
+
+${roleRows}
+
+## 前置条件
+
+${prerequisiteRows}
+
+## 不纳入本轮
+
+${excludedRows}
+
+## 待确认
+
+${pendingRows}
+`;
+}
+
+function renderPilotOpsAlertsMarkdown(manifest) {
+  const alerts = manifest.opsAlerts || {};
+  const operations = manifest.operations || {};
+  const endpointRows = (alerts.watchEndpoints || []).map((item) => `- \`${item}\``).join("\n") || "- 暂无端点。";
+  const ruleRows = (alerts.rules || [])
+    .map(
+      (item) =>
+        `| ${item.code} | ${item.severity} | \`${item.endpoint}\` | ${item.metric ? `\`${item.metric}\`` : "-"} | ${item.trigger} | ${item.action} |`,
+    )
+    .join("\n");
+
+  return `# 内部试点运维告警建议
+
+生成时间：${manifest.generatedAt}
+
+## 当前摘要
+
+- 运维阻塞：${operations.blockerCount ?? 0}
+- 运维提醒：${operations.warningCount ?? 0}
+- HTTP 4xx：${operations.httpClientErrors ?? 0}
+- HTTP 5xx：${operations.httpServerErrors ?? 0}
+- Store ready：${operations.storageReady ? "READY" : "BLOCKED"}
+- Network ready：${operations.networkReady ? "READY" : "BLOCKED"}
+
+## 观察端点
+
+${endpointRows}
+
+## 建议规则
+
+| 代码 | 严重度 | 来源 | 指标 | 触发条件 | 动作 |
+| --- | --- | --- | --- | --- | --- |
+${ruleRows}
+
+## 升级规则
+
+${alerts.escalation || "-"}
+
+## 使用方式
+
+- 试点主持人每个关键操作前后查看 \`/ops/summary\`。
+- 页面出现错误时保留请求 ID、服务版本和截图。
+- \`RUNTIME_PERSISTENCE\`、\`READY_DOWN\`、\`HTTP_5XX\` 按 S1 处理，先暂停写入再诊断。
+- 默认 JSON 试点中，\`DATABASE_URL\` 或 \`psql\` 缺失只记录为 PostgreSQL 演练条件不足，不阻塞业务试点。
+`;
+}
+
+function renderPilotArchiveIndexMarkdown(manifest) {
+  const index = manifest.archiveIndex || {};
+  const primaryRows = (index.primaryReadOrder || [])
+    .map((item, itemIndex) => `${itemIndex + 1}. \`${item.file}\`：${item.purpose}`)
+    .join("\n") || "暂无阅读顺序。";
+  const situationRows = (index.bySituation || [])
+    .map((item) => `| ${item.situation} | ${item.files.map((file) => `\`${file}\``).join("、")} |`)
+    .join("\n");
+  const fileRows = Object.entries(manifest.files || {})
+    .map(([label, filePath]) => `| ${label} | \`${filePath}\` |`)
+    .join("\n");
+
+  return `# 内部试点归档包总目录
+
+生成时间：${manifest.generatedAt}
+
+## 先看这几个
+
+${primaryRows}
+
+## 按场景找文件
+
+| 场景 | 文件 |
+| --- | --- |
+${situationRows}
+
+## 当前状态快照
+
+- 启动判定：${manifest.launch?.decision || "-"}
+- 运维阻塞：${manifest.operations?.blockerCount ?? 0}
+- 运维提醒：${manifest.operations?.warningCount ?? 0}
+- 当前阶段门：${manifest.readiness?.currentGateReadiness || manifest.readiness?.currentGateStatus || "-"}
+- 试点必需项：${manifest.readiness?.checklistRequiredDone ?? 0}/${manifest.readiness?.checklistRequiredTotal ?? 0}
+
+## 完整文件清单
+
+| 名称 | 文件 |
+| --- | --- |
+${fileRows}
+`;
+}
+
+function renderPilotHandoffWalkthroughMarkdown(manifest) {
+  const walkthrough = manifest.handoffWalkthrough || {};
+  const stepRows = (walkthrough.steps || [])
+    .map(
+      (item, index) =>
+        `${index + 1}. ${item.title}\n   - 动作：${item.action}\n   - 文件：${item.files.map((file) => `\`${file}\``).join("、")}\n   - 留存证据：${item.evidence}`,
+    )
+    .join("\n");
+  const evidenceRows = (walkthrough.requiredEvidence || []).map((item) => `- ${item}`).join("\n") || "- 暂无证据要求。";
+
+  return `# 内部试点交接走查清单
+
+生成时间：${manifest.generatedAt}
+
+## 适用场景
+
+非核心开发同事或试点主持人第一次拿到归档包时，用这份清单走一遍“能不能自己找到材料、启动试点、记录问题、执行回滚和进入复盘”。
+
+## 走查步骤
+
+${stepRows || "暂无走查步骤。"}
+
+## 必留证据
+
+${evidenceRows}
+
+## 当前判定参考
+
+- 启动判定：${manifest.launch?.decision || "-"}
+- 运维阻塞：${manifest.operations?.blockerCount ?? 0}
+- 运维提醒：${manifest.operations?.warningCount ?? 0}
+- 试点必需项：${manifest.readiness?.checklistRequiredDone ?? 0}/${manifest.readiness?.checklistRequiredTotal ?? 0}
+
+## 结论
+
+- 走查主持人:
+- 操作者:
+- 结论: PASS / PASS_WITH_NOTES / BLOCKED
+- 需要调整的材料:
+- 下一步:
+`;
+}
+
+function renderPilotM6CloseoutMarkdown(manifest) {
+  const closeout = manifest.m6Closeout || {};
+  const criteriaRows = (closeout.criteria || [])
+    .map((item) => `| ${item.title} | ${item.status} | ${item.evidence} |`)
+    .join("\n");
+  const decisionRows = (closeout.remainingDecisions || []).map((item) => `- ${item}`).join("\n") || "- 暂无剩余决策。";
+
+  return `# M6 收尾判定
+
+生成时间：${manifest.generatedAt}
+
+## 建议结论
+
+${closeout.recommendedDecision || "PASS_WITH_NOTES"}
+
+## 判定标准
+
+| 标准 | 状态 | 证据 |
+| --- | --- | --- |
+${criteriaRows}
+
+## 当前归档状态
+
+- 启动判定：${manifest.launch?.decision || "-"}
+- 运维阻塞：${manifest.operations?.blockerCount ?? 0}
+- 运维提醒：${manifest.operations?.warningCount ?? 0}
+- 试点必需项：${manifest.readiness?.checklistRequiredDone ?? 0}/${manifest.readiness?.checklistRequiredTotal ?? 0}
+- 归档入口：\`${manifest.files?.archiveIndexMarkdown || "pilot-archive-index.md"}\`
+- 交接走查：\`${manifest.files?.handoffWalkthroughMarkdown || "pilot-handoff-walkthrough.md"}\`
+- 回滚路径：\`${manifest.files?.rollbackCardMarkdown || "pilot-rollback-card.md"}\`
+
+## 剩余决策
+
+${decisionRows}
+
+## 收尾记录
+
+- 判定人:
+- 判定时间:
+- 结论: PASS / PASS_WITH_NOTES / BLOCKED
+- 进入 M7 的事项:
+- 暂缓事项:
+`;
+}
+
 function writePostgresImportBundle(outputDir, store) {
   const postgresDir = path.join(outputDir, "postgres-import");
   const schemaPath = "schemas/database.sql";
@@ -371,6 +685,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       action: item.action,
     }));
   const opsSummary = getOpsSummaryStatus();
+  const m7Backlog = getPilotM7BacklogStatus();
   const sourceStore = loadStoreFromDisk() || createDemoStore();
 
   const files = {
@@ -389,6 +704,22 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     opsSummaryJson: path.join(resolvedOutputDir, "ops-summary.json"),
     issueReportMarkdown: path.join(resolvedOutputDir, "pilot-issue-report.md"),
     rollbackCardMarkdown: path.join(resolvedOutputDir, "pilot-rollback-card.md"),
+    deploymentDrillMarkdown: path.join(resolvedOutputDir, "pilot-deployment-drill.md"),
+    deploymentDrillJson: path.join(resolvedOutputDir, "pilot-deployment-drill.json"),
+    feedbackLedgerMarkdown: path.join(resolvedOutputDir, "pilot-feedback-ledger.md"),
+    feedbackLedgerJson: path.join(resolvedOutputDir, "pilot-feedback-ledger.json"),
+    m7BacklogMarkdown: path.join(resolvedOutputDir, "pilot-m7-backlog.md"),
+    m7BacklogJson: path.join(resolvedOutputDir, "pilot-m7-backlog.json"),
+    trialScopeMarkdown: path.join(resolvedOutputDir, "pilot-trial-scope.md"),
+    trialScopeJson: path.join(resolvedOutputDir, "pilot-trial-scope.json"),
+    opsAlertsMarkdown: path.join(resolvedOutputDir, "pilot-ops-alerts.md"),
+    opsAlertsJson: path.join(resolvedOutputDir, "pilot-ops-alerts.json"),
+    archiveIndexMarkdown: path.join(resolvedOutputDir, "pilot-archive-index.md"),
+    archiveIndexJson: path.join(resolvedOutputDir, "pilot-archive-index.json"),
+    handoffWalkthroughMarkdown: path.join(resolvedOutputDir, "pilot-handoff-walkthrough.md"),
+    handoffWalkthroughJson: path.join(resolvedOutputDir, "pilot-handoff-walkthrough.json"),
+    m6CloseoutMarkdown: path.join(resolvedOutputDir, "pilot-m6-closeout.md"),
+    m6CloseoutJson: path.join(resolvedOutputDir, "pilot-m6-closeout.json"),
   };
 
   if (reviewPack) {
@@ -458,6 +789,59 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       steps: pilotRollbackCard.steps,
       requiredEvidence: pilotRollbackCard.requiredEvidence,
     },
+    deploymentDrill: {
+      templatePath: pilotDeploymentDrill.templateName,
+      defaultRuntimeSource: pilotDeploymentDrill.defaultRuntimeSource,
+      postgresDefaultPolicy: pilotDeploymentDrill.postgresDefaultPolicy,
+      steps: pilotDeploymentDrill.steps,
+      requiredEvidence: pilotDeploymentDrill.requiredEvidence,
+    },
+    feedbackLedger: {
+      templatePath: pilotFeedbackLedger.templateName,
+      defaultMilestone: pilotFeedbackLedger.defaultMilestone,
+      fields: pilotFeedbackLedger.fields,
+      categories: pilotFeedbackLedger.categories,
+      priorities: pilotFeedbackLedger.priorities,
+      statuses: pilotFeedbackLedger.statuses,
+      severityGuide: pilotFeedbackLedger.severityGuide,
+      triage: pilotFeedbackLedger.triage,
+      m7Backlog: pilotFeedbackLedger.m7Backlog,
+    },
+    m7Backlog,
+    trialScope: {
+      templatePath: pilotTrialScope.templateName,
+      participantRange: pilotTrialScope.participantRange,
+      projectRecommendation: pilotTrialScope.projectRecommendation,
+      phaseRange: pilotTrialScope.phaseRange,
+      defaultRuntimeSource: pilotTrialScope.defaultRuntimeSource,
+      postgresPolicy: pilotTrialScope.postgresPolicy,
+      roles: pilotTrialScope.roles,
+      prerequisites: pilotTrialScope.prerequisites,
+      excludedScopes: pilotTrialScope.excludedScopes,
+      pendingDecisions: pilotTrialScope.pendingDecisions,
+    },
+    opsAlerts: {
+      templatePath: pilotOpsAlerts.templateName,
+      watchEndpoints: pilotOpsAlerts.watchEndpoints,
+      rules: pilotOpsAlerts.rules,
+      escalation: pilotOpsAlerts.escalation,
+    },
+    archiveIndex: {
+      templatePath: pilotArchiveIndex.templateName,
+      primaryReadOrder: pilotArchiveIndex.primaryReadOrder,
+      bySituation: pilotArchiveIndex.bySituation,
+    },
+    handoffWalkthrough: {
+      templatePath: pilotHandoffWalkthrough.templateName,
+      steps: pilotHandoffWalkthrough.steps,
+      requiredEvidence: pilotHandoffWalkthrough.requiredEvidence,
+    },
+    m6Closeout: {
+      templatePath: pilotM6Closeout.templateName,
+      recommendedDecision: pilotM6Closeout.recommendedDecision,
+      criteria: pilotM6Closeout.criteria,
+      remainingDecisions: pilotM6Closeout.remainingDecisions,
+    },
     dataProtection: {
       storePath: storageStatus.storePath,
       backupPath: storageStatus.backupPath || storageDoctor.backupPath,
@@ -475,6 +859,10 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       readiness: pilotReadiness.links?.readiness || "/pilot/readiness",
       launch: pilotReadiness.links?.launch || "/pilot/launch",
       checklist: pilotReadiness.links?.checklist || "/pilot/checklist",
+      feedbackPlan: pilotReadiness.links?.feedbackPlan || "/pilot/feedback-plan",
+      feedbackTriage: pilotReadiness.links?.feedbackTriage || "/pilot/feedback-triage",
+      m7Backlog: pilotReadiness.links?.m7Backlog || "/pilot/m7-backlog",
+      m7BacklogMarkdown: pilotReadiness.links?.m7BacklogMarkdown || "/pilot/m7-backlog.md",
       opsSummary: pilotReadiness.links?.opsSummary || "/ops/summary",
       metrics: pilotReadiness.links?.metrics || "/metrics",
       runtimeConfig: pilotReadiness.links?.runtimeConfig || "/runtime/config",
@@ -499,6 +887,22 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeText(files.briefMarkdown, renderPilotBriefMarkdown(manifest));
   writeText(files.issueReportMarkdown, renderPilotIssueReportMarkdown(manifest));
   writeText(files.rollbackCardMarkdown, renderPilotRollbackCardMarkdown(manifest));
+  writeText(files.deploymentDrillMarkdown, renderPilotDeploymentDrillMarkdown(manifest));
+  writeJson(files.deploymentDrillJson, manifest.deploymentDrill);
+  writeText(files.feedbackLedgerMarkdown, renderPilotFeedbackLedgerMarkdown(manifest));
+  writeJson(files.feedbackLedgerJson, manifest.feedbackLedger);
+  writeText(files.m7BacklogMarkdown, renderPilotM7BacklogMarkdown(manifest.m7Backlog));
+  writeJson(files.m7BacklogJson, manifest.m7Backlog);
+  writeText(files.trialScopeMarkdown, renderPilotTrialScopeMarkdown(manifest));
+  writeJson(files.trialScopeJson, manifest.trialScope);
+  writeText(files.opsAlertsMarkdown, renderPilotOpsAlertsMarkdown(manifest));
+  writeJson(files.opsAlertsJson, manifest.opsAlerts);
+  writeText(files.archiveIndexMarkdown, renderPilotArchiveIndexMarkdown(manifest));
+  writeJson(files.archiveIndexJson, manifest.archiveIndex);
+  writeText(files.handoffWalkthroughMarkdown, renderPilotHandoffWalkthroughMarkdown(manifest));
+  writeJson(files.handoffWalkthroughJson, manifest.handoffWalkthrough);
+  writeText(files.m6CloseoutMarkdown, renderPilotM6CloseoutMarkdown(manifest));
+  writeJson(files.m6CloseoutJson, manifest.m6Closeout);
   writeJson(files.snapshotJson, snapshot);
   writeText(files.snapshotMarkdown, renderProjectSnapshotMarkdown(snapshot));
   writeJson(files.riskRegisterJson, riskRegister);

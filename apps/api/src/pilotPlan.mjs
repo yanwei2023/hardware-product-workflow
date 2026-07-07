@@ -70,3 +70,450 @@ export const pilotRollbackCard = {
     "/pilot/launch 结果",
   ],
 };
+
+export const pilotDeploymentDrill = {
+  templateName: "pilot-deployment-drill.md",
+  defaultRuntimeSource: "json",
+  postgresDefaultPolicy: "migration_verification_only",
+  steps: [
+    {
+      key: "release_candidate",
+      title: "确认发布候选包",
+      command: "npm run pilot:check",
+      evidence: "/tmp/hardware-flow-pilot-archive/pilot-launch-summary.json",
+    },
+    {
+      key: "data_checkpoint",
+      title: "创建试点前检查点",
+      command: "页面：项目 -> 本地数据状态 -> 创建检查点",
+      evidence: "/storage/status 结果",
+    },
+    {
+      key: "start_lan",
+      title: "按局域网模式启动服务",
+      command: "HARDWARE_FLOW_PILOT_ACCESS_CODE=your-code npm run start:lan",
+      evidence: "/runtime/network 结果",
+    },
+    {
+      key: "health_checks",
+      title: "确认健康和运行配置",
+      command: "打开 /ready、/ops/summary、/runtime/config、/storage/doctor",
+      evidence: "/ready 与 /storage/doctor 结果",
+    },
+    {
+      key: "share_access",
+      title: "发布推荐访问地址",
+      command: "复制页面中的推荐 URL 和邀请文本",
+      evidence: "发给试点成员的访问消息",
+    },
+    {
+      key: "rollback_probe",
+      title: "确认回滚材料可用",
+      command: "打开 pilot-rollback-card.md 并确认 .bak 或检查点存在",
+      evidence: "pilot-rollback-card.md 与最近检查点名称",
+    },
+    {
+      key: "postgres_policy",
+      title: "确认 PostgreSQL 策略",
+      command: "默认仅保留导入包和 preflight；严格演练需另行设置 DATABASE_URL 与 psql",
+      evidence: "db:preflight 输出或不启用数据库写入的记录",
+    },
+  ],
+  requiredEvidence: [
+    "服务版本和 Git 提交",
+    "/ready 结果",
+    "/runtime/network 结果",
+    "/runtime/config 结果",
+    "/storage/doctor 结果",
+    "试点访问码保管人",
+    "检查点名称或 .bak 路径",
+    "PostgreSQL 默认策略记录",
+  ],
+};
+
+export const pilotFeedbackLedger = {
+  templateName: "pilot-feedback-ledger.md",
+  defaultMilestone: "M7",
+  fields: [
+    "编号",
+    "来源",
+    "反馈类型",
+    "严重度",
+    "优先级",
+    "状态",
+    "摘要",
+    "复现或证据",
+    "负责人",
+    "后续节点",
+    "下一步",
+  ],
+  categories: [
+    "流程适配",
+    "页面体验",
+    "数据完整性",
+    "部署运维",
+    "权限责任",
+    "Agent 输出",
+    "报表归档",
+  ],
+  priorities: ["P0", "P1", "P2", "P3"],
+  statuses: ["OPEN", "TRIAGED", "PLANNED", "DONE", "DEFERRED"],
+  severityGuide: "P0 阻塞试点或存在数据/放行风险；P1 阻塞核心流程；P2 影响效率但可绕过；P3 为体验或文案改进。",
+  triage: {
+    priorityLanes: {
+      P0: {
+        trigger: "阻塞试点继续、存在数据完整性风险、错误放行风险或无法回滚。",
+        decision: "FIX_BEFORE_NEXT_PILOT",
+        owner: "试点负责人和对应模块负责人",
+      },
+      P1: {
+        trigger: "阻塞核心流程，但存在可控人工绕过方式。",
+        decision: "PLAN_IN_M7",
+        owner: "对应流程或模块负责人",
+      },
+      P2: {
+        trigger: "影响效率、理解成本或材料质量，但不阻塞核心流程。",
+        decision: "BATCH_IN_M7",
+        owner: "产品负责人统一排期",
+      },
+      P3: {
+        trigger: "文案、提示、视觉密度或低风险便利性改进。",
+        decision: "DEFER_OR_BATCH",
+        owner: "产品负责人按批次处理",
+      },
+    },
+    statusTransitions: {
+      OPEN: {
+        next: ["TRIAGED", "DEFERRED"],
+        rule: "反馈进入台账后先判断是否可复现、是否有证据、是否影响试点继续。",
+      },
+      TRIAGED: {
+        next: ["PLANNED", "DEFERRED"],
+        rule: "已明确优先级、负责人和后续节点后，决定进入 M7 计划或延期。",
+      },
+      PLANNED: {
+        next: ["DONE", "DEFERRED"],
+        rule: "进入 M7 实施计划后，按验收证据关闭或延期。",
+      },
+      DONE: {
+        next: [],
+        rule: "已有修复、验证记录或明确不再需要处理。",
+      },
+      DEFERRED: {
+        next: ["OPEN"],
+        rule: "条件变化或重复出现时可重新打开。",
+      },
+    },
+    readyForPlanningCriteria: [
+      "问题或建议已归类",
+      "优先级已明确",
+      "负责人已明确",
+      "复现步骤、截图、请求 ID 或归档证据至少具备一项",
+      "后续节点为 M7 或明确延期原因",
+    ],
+  },
+  m7Backlog: {
+    itemFields: [
+      "Backlog ID",
+      "来源反馈编号",
+      "标题",
+      "优先级",
+      "分类",
+      "负责人",
+      "状态",
+      "目标版本",
+      "验收证据",
+      "风险或阻塞说明",
+    ],
+    sortOrder: ["P0", "P1", "P2", "P3"],
+    readyDefinition: [
+      "负责人已明确",
+      "优先级已明确",
+      "验收证据已定义",
+      "影响范围已写清",
+      "能追溯到反馈编号或复盘结论",
+    ],
+    acceptanceEvidence: [
+      "复测结果或截图",
+      "相关 API 响应或请求 ID",
+      "更新后的归档材料路径",
+      "通过的验证命令",
+    ],
+    defaultBuckets: [
+      {
+        key: "stability",
+        label: "稳定性和数据安全",
+        priorityHint: "P0/P1",
+      },
+      {
+        key: "workflow",
+        label: "核心流程效率",
+        priorityHint: "P1/P2",
+      },
+      {
+        key: "experience",
+        label: "页面体验和文案",
+        priorityHint: "P2/P3",
+      },
+      {
+        key: "reporting",
+        label: "报表、归档和复盘材料",
+        priorityHint: "P2/P3",
+      },
+    ],
+  },
+};
+
+export const pilotTrialScope = {
+  templateName: "pilot-trial-scope.md",
+  participantRange: "4-8",
+  projectRecommendation: "1 个真实或半真实硬件项目",
+  phaseRange: "EVT Exit 到 DVT Exit",
+  defaultRuntimeSource: "json",
+  postgresPolicy: "migration_verification_only",
+  roles: [
+    "项目经理",
+    "测试负责人",
+    "质量负责人",
+    "阶段门批准人",
+    "观察者",
+  ],
+  prerequisites: [
+    "运行 npm run pilot:check 并保留归档包。",
+    "试点开始前创建检查点。",
+    "确认局域网访问地址和试点访问码。",
+    "确认回滚卡片和反馈台账已生成。",
+  ],
+  excludedScopes: [
+    "用户登录和单点登录",
+    "完整原生 PostgreSQL repository",
+    "真实大模型调用",
+    "飞书、企业微信或邮件通知",
+    "生产级 TLS、反向代理、数据库备份和灾备",
+    "多人高并发编辑冲突处理",
+  ],
+  pendingDecisions: [
+    "首批试点部门、人数和典型项目类型",
+    "是否单独安排 PostgreSQL 严格导入或镜像写入演练",
+    "试点反馈复盘负责人",
+  ],
+};
+
+export const pilotOpsAlerts = {
+  templateName: "pilot-ops-alerts.md",
+  watchEndpoints: [
+    "/ready",
+    "/ops/summary",
+    "/storage/doctor",
+    "/runtime/config",
+    "/runtime/network",
+    "/metrics",
+  ],
+  rules: [
+    {
+      code: "READY_DOWN",
+      severity: "S1",
+      endpoint: "/ready",
+      metric: "hardware_flow_ready",
+      trigger: "非 200 或指标值为 0",
+      action: "暂停试点写入，打开 /storage/doctor 和 /ops/summary，必要时执行回滚卡片。",
+    },
+    {
+      code: "HTTP_5XX",
+      severity: "S1",
+      endpoint: "/ops/summary",
+      metric: "hardware_flow_http_5xx_total",
+      trigger: "试点期间出现任意 5xx 增量",
+      action: "记录请求 ID 和服务版本，归档问题模板，暂停阶段门批准。",
+    },
+    {
+      code: "RUNTIME_PERSISTENCE",
+      severity: "S1",
+      endpoint: "/metrics",
+      metric: "hardware_flow_runtime_persistence_ready",
+      trigger: "值为 0，或 postgres sync failure 计数增加",
+      action: "停止写入，保留 store 与 .bak，按回滚卡片处理。",
+    },
+    {
+      code: "STORAGE_INVALID",
+      severity: "S1",
+      endpoint: "/storage/doctor",
+      metric: "hardware_flow_store_valid",
+      trigger: "store 无效或备份无效",
+      action: "不要继续试点；优先恢复检查点，其次恢复 .bak。",
+    },
+    {
+      code: "LOOPBACK_ONLY",
+      severity: "S2",
+      endpoint: "/runtime/network",
+      metric: null,
+      trigger: "局域网试点却只监听本机地址",
+      action: "改用 npm run start:lan 启动，并重新发送推荐访问地址。",
+    },
+    {
+      code: "POSTGRES_PREFLIGHT_BLOCKED",
+      severity: "S3",
+      endpoint: "db:preflight",
+      metric: null,
+      trigger: "未配置 DATABASE_URL 或缺少 psql",
+      action: "默认 JSON 试点不阻塞；只有数据库演练时才升级为 S2。",
+    },
+  ],
+  escalation: "S1 立即暂停写入和阶段门批准；S2 由试点主持人决定是否继续；S3 记录到反馈台账。",
+};
+
+export const pilotArchiveIndex = {
+  templateName: "pilot-archive-index.md",
+  primaryReadOrder: [
+    {
+      file: "pilot-trial-scope.md",
+      purpose: "确认本轮试点范围、参与角色、阶段边界和运行策略。",
+    },
+    {
+      file: "pilot-launch-summary.json",
+      purpose: "确认启动判定是 GO 或 GO_WITH_CAUTION，而不是 NO_GO。",
+    },
+    {
+      file: "pilot-deployment-drill.md",
+      purpose: "按步骤完成局域网启动、访问码、诊断端点和回滚材料检查。",
+    },
+    {
+      file: "pilot-handoff.md",
+      purpose: "交接给试点主持人和操作者的完整说明。",
+    },
+    {
+      file: "pilot-handoff-walkthrough.md",
+      purpose: "让非核心开发同事按入口、启动、报错、回滚和复盘完整走查一次。",
+    },
+    {
+      file: "pilot-m6-closeout.md",
+      purpose: "在真实走查后判断 M6 发布材料是 PASS、PASS_WITH_NOTES 还是 BLOCKED。",
+    },
+    {
+      file: "pilot-brief.md",
+      purpose: "会前或会中快速同步项目、阶段门、命令和诊断链接。",
+    },
+  ],
+  bySituation: [
+    {
+      situation: "试点启动前",
+      files: ["pilot-trial-scope.md", "pilot-deployment-drill.md", "pilot-ops-alerts.md"],
+    },
+    {
+      situation: "交接走查",
+      files: ["pilot-archive-index.md", "pilot-handoff-walkthrough.md", "pilot-m6-closeout.md"],
+    },
+    {
+      situation: "现场报错",
+      files: ["pilot-issue-report.md", "pilot-ops-alerts.md", "pilot-rollback-card.md"],
+    },
+    {
+      situation: "需要回滚",
+      files: ["pilot-rollback-card.md", "storage-status.json", "storage-doctor.json"],
+    },
+    {
+      situation: "会后复盘",
+      files: ["pilot-feedback-ledger.md", "pilot-m7-backlog.md", "project-snapshot.md", "risk-register.md"],
+    },
+    {
+      situation: "M6 收尾",
+      files: ["pilot-m6-closeout.md", "pilot-handoff-walkthrough.md", "pilot-feedback-ledger.md"],
+    },
+    {
+      situation: "数据库迁移演练",
+      files: ["postgres-import/postgres-import-manifest.json", "pilot-ops-alerts.md", "pilot-trial-scope.md"],
+    },
+  ],
+};
+
+export const pilotHandoffWalkthrough = {
+  templateName: "pilot-handoff-walkthrough.md",
+  steps: [
+    {
+      key: "open_archive_index",
+      title: "打开归档包总目录",
+      action: "打开 pilot-archive-index.md，确认先读顺序和按场景找文件表能被理解。",
+      files: ["pilot-archive-index.md", "pilot-trial-scope.md"],
+      evidence: "操作者能说出本轮范围、默认运行时写入源和 PostgreSQL 策略。",
+    },
+    {
+      key: "pre_start",
+      title: "完成启动前检查",
+      action: "按 pilot-deployment-drill.md 检查发布候选包、检查点、访问码、诊断端点和回滚材料。",
+      files: ["pilot-deployment-drill.md", "pilot-launch-summary.json", "pilot-ops-alerts.md"],
+      evidence: "/ready、/ops/summary、/runtime/network 和 /storage/doctor 结果已留存。",
+    },
+    {
+      key: "simulate_incident",
+      title: "模拟现场报错",
+      action: "打开 pilot-issue-report.md，填写请求 ID、服务版本、复现步骤、影响范围和诊断端点。",
+      files: ["pilot-issue-report.md", "pilot-ops-alerts.md"],
+      evidence: "问题可以被分为 S1/S2/S3，并能找到下一步处理材料。",
+    },
+    {
+      key: "rollback_path",
+      title: "确认回滚路径",
+      action: "打开 pilot-rollback-card.md，确认检查点或 .bak、恢复命令和恢复后诊断步骤。",
+      files: ["pilot-rollback-card.md", "storage-status.json", "storage-doctor.json"],
+      evidence: "操作者能说明优先恢复检查点，其次恢复 .bak，并知道恢复后要复查 /ready。",
+    },
+    {
+      key: "retro_capture",
+      title: "确认复盘记录",
+      action: "打开 pilot-feedback-ledger.md 和 pilot-m7-backlog.md，把模拟问题映射到优先级、负责人、状态、后续节点和 M7 backlog 条目。",
+      files: ["pilot-feedback-ledger.md", "pilot-m7-backlog.md", "project-snapshot.md", "risk-register.md"],
+      evidence: "至少一条反馈能被记录到 M7 backlog 或明确延期。",
+    },
+  ],
+  requiredEvidence: [
+    "走查主持人",
+    "操作者姓名",
+    "服务版本或 Git 提交",
+    "归档包路径",
+    "诊断端点截图或复制结果",
+    "走查结论：PASS、PASS_WITH_NOTES 或 BLOCKED",
+  ],
+};
+
+export const pilotM6Closeout = {
+  templateName: "pilot-m6-closeout.md",
+  recommendedDecision: "PASS_WITH_NOTES",
+  criteria: [
+    {
+      key: "archive_complete",
+      title: "归档包完整",
+      status: "READY",
+      evidence: "pilot-archive-index.md、pilot-handoff-walkthrough.md、pilot-deployment-drill.md、pilot-ops-alerts.md、pilot-feedback-ledger.md 均已生成。",
+    },
+    {
+      key: "operator_walkthrough",
+      title: "交接走查",
+      status: "NEEDS_REAL_OPERATOR",
+      evidence: "需要真实非核心开发操作者按 pilot-handoff-walkthrough.md 执行一次并记录结论。",
+    },
+    {
+      key: "rollback_ready",
+      title: "回滚路径",
+      status: "READY_WITH_CHECKPOINT_REQUIRED",
+      evidence: "pilot-rollback-card.md、storage-status.json 和 storage-doctor.json 已生成；正式试点前仍需创建检查点。",
+    },
+    {
+      key: "feedback_capture",
+      title: "反馈闭环",
+      status: "READY",
+      evidence: "pilot-feedback-ledger.md 可记录 P0/P1/P2/P3、负责人、状态和后续节点。",
+    },
+    {
+      key: "postgres_policy",
+      title: "PostgreSQL 策略",
+      status: "READY_WITH_OPTIONAL_STRICT_DRILL",
+      evidence: "默认 JSON 试点不阻塞；严格数据库演练需单独提供 DATABASE_URL 和 psql。",
+    },
+  ],
+  remainingDecisions: [
+    "内部试点的首批用户范围",
+    "真实操作者走查结论",
+    "是否安排 PostgreSQL 严格导入或镜像写入演练",
+    "M7 反馈复盘负责人",
+  ],
+};
