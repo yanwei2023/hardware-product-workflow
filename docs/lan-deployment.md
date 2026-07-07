@@ -56,6 +56,7 @@ http://192.168.1.20:3001
 - 交接走查：按 `/tmp/hardware-flow-pilot-archive/pilot-handoff-walkthrough.md` 让操作者复述范围、启动检查、报错上报、回滚路径和复盘记录。
 - 收尾判定：走查后填写 `/tmp/hardware-flow-pilot-archive/pilot-m6-closeout.md`，确认 M6 是 `PASS`、`PASS_WITH_NOTES` 还是 `BLOCKED`。
 - 部署演练：按 `/tmp/hardware-flow-pilot-archive/pilot-deployment-drill.md` 留存 `/ready`、`/runtime/network`、`/runtime/config`、`/storage/doctor`、访问码保管人和 PostgreSQL 默认策略记录。
+- 测试执行：按 `/tmp/hardware-flow-pilot-archive/pilot-test-plan.md` 完成安装验收、局域网启动、访问码、核心业务流、诊断端点、归档包和回滚测试。
 - 告警建议：按 `/tmp/hardware-flow-pilot-archive/pilot-ops-alerts.md` 观察 `/ops/summary`、`/metrics`、HTTP 5xx、运行时持久化和 store 健康。
 - M7 反馈闭环：按 `/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md` 汇总反馈，再用 `/tmp/hardware-flow-pilot-archive/pilot-m7-backlog.md` 把 `PLANNED` 项整理成带负责人、Ready 条件和验收证据的 M7 条目。
 - 回滚材料：确认 `pilot-rollback-card.md`、最近检查点和 `.bak` 都可用。

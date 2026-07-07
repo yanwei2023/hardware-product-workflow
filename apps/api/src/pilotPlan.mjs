@@ -378,6 +378,10 @@ export const pilotArchiveIndex = {
       purpose: "按步骤完成局域网启动、访问码、诊断端点和回滚材料检查。",
     },
     {
+      file: "pilot-test-plan.md",
+      purpose: "按用例完成安装验收、核心流程、异常恢复和放行记录。",
+    },
+    {
       file: "pilot-handoff.md",
       purpose: "交接给试点主持人和操作者的完整说明。",
     },
@@ -397,7 +401,11 @@ export const pilotArchiveIndex = {
   bySituation: [
     {
       situation: "试点启动前",
-      files: ["pilot-trial-scope.md", "pilot-deployment-drill.md", "pilot-ops-alerts.md"],
+      files: ["pilot-trial-scope.md", "pilot-deployment-drill.md", "pilot-test-plan.md", "pilot-ops-alerts.md"],
+    },
+    {
+      situation: "测试执行",
+      files: ["pilot-test-plan.md", "pilot-deployment-drill.md", "pilot-feedback-ledger.md"],
     },
     {
       situation: "交接走查",
@@ -423,6 +431,108 @@ export const pilotArchiveIndex = {
       situation: "数据库迁移演练",
       files: ["postgres-import/postgres-import-manifest.json", "pilot-ops-alerts.md", "pilot-trial-scope.md"],
     },
+  ],
+};
+
+export const pilotTestPlan = {
+  templateName: "pilot-test-plan.md",
+  environment: {
+    serverHosts: "1",
+    clientCount: "2-3",
+    browsers: ["Chrome", "Edge", "Safari"],
+    network: "同一局域网或同一 VPN",
+    defaultPort: "3001",
+    runtimeSource: "JSON store",
+  },
+  releaseCriteria: [
+    "npm run pilot:check 执行成功",
+    "至少 2 台局域网客户端可以打开首页并完成核心流程",
+    "试点访问码启用后，未输入访问码不能执行数据修改操作",
+    "项目、工作包、审核、风险、阶段门、通知、审计和导出主流程无阻塞缺陷",
+    "创建检查点、恢复检查点或 .bak 备份恢复路径至少验证一种",
+    "归档包关键 Markdown/JSON 文件齐全",
+    "未出现数据损坏、服务崩溃、阶段门错误放行或无法回滚的问题",
+  ],
+  defectLevels: {
+    S1: "数据损坏、服务无法启动、阶段门错误放行、无法恢复或安全边界失效。",
+    S2: "核心流程阻塞，包括 Agent 草稿、人工审核、风险处理、阶段门批准、导出失败。",
+    S3: "页面文案、布局、局域网访问提示、非关键导出或体验问题。",
+  },
+  suites: [
+    {
+      key: "install_preflight",
+      title: "安装与启动前检查",
+      cases: ["TC-01 依赖安装", "TC-02 本机启动"],
+      expected: "依赖安装成功，pilot:check 通过，本机 /ready 返回 200。",
+    },
+    {
+      key: "lan_startup",
+      title: "局域网启动和端口",
+      cases: ["TC-03 局域网启动", "TC-04 端口调整"],
+      expected: "客户端可通过服务器内网 IP 访问，/runtime/network 显示推荐地址。",
+    },
+    {
+      key: "pilot_access_code",
+      title: "试点访问码",
+      cases: ["TC-05 启用访问码", "TC-20 错误访问码"],
+      expected: "错误或缺失访问码不能修改数据，正确访问码可以继续操作。",
+    },
+    {
+      key: "diagnostics",
+      title: "诊断端点",
+      cases: ["健康检查", "运维摘要", "存储检查", "试点 readiness", "M7 端点"],
+      expected: "关键诊断端点无 500，返回内容可用于现场排障。",
+    },
+    {
+      key: "core_workflow",
+      title: "核心业务流程",
+      cases: [
+        "TC-06 创建项目",
+        "TC-07 配置角色负责人",
+        "TC-08 设置工作包排期",
+        "TC-09 Agent 草稿生成",
+        "TC-10 人工审核",
+        "TC-11 补充阶段门证据",
+        "TC-12 风险闭环",
+        "TC-13 阶段门批准",
+      ],
+      expected: "工作包、审核、证据、风险和阶段门状态一致，审计可追踪。",
+    },
+    {
+      key: "pilot_feedback",
+      title: "试点总览和反馈闭环",
+      cases: ["TC-14 试点就绪总览", "TC-15 反馈计划和分诊", "TC-16 M7 readiness 和 backlog"],
+      expected: "试点主持人可以复制简报、记录反馈，并把 PLANNED 项整理到 M7。",
+    },
+    {
+      key: "archive_and_rollback",
+      title: "归档包、数据保护和回滚",
+      cases: ["归档包测试", "TC-17 检查点恢复", "TC-18 .bak 恢复"],
+      expected: "归档材料齐全，至少一种恢复路径验证通过。",
+    },
+    {
+      key: "multi_client",
+      title: "异常和多客户端",
+      cases: ["TC-19 防火墙或非 LAN 模式", "TC-21 多客户端同时操作"],
+      expected: "错误提示可诊断，多客户端刷新后数据一致，无 500 或 store 损坏。",
+    },
+  ],
+  reportFields: [
+    "测试日期",
+    "测试版本/Git 提交",
+    "服务器主机",
+    "局域网访问地址",
+    "参与客户端数量",
+    "执行用例数量",
+    "通过数量",
+    "失败数量",
+    "阻塞数量",
+    "S1/S2/S3 数量",
+    "是否建议进入内部试点",
+    "必须修复项",
+    "M7 后续项",
+    "归档包路径",
+    "负责人签字",
   ],
 };
 

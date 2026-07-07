@@ -65,6 +65,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 - M7 backlog 模板 `pilot-m7-backlog.md` 和 `pilot-m7-backlog.json`，用于把 PLANNED 反馈整理成带负责人、Ready 条件和验收证据的实施条目；
 - 回滚卡片 `pilot-rollback-card.md`，用于现场 S1/S2 数据或放行风险时按步骤暂停、诊断、恢复检查点或 `.bak`，并保留恢复证据；
 - 部署演练清单 `pilot-deployment-drill.md` 和 `pilot-deployment-drill.json`，用于按步骤确认发布候选包、检查点、局域网启动、访问码、诊断端点、回滚材料和 PostgreSQL 默认策略；
+- 局域网试点测试方案 `pilot-test-plan.md` 和 `pilot-test-plan.json`，用于按用例执行安装验收、访问码、核心业务流、诊断端点、归档包、回滚和多客户端测试；
 - 运维告警建议 `pilot-ops-alerts.md` 和 `pilot-ops-alerts.json`，用于列出试点期间应观察的诊断端点、Prometheus 指标、触发条件和 S1/S2/S3 处置规则；
 - 项目快照 JSON/Markdown；
 - 风险台账 JSON/Markdown；
@@ -83,7 +84,7 @@ npm run pilot:archive -- /tmp/hardware-flow-pilot-archive
 
 1. 在项目根目录运行 `npm run pilot:check`。
 2. 确认 `/tmp/hardware-flow-pilot-archive/pilot-launch-summary.json` 的结论不是 `NO_GO`。
-3. 确认 `/tmp/hardware-flow-pilot-archive/pilot-archive-index.md`、`pilot-handoff-walkthrough.md`、`pilot-m6-closeout.md`、`pilot-handoff.md`、`pilot-brief.md`、`pilot-trial-scope.md`、`pilot-issue-report.md`、`pilot-feedback-ledger.md`、`pilot-m7-backlog.md`、`pilot-rollback-card.md`、`pilot-deployment-drill.md` 和 `pilot-ops-alerts.md` 都已生成。
+3. 确认 `/tmp/hardware-flow-pilot-archive/pilot-archive-index.md`、`pilot-handoff-walkthrough.md`、`pilot-m6-closeout.md`、`pilot-handoff.md`、`pilot-brief.md`、`pilot-trial-scope.md`、`pilot-test-plan.md`、`pilot-issue-report.md`、`pilot-feedback-ledger.md`、`pilot-m7-backlog.md`、`pilot-rollback-card.md`、`pilot-deployment-drill.md` 和 `pilot-ops-alerts.md` 都已生成。
 4. 若本轮需要 PostgreSQL 导入演练，在有 `DATABASE_URL` 和 `psql` 的环境运行 `npm run db:preflight -- /tmp/hardware-flow-postgres-import --strict`。
 5. 记录本次服务版本、Git 提交、试点负责人、计划开始时间和数据目录。
 

@@ -16,6 +16,7 @@ import {
   pilotM6Closeout,
   pilotOpsAlerts,
   pilotRollbackCard,
+  pilotTestPlan,
   pilotTrialScope,
 } from "./pilotPlan.mjs";
 import {
@@ -486,6 +487,79 @@ ${alerts.escalation || "-"}
 `;
 }
 
+function renderPilotTestPlanMarkdown(manifest) {
+  const plan = manifest.testPlan || {};
+  const environment = plan.environment || {};
+  const releaseRows = (plan.releaseCriteria || []).map((item) => `- ${item}`).join("\n") || "- 暂无放行标准。";
+  const defectRows = Object.entries(plan.defectLevels || {})
+    .map(([level, detail]) => `- ${level}：${detail}`)
+    .join("\n") || "- 暂无缺陷分级。";
+  const suiteRows = (plan.suites || [])
+    .map((suite) => {
+      const caseRows = (suite.cases || []).map((item) => `   - ${item}`).join("\n");
+      return `### ${suite.title}\n\n- 编号：\`${suite.key}\`\n- 期望：${suite.expected}\n- 用例：\n${caseRows || "   - 暂无用例。"}`;
+    })
+    .join("\n\n");
+  const reportRows = (plan.reportFields || []).map((item) => `- ${item}: `).join("\n") || "- 暂无报告字段。";
+
+  return `# 局域网试点测试方案
+
+生成时间：${manifest.generatedAt}
+
+## 测试目标
+
+确认当前版本可以在局域网内支持内部试点，覆盖安装启动、访问保护、核心业务流、诊断端点、归档材料、数据保护和异常恢复。
+
+## 测试环境
+
+- 服务器主机：${environment.serverHosts || "1"} 台。
+- 局域网客户端：${environment.clientCount || "2-3"} 台。
+- 浏览器：${(environment.browsers || []).join("、") || "-"}。
+- 网络：${environment.network || "-"}。
+- 默认端口：${environment.defaultPort || "-"}。
+- 运行时写入源：${environment.runtimeSource || "-"}。
+
+## 放行标准
+
+${releaseRows}
+
+## 缺陷分级
+
+${defectRows}
+
+## 测试套件
+
+${suiteRows || "暂无测试套件。"}
+
+## 关键手工用例
+
+### TC-03 局域网启动
+
+1. 执行 \`npm run start:lan\`。
+2. 在服务器上获取内网 IP。
+3. 客户端访问 \`http://服务器内网IP:3001\` 和 \`/ready\`。
+4. 期望首页可访问，\`/ready\` 返回 200，\`/runtime/network\` 显示推荐地址。
+
+### TC-13 阶段门批准
+
+1. 确认关键工作包、证据和风险均满足条件。
+2. 导出阶段门审核包。
+3. 执行阶段门批准。
+4. 期望未满足条件时不能批准，满足条件后项目进入下一阶段，审计记录完整。
+
+## 测试完成报告
+
+${reportRows}
+
+## 关联材料
+
+- 部署演练：\`${manifest.files?.deploymentDrillMarkdown || "pilot-deployment-drill.md"}\`
+- 回滚卡片：\`${manifest.files?.rollbackCardMarkdown || "pilot-rollback-card.md"}\`
+- 反馈台账：\`${manifest.files?.feedbackLedgerMarkdown || "pilot-feedback-ledger.md"}\`
+- M7 Backlog：\`${manifest.files?.m7BacklogMarkdown || "pilot-m7-backlog.md"}\`
+`;
+}
+
 function renderPilotArchiveIndexMarkdown(manifest) {
   const index = manifest.archiveIndex || {};
   const primaryRows = (index.primaryReadOrder || [])
@@ -714,6 +788,8 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
     trialScopeJson: path.join(resolvedOutputDir, "pilot-trial-scope.json"),
     opsAlertsMarkdown: path.join(resolvedOutputDir, "pilot-ops-alerts.md"),
     opsAlertsJson: path.join(resolvedOutputDir, "pilot-ops-alerts.json"),
+    testPlanMarkdown: path.join(resolvedOutputDir, "pilot-test-plan.md"),
+    testPlanJson: path.join(resolvedOutputDir, "pilot-test-plan.json"),
     archiveIndexMarkdown: path.join(resolvedOutputDir, "pilot-archive-index.md"),
     archiveIndexJson: path.join(resolvedOutputDir, "pilot-archive-index.json"),
     handoffWalkthroughMarkdown: path.join(resolvedOutputDir, "pilot-handoff-walkthrough.md"),
@@ -826,6 +902,14 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       rules: pilotOpsAlerts.rules,
       escalation: pilotOpsAlerts.escalation,
     },
+    testPlan: {
+      templatePath: pilotTestPlan.templateName,
+      environment: pilotTestPlan.environment,
+      releaseCriteria: pilotTestPlan.releaseCriteria,
+      defectLevels: pilotTestPlan.defectLevels,
+      suites: pilotTestPlan.suites,
+      reportFields: pilotTestPlan.reportFields,
+    },
     archiveIndex: {
       templatePath: pilotArchiveIndex.templateName,
       primaryReadOrder: pilotArchiveIndex.primaryReadOrder,
@@ -898,6 +982,8 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
   writeJson(files.trialScopeJson, manifest.trialScope);
   writeText(files.opsAlertsMarkdown, renderPilotOpsAlertsMarkdown(manifest));
   writeJson(files.opsAlertsJson, manifest.opsAlerts);
+  writeText(files.testPlanMarkdown, renderPilotTestPlanMarkdown(manifest));
+  writeJson(files.testPlanJson, manifest.testPlan);
   writeText(files.archiveIndexMarkdown, renderPilotArchiveIndexMarkdown(manifest));
   writeJson(files.archiveIndexJson, manifest.archiveIndex);
   writeText(files.handoffWalkthroughMarkdown, renderPilotHandoffWalkthroughMarkdown(manifest));

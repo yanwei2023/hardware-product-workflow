@@ -51,6 +51,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.files.handoffWalkthroughJson, "pilot-handoff-walkthrough.json");
   assert.equal(manifest.files.m6CloseoutMarkdown, "pilot-m6-closeout.md");
   assert.equal(manifest.files.m6CloseoutJson, "pilot-m6-closeout.json");
+  assert.equal(manifest.files.testPlanMarkdown, "pilot-test-plan.md");
+  assert.equal(manifest.files.testPlanJson, "pilot-test-plan.json");
   assert.equal(manifest.readiness.opsSummaryReady, true);
   assert.equal(typeof manifest.operations.blockerCount, "number");
   assert.equal(typeof manifest.operations.warningCount, "number");
@@ -132,6 +134,14 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.m6Closeout.criteria.some((item) => item.key === "operator_walkthrough"), true);
   assert.equal(manifest.m6Closeout.criteria.some((item) => item.key === "rollback_ready"), true);
   assert.equal(manifest.m6Closeout.remainingDecisions.includes("内部试点的首批用户范围"), true);
+  assert.equal(manifest.testPlan.templatePath, "pilot-test-plan.md");
+  assert.equal(manifest.testPlan.environment.clientCount, "2-3");
+  assert.equal(manifest.testPlan.releaseCriteria.includes("npm run pilot:check 执行成功"), true);
+  assert.equal(manifest.testPlan.suites.some((item) => item.key === "lan_startup"), true);
+  assert.equal(manifest.testPlan.suites.some((item) => item.key === "core_workflow"), true);
+  assert.equal(manifest.testPlan.defectLevels.S1.includes("数据损坏"), true);
+  assert.equal(manifest.archiveIndex.primaryReadOrder.some((item) => item.file === "pilot-test-plan.md"), true);
+  assert.equal(manifest.archiveIndex.bySituation.some((item) => item.situation === "测试执行" && item.files.includes("pilot-test-plan.md")), true);
   assert.equal(manifest.dataProtection.storePath, process.env.HARDWARE_FLOW_STORE_PATH);
   assert.ok(manifest.dataProtection.backupPath.endsWith("store.json.bak"));
   assert.equal(manifest.dataProtection.storeDoctorCommand, "npm run store:doctor");
@@ -200,6 +210,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.handoffWalkthroughJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.m6CloseoutMarkdown)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.files.m6CloseoutJson)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.testPlanMarkdown)), true);
+  assert.equal(fs.existsSync(path.join(outputDir, manifest.files.testPlanJson)), true);
   assert.equal(fs.existsSync(path.join(outputDir, manifest.postgresImport.manifestPath)), true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(outputDir, manifest.files.opsSummaryJson), "utf8")).pilot.links.metrics, "/metrics");
   const handoffMarkdown = fs.readFileSync(path.join(outputDir, "pilot-handoff.md"), "utf8");
@@ -294,6 +306,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(archiveIndexMarkdown, /pilot-deployment-drill\.md/);
   assert.match(archiveIndexMarkdown, /pilot-handoff-walkthrough\.md/);
   assert.match(archiveIndexMarkdown, /pilot-m6-closeout\.md/);
+  assert.match(archiveIndexMarkdown, /pilot-test-plan\.md/);
+  assert.match(archiveIndexMarkdown, /测试执行/);
   assert.match(archiveIndexMarkdown, /现场报错/);
   assert.match(archiveIndexMarkdown, /M6 收尾/);
   assert.match(archiveIndexMarkdown, /pilot-rollback-card\.md/);
@@ -311,6 +325,12 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(m6CloseoutMarkdown, /回滚路径/);
   assert.match(m6CloseoutMarkdown, /内部试点的首批用户范围/);
   assert.match(m6CloseoutMarkdown, /PASS_WITH_NOTES/);
+  const testPlanMarkdown = fs.readFileSync(path.join(outputDir, "pilot-test-plan.md"), "utf8");
+  assert.match(testPlanMarkdown, /局域网试点测试方案/);
+  assert.match(testPlanMarkdown, /TC-03 局域网启动/);
+  assert.match(testPlanMarkdown, /TC-13 阶段门批准/);
+  assert.match(testPlanMarkdown, /S1：数据损坏/);
+  assert.match(testPlanMarkdown, /测试完成报告/);
 
   fs.rmSync(outputDir, { recursive: true, force: true });
 });
