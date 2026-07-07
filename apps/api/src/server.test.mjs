@@ -174,6 +174,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.checklist, "/pilot/checklist");
   assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
   assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
+  assert.equal(result.body.links.m7Readiness, "/pilot/m7-readiness");
   assert.equal(result.body.links.m7Backlog, "/pilot/m7-backlog");
   assert.equal(result.body.links.m7BacklogMarkdown, "/pilot/m7-backlog.md");
   assert.equal(result.body.links.metrics, "/metrics");
@@ -247,6 +248,25 @@ test("pilot feedback triage endpoint exposes M7 prioritization rules", async () 
   assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
   assert.equal(result.body.links.archiveFeedbackLedger, "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md");
   assert.equal(result.body.nextActions.some((item) => item.includes("P0/P1")), true);
+});
+
+test("pilot M7 readiness endpoint separates infrastructure from real feedback", async () => {
+  const result = await dispatch("/pilot/m7-readiness");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.milestone, "M7");
+  assert.equal(result.body.status, "READY_FOR_REAL_FEEDBACK");
+  assert.equal(result.body.summary.readyCount, 4);
+  assert.equal(result.body.summary.waitingCount, 1);
+  assert.equal(result.body.criteria.some((item) => item.key === "feedback_plan" && item.status === "READY"), true);
+  assert.equal(result.body.criteria.some((item) => item.key === "feedback_triage" && item.status === "READY"), true);
+  assert.equal(result.body.criteria.some((item) => item.key === "m7_backlog" && item.status === "READY"), true);
+  assert.equal(result.body.criteria.some((item) => item.key === "real_feedback" && item.status === "WAITING"), true);
+  assert.equal(result.body.remainingExternalInputs.includes("真实操作者走查结论"), true);
+  assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
+  assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
+  assert.equal(result.body.links.m7Backlog, "/pilot/m7-backlog");
+  assert.equal(result.body.nextActions.some((item) => item.includes("真实试点反馈")), true);
 });
 
 test("pilot M7 backlog endpoint exposes planning template", async () => {

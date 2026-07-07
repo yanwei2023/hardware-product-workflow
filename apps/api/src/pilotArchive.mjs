@@ -861,6 +861,7 @@ export function preparePilotArchive(outputDir = "/tmp/hardware-flow-pilot-archiv
       checklist: pilotReadiness.links?.checklist || "/pilot/checklist",
       feedbackPlan: pilotReadiness.links?.feedbackPlan || "/pilot/feedback-plan",
       feedbackTriage: pilotReadiness.links?.feedbackTriage || "/pilot/feedback-triage",
+      m7Readiness: pilotReadiness.links?.m7Readiness || "/pilot/m7-readiness",
       m7Backlog: pilotReadiness.links?.m7Backlog || "/pilot/m7-backlog",
       m7BacklogMarkdown: pilotReadiness.links?.m7BacklogMarkdown || "/pilot/m7-backlog.md",
       opsSummary: pilotReadiness.links?.opsSummary || "/ops/summary",

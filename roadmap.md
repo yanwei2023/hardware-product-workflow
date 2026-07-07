@@ -98,6 +98,7 @@
 | 2026-07-07 | M7 | In Progress | 新增 `/pilot/m7-backlog` 只读端点和工作台入口，定义 M7 backlog 字段、排序规则、Ready 条件、默认分桶和验收证据。 | 真实复盘后把 PLANNED 反馈转换为可验收的 M7 条目，并先处理稳定性与核心流程项。 |
 | 2026-07-07 | M7 | In Progress | 新增 `/pilot/m7-backlog.md` Markdown 模板入口，便于试点复盘会把 PLANNED 反馈直接整理成可贴入纪要的 backlog 表格。 | 下一步在真实反馈产生后，用该模板生成首批 M7 P0/P1 实施清单。 |
 | 2026-07-07 | M7 | In Progress | 试点归档包新增 `pilot-m7-backlog.md` 和 `pilot-m7-backlog.json`，并在归档总目录和交接走查中把会后复盘指向 M7 backlog 模板。 | 真实走查后用离线归档包完成一次从反馈台账到 M7 backlog 的复盘演练。 |
+| 2026-07-07 | M7 | In Progress | 新增 `/pilot/m7-readiness` 和工作台入口，明确反馈计划、分诊、backlog 与离线归档已就绪，同时把真实走查和首批试点反馈标记为外部等待项。 | 真实试点后用该入口确认哪些外部输入已补齐，再开始 P0/P1 实施。 |
 
 ## 每次迭代更新规则
 

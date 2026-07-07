@@ -30,6 +30,7 @@
 | `GET` | `/pilot/checklist` | 查看试点演练清单和 DONE/PENDING 状态 |
 | `GET` | `/pilot/feedback-plan` | 查看反馈台账字段、优先级、状态和 M7 接入动作 |
 | `GET` | `/pilot/feedback-triage` | 查看反馈进入 M7 backlog 的优先级分流和状态流转规则 |
+| `GET` | `/pilot/m7-readiness` | 查看 M7 反馈闭环基础设施是否已准备好，以及仍待外部输入的真实反馈 |
 | `GET` | `/pilot/m7-backlog` | 查看 M7 backlog 条目字段、排序规则、Ready 条件和验收证据 |
 | `GET` | `/pilot/m7-backlog.md` | 导出可贴进复盘纪要的 M7 backlog Markdown 模板 |
 | `GET` | `/runtime/config` | 查看非敏感运行配置和静态资源模式 |

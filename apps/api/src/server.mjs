@@ -776,6 +776,7 @@ export function getPilotReadinessStatus() {
       checklist: "/pilot/checklist",
       feedbackPlan: "/pilot/feedback-plan",
       feedbackTriage: "/pilot/feedback-triage",
+      m7Readiness: "/pilot/m7-readiness",
       m7Backlog: "/pilot/m7-backlog",
       m7BacklogMarkdown: "/pilot/m7-backlog.md",
       health: "/health",
@@ -834,6 +835,77 @@ export function getPilotFeedbackTriageStatus() {
       "复盘会上先按 P0/P1/P2/P3 完成反馈分流。",
       "P0/P1 必须在进入 M7 计划前明确负责人和证据。",
       "P2/P3 可以批量进入 M7 或记录 DEFERRED 原因。",
+    ],
+  };
+}
+
+export function getPilotM7ReadinessStatus() {
+  const criteria = [
+    {
+      key: "feedback_plan",
+      label: "反馈台账字段和分类",
+      status: pilotFeedbackLedger.fields.includes("后续节点") && pilotFeedbackLedger.categories.length > 0 ? "READY" : "BLOCKED",
+      evidence: "/pilot/feedback-plan",
+    },
+    {
+      key: "feedback_triage",
+      label: "反馈优先级分流和状态流转",
+      status: pilotFeedbackLedger.triage.priorityLanes.P0 && pilotFeedbackLedger.triage.statusTransitions.OPEN ? "READY" : "BLOCKED",
+      evidence: "/pilot/feedback-triage",
+    },
+    {
+      key: "m7_backlog",
+      label: "M7 backlog 模板",
+      status: pilotFeedbackLedger.m7Backlog.itemFields.includes("验收证据") ? "READY" : "BLOCKED",
+      evidence: "/pilot/m7-backlog",
+    },
+    {
+      key: "offline_archive",
+      label: "离线归档入口",
+      status: "READY",
+      evidence: "/tmp/hardware-flow-pilot-archive/pilot-m7-backlog.md",
+    },
+    {
+      key: "real_feedback",
+      label: "真实试点反馈",
+      status: "WAITING",
+      evidence: "等待真实操作者走查和试点复盘输入。",
+    },
+  ];
+  const readyCount = criteria.filter((item) => item.status === "READY").length;
+  const waitingCount = criteria.filter((item) => item.status === "WAITING").length;
+  const blockedCount = criteria.filter((item) => item.status === "BLOCKED").length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    milestone: pilotFeedbackLedger.defaultMilestone,
+    status: blockedCount ? "BLOCKED" : waitingCount ? "READY_FOR_REAL_FEEDBACK" : "READY",
+    summary: {
+      readyCount,
+      waitingCount,
+      blockedCount,
+      total: criteria.length,
+    },
+    criteria,
+    remainingExternalInputs: [
+      "真实操作者走查结论",
+      "首批试点反馈",
+      "P0/P1 负责人确认",
+      "P0/P1 验收证据确认",
+    ],
+    links: {
+      feedbackPlan: "/pilot/feedback-plan",
+      feedbackTriage: "/pilot/feedback-triage",
+      m7Backlog: "/pilot/m7-backlog",
+      m7BacklogMarkdown: "/pilot/m7-backlog.md",
+      archiveFeedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
+      archiveM7Backlog: "/tmp/hardware-flow-pilot-archive/pilot-m7-backlog.md",
+      roadmap: "roadmap.md",
+    },
+    nextActions: [
+      "完成真实操作者走查后，把真实试点反馈写入反馈台账。",
+      "按分诊规则把 P0/P1 反馈转为 M7 backlog 条目。",
+      "为每个 PLANNED 条目补齐负责人和验收证据。",
     ],
   };
 }
@@ -3973,6 +4045,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/feedback-triage") {
       return writeJson(res, 200, getPilotFeedbackTriageStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/m7-readiness") {
+      return writeJson(res, 200, getPilotM7ReadinessStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/pilot/m7-backlog") {

@@ -128,6 +128,7 @@ http://localhost:3001/pilot/launch
 http://localhost:3001/pilot/checklist
 http://localhost:3001/pilot/feedback-plan
 http://localhost:3001/pilot/feedback-triage
+http://localhost:3001/pilot/m7-readiness
 http://localhost:3001/pilot/m7-backlog
 http://localhost:3001/pilot/m7-backlog.md
 http://localhost:3001/ops/summary
@@ -146,6 +147,7 @@ http://localhost:3001/metrics
 其中“现场简报”可以一键复制当前项目、阶段门状态、阻塞提醒、试点命令和诊断链接；“建议试点流程”可以一键复制到会议纪要或群消息；“现场问题上报”可以一键复制问题模板；试点命令也可以逐条复制。
 其中“反馈计划”会打开 `/pilot/feedback-plan`，展示 `pilot-feedback-ledger.md` 的字段、优先级、状态和 M7 后续动作。真实试点后先把 P0/P1 写入反馈台账，再在复盘会上明确负责人、状态和后续节点。
 其中“反馈分诊”会打开 `/pilot/feedback-triage`，展示 P0/P1/P2/P3 分流规则、状态流转和进入 M7 计划前必须补齐的证据条件。
+其中“M7 就绪”会打开 `/pilot/m7-readiness`，区分反馈闭环基础设施是否就绪，以及真实操作者走查、首批试点反馈等仍待外部输入的事项。
 其中“M7 Backlog”会打开 `/pilot/m7-backlog`，展示从 PLANNED 反馈转为 M7 条目时需要填写的字段、排序规则、Ready 条件和验收证据。
 其中“M7 模板”会打开 `/pilot/m7-backlog.md`，导出可贴进复盘纪要的 Markdown 表格模板。
 如果页面操作失败，顶部会以红色提示显示错误内容、请求 ID 和服务版本；试点参与者反馈问题时应一并截图或复制请求 ID。
