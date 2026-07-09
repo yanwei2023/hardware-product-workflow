@@ -174,6 +174,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.checklist, "/pilot/checklist");
   assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
   assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
+  assert.equal(result.body.links.testPlan, "/pilot/test-plan");
   assert.equal(result.body.links.m7Readiness, "/pilot/m7-readiness");
   assert.equal(result.body.links.m7Backlog, "/pilot/m7-backlog");
   assert.equal(result.body.links.m7BacklogMarkdown, "/pilot/m7-backlog.md");
@@ -215,6 +216,22 @@ test("pilot checklist endpoint reports workflow trial steps", async () => {
   assert.equal(result.body.items.some((item) => item.key === "checkpoint" && item.severity === "REQUIRED"), true);
   assert.equal(result.body.items.some((item) => item.key === "agent_drafts" && item.status === "PENDING"), true);
   assert.equal(result.body.items.some((item) => item.key === "risk_workflow" && item.action.includes("风险")), true);
+});
+
+test("pilot test plan endpoint exposes LAN trial verification suites", async () => {
+  const result = await dispatch("/pilot/test-plan");
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.templateName, "pilot-test-plan.md");
+  assert.equal(result.body.environment.clientCount, "2-3");
+  assert.equal(result.body.environment.defaultPort, "3001");
+  assert.equal(result.body.releaseCriteria.includes("npm run pilot:check 执行成功"), true);
+  assert.equal(result.body.defectLevels.S1.includes("数据损坏"), true);
+  assert.equal(result.body.suites.some((item) => item.key === "lan_startup"), true);
+  assert.equal(result.body.suites.some((item) => item.key === "core_workflow"), true);
+  assert.equal(result.body.links.archiveTestPlan, "/tmp/hardware-flow-pilot-archive/pilot-test-plan.md");
+  assert.equal(result.body.links.archiveTestPlanJson, "/tmp/hardware-flow-pilot-archive/pilot-test-plan.json");
+  assert.equal(result.body.nextActions.some((item) => item.includes("TC-03")), true);
 });
 
 test("pilot feedback plan endpoint exposes M7 intake fields", async () => {

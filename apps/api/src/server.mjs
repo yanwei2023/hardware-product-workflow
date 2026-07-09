@@ -37,6 +37,7 @@ import {
   pilotFeedbackLedger,
   pilotIssueReport,
   pilotRollbackCard,
+  pilotTestPlan,
 } from "./pilotPlan.mjs";
 import {
   addAuditEventInStore,
@@ -774,6 +775,7 @@ export function getPilotReadinessStatus() {
       launch: "/pilot/launch",
       readiness: "/pilot/readiness",
       checklist: "/pilot/checklist",
+      testPlan: "/pilot/test-plan",
       feedbackPlan: "/pilot/feedback-plan",
       feedbackTriage: "/pilot/feedback-triage",
       m7Readiness: "/pilot/m7-readiness",
@@ -791,6 +793,33 @@ export function getPilotReadinessStatus() {
       riskRegister: project ? `/projects/${project.id}/risk-register.md` : null,
       gateReviewPack: gate ? `/gates/${gate.id}/review-pack.md` : null,
     },
+  };
+}
+
+export function getPilotTestPlanStatus() {
+  return {
+    generatedAt: new Date().toISOString(),
+    templateName: pilotTestPlan.templateName,
+    environment: pilotTestPlan.environment,
+    releaseCriteria: pilotTestPlan.releaseCriteria,
+    defectLevels: pilotTestPlan.defectLevels,
+    suites: pilotTestPlan.suites,
+    reportFields: pilotTestPlan.reportFields,
+    links: {
+      archiveTestPlan: "/tmp/hardware-flow-pilot-archive/pilot-test-plan.md",
+      archiveTestPlanJson: "/tmp/hardware-flow-pilot-archive/pilot-test-plan.json",
+      deploymentDrill: "/tmp/hardware-flow-pilot-archive/pilot-deployment-drill.md",
+      rollbackCard: "/tmp/hardware-flow-pilot-archive/pilot-rollback-card.md",
+      feedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
+      readiness: "/pilot/readiness",
+      launch: "/pilot/launch",
+      checklist: "/pilot/checklist",
+    },
+    nextActions: [
+      "试点前先执行 TC-01、TC-02、TC-03、TC-04 和 TC-05，确认安装、局域网访问和访问码。",
+      "核心业务流重点执行 TC-06 到 TC-13，确认阶段门不会错误放行。",
+      "完成 TC-17 或 TC-18，至少验证一种回滚路径。",
+    ],
   };
 }
 
@@ -4037,6 +4066,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/checklist") {
       return writeJson(res, 200, getPilotChecklistStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/test-plan") {
+      return writeJson(res, 200, getPilotTestPlanStatus());
     }
 
     if (req.method === "GET" && url.pathname === "/pilot/feedback-plan") {
