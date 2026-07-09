@@ -166,6 +166,7 @@ http://localhost:3001/storage/doctor
 http://localhost:3001/runtime/network
 http://localhost:3001/runtime/config
 http://localhost:3001/pilot/test-plan
+http://localhost:3001/pilot/test-plan.md
 http://localhost:3001/metrics
 ```
 

@@ -128,6 +128,7 @@ http://localhost:3001/pilot/readiness
 http://localhost:3001/pilot/launch
 http://localhost:3001/pilot/checklist
 http://localhost:3001/pilot/test-plan
+http://localhost:3001/pilot/test-plan.md
 http://localhost:3001/pilot/feedback-plan
 http://localhost:3001/pilot/feedback-triage
 http://localhost:3001/pilot/m7-readiness

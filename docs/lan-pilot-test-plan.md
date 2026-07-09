@@ -191,6 +191,7 @@ lan-test-start
 /pilot/launch
 /pilot/checklist
 /pilot/test-plan
+/pilot/test-plan.md
 /pilot/feedback-plan
 /pilot/feedback-triage
 /pilot/m7-readiness

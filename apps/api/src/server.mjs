@@ -776,6 +776,7 @@ export function getPilotReadinessStatus() {
       readiness: "/pilot/readiness",
       checklist: "/pilot/checklist",
       testPlan: "/pilot/test-plan",
+      testPlanMarkdown: "/pilot/test-plan.md",
       feedbackPlan: "/pilot/feedback-plan",
       feedbackTriage: "/pilot/feedback-triage",
       m7Readiness: "/pilot/m7-readiness",
@@ -796,6 +797,69 @@ export function getPilotReadinessStatus() {
   };
 }
 
+export function renderPilotTestPlanMarkdown(testPlan) {
+  const environment = testPlan.environment || {};
+  const releaseRows = (testPlan.releaseCriteria || []).map((item) => `- ${item}`).join("\n") || "- 暂无放行标准。";
+  const defectRows = Object.entries(testPlan.defectLevels || {})
+    .map(([level, detail]) => `- ${level}：${detail}`)
+    .join("\n") || "- 暂无缺陷分级。";
+  const suiteRows = (testPlan.suites || [])
+    .map((suite) => {
+      const caseRows = (suite.cases || []).map((item) => `   - ${item}`).join("\n");
+      return `### ${suite.title}\n\n- 编号：\`${suite.key}\`\n- 期望：${suite.expected}\n- 用例：\n${caseRows || "   - 暂无用例。"}`;
+    })
+    .join("\n\n") || "暂无测试套件。";
+  const reportRows = (testPlan.reportFields || []).map((item) => `- ${item}: `).join("\n") || "- 暂无报告字段。";
+
+  return `# 局域网试点测试方案
+
+## 测试目标
+
+确认当前版本可以在局域网内支持内部试点，覆盖安装启动、访问保护、核心业务流、诊断端点、归档材料、数据保护和异常恢复。
+
+## 测试环境
+
+- 服务器主机：${environment.serverHosts || "1"} 台。
+- 局域网客户端：${environment.clientCount || "2-3"} 台。
+- 浏览器：${(environment.browsers || []).join("、") || "-"}。
+- 网络：${environment.network || "-"}。
+- 默认端口：${environment.defaultPort || "-"}。
+- 运行时写入源：${environment.runtimeSource || "-"}。
+
+## 放行标准
+
+${releaseRows}
+
+## 缺陷分级
+
+${defectRows}
+
+## 测试套件
+
+${suiteRows}
+
+## 关键手工用例
+
+### TC-03 局域网启动
+
+1. 执行 \`npm run start:lan\`。
+2. 在服务器上获取内网 IP。
+3. 客户端访问 \`http://服务器内网IP:3001\` 和 \`/ready\`。
+4. 期望首页可访问，\`/ready\` 返回 200，\`/runtime/network\` 显示推荐地址。
+
+### TC-13 阶段门批准
+
+1. 确认关键工作包、证据和风险均满足条件。
+2. 导出阶段门审核包。
+3. 执行阶段门批准。
+4. 期望未满足条件时不能批准，满足条件后项目进入下一阶段，审计记录完整。
+
+## 测试完成报告
+
+${reportRows}
+`;
+}
+
 export function getPilotTestPlanStatus() {
   return {
     generatedAt: new Date().toISOString(),
@@ -808,6 +872,7 @@ export function getPilotTestPlanStatus() {
     links: {
       archiveTestPlan: "/tmp/hardware-flow-pilot-archive/pilot-test-plan.md",
       archiveTestPlanJson: "/tmp/hardware-flow-pilot-archive/pilot-test-plan.json",
+      markdown: "/pilot/test-plan.md",
       deploymentDrill: "/tmp/hardware-flow-pilot-archive/pilot-deployment-drill.md",
       rollbackCard: "/tmp/hardware-flow-pilot-archive/pilot-rollback-card.md",
       feedbackLedger: "/tmp/hardware-flow-pilot-archive/pilot-feedback-ledger.md",
@@ -4070,6 +4135,10 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/pilot/test-plan") {
       return writeJson(res, 200, getPilotTestPlanStatus());
+    }
+
+    if (req.method === "GET" && url.pathname === "/pilot/test-plan.md") {
+      return writeText(res, 200, renderPilotTestPlanMarkdown(getPilotTestPlanStatus()), "text/markdown; charset=utf-8");
     }
 
     if (req.method === "GET" && url.pathname === "/pilot/feedback-plan") {

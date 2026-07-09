@@ -175,6 +175,7 @@ test("pilot readiness endpoint aggregates trial blockers and export links", asyn
   assert.equal(result.body.links.feedbackPlan, "/pilot/feedback-plan");
   assert.equal(result.body.links.feedbackTriage, "/pilot/feedback-triage");
   assert.equal(result.body.links.testPlan, "/pilot/test-plan");
+  assert.equal(result.body.links.testPlanMarkdown, "/pilot/test-plan.md");
   assert.equal(result.body.links.m7Readiness, "/pilot/m7-readiness");
   assert.equal(result.body.links.m7Backlog, "/pilot/m7-backlog");
   assert.equal(result.body.links.m7BacklogMarkdown, "/pilot/m7-backlog.md");
@@ -232,6 +233,18 @@ test("pilot test plan endpoint exposes LAN trial verification suites", async () 
   assert.equal(result.body.links.archiveTestPlan, "/tmp/hardware-flow-pilot-archive/pilot-test-plan.md");
   assert.equal(result.body.links.archiveTestPlanJson, "/tmp/hardware-flow-pilot-archive/pilot-test-plan.json");
   assert.equal(result.body.nextActions.some((item) => item.includes("TC-03")), true);
+});
+
+test("pilot test plan markdown endpoint exports a runnable LAN checklist", async () => {
+  const result = await dispatch("/pilot/test-plan.md");
+
+  assert.equal(result.status, 200);
+  assert.match(result.headers["content-type"], /text\/markdown/);
+  assert.match(result.body, /# 局域网试点测试方案/);
+  assert.match(result.body, /TC-03 局域网启动/);
+  assert.match(result.body, /TC-13 阶段门批准/);
+  assert.match(result.body, /S1：数据损坏/);
+  assert.match(result.body, /测试完成报告/);
 });
 
 test("pilot feedback plan endpoint exposes M7 intake fields", async () => {

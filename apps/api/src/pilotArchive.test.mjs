@@ -154,6 +154,7 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.diagnostics.feedbackPlan, "/pilot/feedback-plan");
   assert.equal(manifest.diagnostics.feedbackTriage, "/pilot/feedback-triage");
   assert.equal(manifest.diagnostics.testPlan, "/pilot/test-plan");
+  assert.equal(manifest.diagnostics.testPlanMarkdown, "/pilot/test-plan.md");
   assert.equal(manifest.diagnostics.m7Readiness, "/pilot/m7-readiness");
   assert.equal(manifest.diagnostics.m7Backlog, "/pilot/m7-backlog");
   assert.equal(manifest.diagnostics.m7BacklogMarkdown, "/pilot/m7-backlog.md");

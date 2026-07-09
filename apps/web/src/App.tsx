@@ -979,6 +979,7 @@ function PilotReadiness({ opsSummary, pilotLaunch, pilotReadiness }: any) {
         {pilotReadiness.links?.feedbackPlan ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.feedbackPlan)}>反馈计划</button> : null}
         {pilotReadiness.links?.feedbackTriage ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.feedbackTriage)}>反馈分诊</button> : null}
         {pilotReadiness.links?.testPlan ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.testPlan)}>测试方案</button> : null}
+        {pilotReadiness.links?.testPlanMarkdown ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.testPlanMarkdown)}>测试模板</button> : null}
         {pilotReadiness.links?.m7Readiness ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.m7Readiness)}>M7 就绪</button> : null}
         {pilotReadiness.links?.m7Backlog ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.m7Backlog)}>M7 Backlog</button> : null}
         {pilotReadiness.links?.m7BacklogMarkdown ? <button className="ghost" onClick={() => openApiPath(pilotReadiness.links.m7BacklogMarkdown)}>M7 模板</button> : null}
