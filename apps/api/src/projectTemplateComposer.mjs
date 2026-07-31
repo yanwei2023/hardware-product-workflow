@@ -50,6 +50,11 @@ export function composeProjectTemplate(input = {}) {
   if (!template) {
     throw new Error(`unknown lifecycle template ${input.templateKey || ""}`.trim());
   }
+  if (template.compatibilityMode !== "DOCUMENT_REQUIREMENTS_PREVIEW") {
+    throw new Error(
+      `lifecycle template ${template.templateKey} does not support document requirements preview`,
+    );
+  }
 
   const capabilityKeys = normalizeSelectedKeys(input.capabilityKeys, "capabilityKeys");
   const productPackKeys = normalizeSelectedKeys(input.productPackKeys, "productPackKeys");

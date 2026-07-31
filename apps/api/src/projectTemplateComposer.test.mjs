@@ -62,3 +62,12 @@ test("unknown templates and packs produce explicit validation errors", () => {
     /unknown product pack/,
   );
 });
+
+test("legacy work-package templates cannot masquerade as document previews", () => {
+  assert.throws(
+    () => composeProjectTemplate({
+      templateKey: "standard_hardware_development_v0_1",
+    }),
+    /does not support document requirements preview/,
+  );
+});
