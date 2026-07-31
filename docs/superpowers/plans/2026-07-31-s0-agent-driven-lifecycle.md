@@ -783,7 +783,7 @@ Start with a temporary store, `HOST=0.0.0.0`, a non-default port, and a pilot ac
 Verify `/health`, `/ready`, `/runtime/network`, protected data access, candidate creation, and
 the React workbench.
 
-- [ ] **Step 5: Create cross-device handoff and commit**
+- [x] **Step 5: Create cross-device handoff and commit**
 
 Document exact clone, branch, install, verification, LAN start, access-code, data-volume, and
 known-boundary instructions in `自动接续说明.md`.
