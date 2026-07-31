@@ -1,0 +1,154 @@
+{
+  "version": "1.0.0",
+  "capabilityPacks": [
+    {
+      "key": "electronic_hardware",
+      "name": "电子硬件",
+      "documentCodes": [
+        "HW-002",
+        "HW-003",
+        "HW-004",
+        "HW-005"
+      ]
+    },
+    {
+      "key": "embedded_firmware",
+      "name": "嵌入式固件",
+      "documentCodes": [
+        "FW-001"
+      ]
+    },
+    {
+      "key": "fpga",
+      "name": "FPGA与高速逻辑",
+      "documentCodes": [
+        "FW-002"
+      ]
+    },
+    {
+      "key": "algorithm_ai",
+      "name": "算法与AI",
+      "documentCodes": [
+        "SYS-004",
+        "DVT-005"
+      ]
+    },
+    {
+      "key": "structure_industrial_design",
+      "name": "结构与工业设计",
+      "documentCodes": [
+        "ME-001"
+      ]
+    },
+    {
+      "key": "software_application",
+      "name": "软件应用",
+      "documentCodes": [
+        "UX-001",
+        "SW-001",
+        "REL-007"
+      ]
+    },
+    {
+      "key": "data_platform",
+      "name": "数据平台",
+      "documentCodes": [
+        "SW-002"
+      ]
+    },
+    {
+      "key": "network_security",
+      "name": "网络与信息安全",
+      "documentCodes": [
+        "SYS-006"
+      ]
+    },
+    {
+      "key": "certification_metrology",
+      "name": "认证与计量",
+      "documentCodes": [
+        "DVT-004",
+        "CERT-001",
+        "CERT-002"
+      ]
+    },
+    {
+      "key": "reliability",
+      "name": "可靠性",
+      "documentCodes": [
+        "DVT-003"
+      ]
+    },
+    {
+      "key": "manufacturing_supply_chain",
+      "name": "制造与供应链",
+      "documentCodes": [
+        "EVT-002",
+        "MFG-001",
+        "MFG-002",
+        "MFG-003",
+        "MFG-004",
+        "MFG-005",
+        "SCM-001",
+        "REL-005"
+      ]
+    },
+    {
+      "key": "field_installation",
+      "name": "现场安装",
+      "documentCodes": [
+        "DVT-007",
+        "REL-004"
+      ]
+    },
+    {
+      "key": "customer_delivery",
+      "name": "客户交付",
+      "documentCodes": [
+        "REL-003",
+        "DEL-001",
+        "DEL-002",
+        "DEL-003"
+      ]
+    },
+    {
+      "key": "after_sales_operations",
+      "name": "售后与运营",
+      "documentCodes": [
+        "OPS-001",
+        "OPS-002"
+      ]
+    },
+    {
+      "key": "physical_product_validation",
+      "name": "实体产品验证",
+      "documentCodes": [
+        "EVT-001",
+        "TEST-001",
+        "EVT-003",
+        "REVIEW-004",
+        "DVT-001",
+        "DVT-008",
+        "REVIEW-005",
+        "PVT-001",
+        "REVIEW-006"
+      ]
+    },
+    {
+      "key": "measurement_signal_chain",
+      "name": "测量与信号链",
+      "documentCodes": [
+        "SYS-003",
+        "TEST-003"
+      ]
+    },
+    {
+      "key": "sales_enablement",
+      "name": "销售赋能",
+      "documentCodes": [
+        "REL-002",
+        "REL-006"
+      ]
+    }
+  ]
+}

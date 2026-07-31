@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "projectTypes": [
+    {
+      "key": "new_product_development",
+      "name": "全新产品开发",
+      "documentCodes": [
+        "MR-001",
+        "MR-002",
+        "MR-003",
+        "MR-006",
+        "MR-007",
+        "FS-003",
+        "DVT-006",
+        "PVT-002"
+      ]
+    },
+    {
+      "key": "derivative_product",
+      "name": "派生产品开发",
+      "documentCodes": []
+    },
+    {
+      "key": "technology_poc",
+      "name": "技术预研与PoC",
+      "documentCodes": []
+    },
+    {
+      "key": "software_platform",
+      "name": "软件与平台产品",
+      "documentCodes": []
+    },
+    {
+      "key": "customer_custom_product",
+      "name": "客户定制产品",
+      "documentCodes": []
+    },
+    {
+      "key": "product_delivery",
+      "name": "产品交付项目",
+      "documentCodes": [
+        "DEL-004"
+      ]
+    },
+    {
+      "key": "major_engineering_change",
+      "name": "重大工程变更",
+      "documentCodes": []
+    },
+    {
+      "key": "product_eol",
+      "name": "产品停产与生命周期终止",
+      "documentCodes": []
+    }
+  ]
+}
