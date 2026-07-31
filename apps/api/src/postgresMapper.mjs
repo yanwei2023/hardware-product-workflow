@@ -60,6 +60,8 @@ const jsonbColumns = new Set([
   "evidence_refs",
   "review_pack_json",
   "payload",
+  "definition_json",
+  "metadata_json",
 ]);
 
 function escapeSqlString(value) {
@@ -179,6 +181,7 @@ export function mapStoreToPostgresRows(store) {
       owner_user_id: project.ownerUserId || "user-project-manager",
       current_phase_id: project.currentPhaseId || null,
       status: project.status,
+      definition_json: json(project.definition, {}),
       archived_at: project.archivedAt || null,
       archived_by_user_id: project.archivedByUserId || null,
       cloned_from_project_id: project.clonedFromProjectId || null,
@@ -224,6 +227,7 @@ export function mapStoreToPostgresRows(store) {
       artifact_template_key: workPackage.artifactTemplateKey || null,
       required_for_gate: workPackage.requiredForGate !== false,
       status: workPackage.status,
+      metadata_json: json(workPackage.metadata, {}),
       due_at: workPackage.dueAt || null,
     })),
     gate_requirements: asArray(store.gateRequirements).map((requirement) => ({
@@ -374,6 +378,7 @@ export function mapPostgresRowsToStore(rows, { activeProjectId = null } = {}) {
     ownerUserId: project.owner_user_id,
     currentPhaseId: project.current_phase_id,
     status: project.status,
+    definition: runtimeJson(project.definition_json, {}),
     archivedAt: runtimeTimestamp(project.archived_at),
     archivedByUserId: project.archived_by_user_id,
     clonedFromProjectId: project.cloned_from_project_id,
@@ -391,6 +396,7 @@ export function mapPostgresRowsToStore(rows, { activeProjectId = null } = {}) {
     artifactTemplateKey: workPackage.artifact_template_key,
     requiredForGate: workPackage.required_for_gate !== false,
     status: workPackage.status,
+    metadata: runtimeJson(workPackage.metadata_json, {}),
     dueAt: runtimeTimestamp(workPackage.due_at),
   }));
   const workPackagesById = new Map(workPackages.map((item) => [item.id, item]));

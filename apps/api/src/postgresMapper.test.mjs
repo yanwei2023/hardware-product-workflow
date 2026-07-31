@@ -146,6 +146,37 @@ test("store mapper carries agent job queue state", () => {
   });
 });
 
+test("PostgreSQL round-trip preserves lifecycle definition metadata", () => {
+  const store = createDemoStore();
+  store.projects[0].definition = {
+    lifecycleMode: "S0_COMPILED",
+    initiation: {
+      version: 2,
+      productConcept: "通用检测产品",
+    },
+  };
+  store.workPackages[0].metadata = {
+    workType: "DOCUMENT",
+    documentCode: "PM-001",
+    effectiveRequirementLevel: "MANDATORY",
+  };
+
+  const rows = mapStoreToPostgresRows(store);
+
+  assert.deepEqual(rows.projects[0].definition_json, store.projects[0].definition);
+  assert.deepEqual(
+    rows.work_packages[0].metadata_json,
+    store.workPackages[0].metadata,
+  );
+
+  const restored = mapPostgresRowsToStore(rows);
+  assert.deepEqual(restored.projects[0].definition, store.projects[0].definition);
+  assert.deepEqual(
+    restored.workPackages[0].metadata,
+    store.workPackages[0].metadata,
+  );
+});
+
 test("PostgreSQL rows map back to a valid runtime store without losing row data", () => {
   const sourceStore = createDemoStore();
   const rows = mapStoreToPostgresRows(sourceStore);

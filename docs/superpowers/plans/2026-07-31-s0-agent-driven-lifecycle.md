@@ -153,7 +153,7 @@ git commit -m "Remove product-specific lifecycle defaults"
 - WorkPackage field: `metadata: Record<string, unknown>`.
 - PostgreSQL columns: `projects.definition_json jsonb`, `work_packages.metadata_json jsonb`.
 
-- [ ] **Step 1: Write failing PostgreSQL round-trip tests**
+- [x] **Step 1: Write failing PostgreSQL round-trip tests**
 
 Add literal metadata to the demo store copy:
 
@@ -177,7 +177,7 @@ assert.deepEqual(restored.projects[0].definition, store.projects[0].definition);
 assert.deepEqual(restored.workPackages[0].metadata, store.workPackages[0].metadata);
 ```
 
-- [ ] **Step 2: Run the mapper test and verify RED**
+- [x] **Step 2: Run the mapper test and verify RED**
 
 Run:
 
@@ -187,7 +187,7 @@ node --test apps/api/src/postgresMapper.test.mjs
 
 Expected: FAIL because the new JSONB fields are not mapped.
 
-- [ ] **Step 3: Add additive JSONB columns and mapper support**
+- [x] **Step 3: Add additive JSONB columns and mapper support**
 
 Add:
 
@@ -205,7 +205,7 @@ to `work_packages` in both schema files.
 
 Add both columns to `jsonbColumns`, map missing runtime fields to `{}`, and restore missing database values to `{}`. Extend the TypeScript interfaces without making the fields required for legacy callers.
 
-- [ ] **Step 4: Run persistence and schema tests**
+- [x] **Step 4: Run persistence and schema tests**
 
 Run:
 
@@ -217,7 +217,7 @@ npm run db:schema-check
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add schemas/database.sql migrations/001_initial_schema.sql schemas/domain.ts apps/api/src/postgresMapper.mjs apps/api/src/postgresMapper.test.mjs

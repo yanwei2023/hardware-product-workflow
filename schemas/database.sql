@@ -5,6 +5,7 @@ create table projects (
   owner_user_id text not null,
   current_phase_id text,
   status text not null,
+  definition_json jsonb not null default '{}'::jsonb,
   archived_at timestamptz,
   archived_by_user_id text,
   cloned_from_project_id text,
@@ -54,6 +55,7 @@ create table work_packages (
   artifact_template_key text,
   required_for_gate boolean not null default true,
   status text not null,
+  metadata_json jsonb not null default '{}'::jsonb,
   due_at timestamptz
 );
 

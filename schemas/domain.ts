@@ -32,6 +32,14 @@ export type ReviewDecision =
   | "REQUEST_MORE_EVIDENCE"
   | "ESCALATE";
 
+export interface Project {
+  id: string;
+  name: string;
+  currentPhaseId: string;
+  status: string;
+  definition?: Record<string, unknown>;
+}
+
 export interface RolePair {
   id: string;
   projectId: string;
@@ -49,6 +57,7 @@ export interface WorkPackage {
   title: string;
   requiredArtifactType: string;
   status: WorkPackageStatus;
+  metadata?: Record<string, unknown>;
   dueAt?: string;
 }
 
@@ -91,4 +100,3 @@ export interface GateBlocker {
   ownerRolePairId?: string;
   relatedObjectId?: string;
 }
-
