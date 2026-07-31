@@ -156,7 +156,7 @@ Guide registry values verified
 Run:
 
 ```bash
-rg -n "TB[D]|TO[D]O|待[定]|占[位]|稍后补充" 局域网安装与产品开发模拟测试指南.md
+rg -n "TB[D]|TO[D]O|待[定]|占[位]|稍后[补]充" 局域网安装与产品开发模拟测试指南.md
 git diff --check
 git status --short
 ```
