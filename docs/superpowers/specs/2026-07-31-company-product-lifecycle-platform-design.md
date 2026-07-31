@@ -479,10 +479,10 @@ P0/P1 需求必须形成：
 
 ## 12. 现有项目兼容与增量演进
 
-现有模板保留为：
+现有模板按仓库中的真实模板键保留为：
 
 ```text
-hardware_mvp_pilot_v0_1
+standard_hardware_development_v0_1
 ```
 
 增量演进规则：
