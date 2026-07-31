@@ -788,6 +788,6 @@ the React workbench.
 Document exact clone, branch, install, verification, LAN start, access-code, data-volume, and
 known-boundary instructions in `自动接续说明.md`.
 
-- [ ] **Step 6: Push the verified branch to GitHub**
+- [x] **Step 6: Push the verified branch to GitHub**
 
 Push `codex/agent-driven-lifecycle` and confirm the remote branch points to the final commit.
