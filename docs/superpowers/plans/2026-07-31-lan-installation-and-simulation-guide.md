@@ -29,7 +29,7 @@
 - Consumes: `README.md`, `docs/internal-pilot.md`, `docs/lan-deployment.md`, `apps/web/src/App.tsx`, `schemas/project-type-registry.json`, `schemas/capability-pack-registry.json`, and npm scripts in `package.json`.
 - Produces: A self-contained Chinese Markdown guide usable without reading other repository documents.
 
-- [ ] **Step 1: Record exact installation prerequisites and host/client boundary**
+- [x] **Step 1: Record exact installation prerequisites and host/client boundary**
 
 Document:
 
@@ -39,7 +39,7 @@ Document:
 数据：只保存在运行服务的主机；客户端不安装、不各自启动、不自动合并数据
 ```
 
-- [ ] **Step 2: Add copyable clone, verification, and LAN start commands**
+- [x] **Step 2: Add copyable clone, verification, and LAN start commands**
 
 Use:
 
@@ -53,7 +53,7 @@ HARDWARE_FLOW_PILOT_ACCESS_CODE=change-this-code npm run start:lan
 
 Explain the non-strict PostgreSQL preflight warning and show `/health`, `/ready`, and `/runtime/network` checks.
 
-- [ ] **Step 3: Add client connection and role allocation**
+- [x] **Step 3: Add client connection and role allocation**
 
 Specify one host and three logical roles:
 
@@ -65,7 +65,7 @@ Specify one host and three logical roles:
 
 Explain that the current pilot has no formal login, so roles are simulated through the workbench’s current-user/reviewer controls and must not be presented as authenticated identities.
 
-- [ ] **Step 4: Add exact example initiation values**
+- [x] **Step 4: Add exact example initiation values**
 
 Use:
 
@@ -84,7 +84,7 @@ Use:
 风险等级：中
 ```
 
-- [ ] **Step 5: Add the S0-to-S1 guided scenario**
+- [x] **Step 5: Add the S0-to-S1 guided scenario**
 
 For each step, write “操作 / 预期结果 / 异常处理” and cover:
 
@@ -102,11 +102,11 @@ For each step, write “操作 / 预期结果 / 异常处理” and cover:
 检查待办、通知和审计
 ```
 
-- [ ] **Step 6: Add result recording, rollback, and troubleshooting**
+- [x] **Step 6: Add result recording, rollback, and troubleshooting**
 
 Include a Markdown result table for host, client access, S0 boundary, revision loop, Gate, blueprint, S1 dispatch, audit, and backup. Add safe stop (`Ctrl+C`), checkpoint/backup guidance, `npm run store:doctor`, and common failures for port occupancy, firewall, wrong access code, missing Node/npm, and optional PostgreSQL warnings.
 
-- [ ] **Step 7: State current boundaries without overclaiming**
+- [x] **Step 7: State current boundaries without overclaiming**
 
 Explicitly state:
 
@@ -129,11 +129,11 @@ TLS、反向代理、高并发冲突和生产灾备未完成
 - Consumes: the completed standalone guide from Task 1.
 - Produces: a discoverable guide and verification evidence that its commands and labels match the repository.
 
-- [ ] **Step 1: Add the guide to README**
+- [x] **Step 1: Add the guide to README**
 
 Add `局域网安装与产品开发模拟测试指南.md` to the “详细说明见” list and describe it as the first LAN pilot entry point.
 
-- [ ] **Step 2: Verify commands and registered sample values**
+- [x] **Step 2: Verify commands and registered sample values**
 
 Run:
 
@@ -151,7 +151,7 @@ pilot:rehearse:s0 reports ok: true and currentPhaseKey: s1_market_definition
 Guide registry values verified
 ```
 
-- [ ] **Step 3: Verify document consistency**
+- [x] **Step 3: Verify document consistency**
 
 Run:
 

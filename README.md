@@ -107,12 +107,17 @@ http://localhost:5173
 详细说明见：
 
 ```text
+局域网安装与产品开发模拟测试指南.md
 docs/quick-use.md
 docs/lan-deployment.md
 docs/internal-pilot.md
 docs/postgres-migration.md
 自动接续说明.md
 ```
+
+第一次组织局域网试点时，请优先使用
+`局域网安装与产品开发模拟测试指南.md`。该指南提供一台 Node.js 主机、多台浏览器
+客户端的安装方法，以及可直接照做的 S0 候选到 S1 自动派工模拟项目。
 
 ## 当前骨架
 
