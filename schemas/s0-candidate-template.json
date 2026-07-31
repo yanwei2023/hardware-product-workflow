@@ -1,0 +1,87 @@
+{
+  "templateKey": "s0_candidate_v1_0",
+  "name": "S0 立项候选流程",
+  "version": "1.0.0",
+  "phaseKey": "s0_governance",
+  "phaseName": "S0 立项与治理",
+  "sequence": 0,
+  "gateName": "S0 立项评审",
+  "workPackages": [
+    {
+      "documentCode": "PM-001",
+      "agentKey": "product_agent",
+      "roleKey": "product_manager",
+      "humanRole": "产品经理",
+      "humanUserId": "user-product-owner",
+      "requiredArtifactType": "BUSINESS_CASE",
+      "artifactTemplateKey": "business_case_v0_1"
+    },
+    {
+      "documentCode": "PM-002",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "PM-003",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager",
+      "requiredArtifactType": "PROJECT_PLAN",
+      "artifactTemplateKey": "project_plan_v0_1"
+    },
+    {
+      "documentCode": "PM-004",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "PM-005",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "PM-006",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager",
+      "requiredArtifactType": "RISK_REGISTER",
+      "artifactTemplateKey": "risk_register_v0_1"
+    },
+    {
+      "documentCode": "CM-001",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "CM-002",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "CM-003",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    },
+    {
+      "documentCode": "CM-004",
+      "agentKey": "pm_agent",
+      "roleKey": "project_manager",
+      "humanRole": "项目经理",
+      "humanUserId": "user-project-manager"
+    }
+  ]
+}

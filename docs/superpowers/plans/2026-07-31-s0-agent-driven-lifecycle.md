@@ -372,7 +372,7 @@ git commit -m "Add deterministic project blueprint compiler"
 - Produces: `queueReadyAgentJobs(store, { projectId, phaseId, requestedByUserId, now, idFactory }): AgentJob[]`.
 - Produces: `queueRevisionAgentJob(store, workPackage, options): AgentJob | null`.
 
-- [ ] **Step 1: Write failing S0 boundary tests**
+- [x] **Step 1: Write failing S0 boundary tests**
 
 ```js
 test("candidate graph contains S0 only", () => {
@@ -392,7 +392,7 @@ test("dispatcher queues ready work once", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -402,7 +402,7 @@ node --test apps/api/src/candidateProjectBuilder.test.mjs apps/api/src/agentDisp
 
 Expected: FAIL with missing modules.
 
-- [ ] **Step 3: Define the S0 candidate template**
+- [x] **Step 3: Define the S0 candidate template**
 
 Map the ten S0 document codes to Agent/human roles. Use the existing specialized templates for:
 
@@ -414,7 +414,7 @@ PM-006 -> RISK_REGISTER / risk_register_v0_1 / pm_agent
 
 Use `COMPANY_CONTROLLED_DOCUMENT / company_controlled_document_v1_0` for the remaining seven. Mark the two `CONTROLLED` documents non-gating.
 
-- [ ] **Step 4: Implement candidate graph and idempotent queueing**
+- [x] **Step 4: Implement candidate graph and idempotent queueing**
 
 The candidate builder creates:
 
@@ -430,7 +430,7 @@ The candidate builder creates:
 
 The dispatcher queues only work packages in `READY_FOR_AGENT` or `NEEDS_AGENT_REVISION` with no existing `QUEUED` or `RUNNING` job, sets initial work-package status to `READY_FOR_AGENT`, and records `dispatchReason`.
 
-- [ ] **Step 5: Run focused tests and verify GREEN**
+- [x] **Step 5: Run focused tests and verify GREEN**
 
 Run:
 
@@ -440,7 +440,7 @@ node --test apps/api/src/candidateProjectBuilder.test.mjs apps/api/src/agentDisp
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add schemas/s0-candidate-template.json apps/api/src/candidateProjectBuilder.mjs apps/api/src/candidateProjectBuilder.test.mjs apps/api/src/agentDispatcher.mjs apps/api/src/agentDispatcher.test.mjs apps/api/src/storeRepository.mjs apps/api/src/storeRepository.test.mjs
