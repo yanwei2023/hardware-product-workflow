@@ -30,6 +30,8 @@
       "name": "算法与AI",
       "documentCodes": [
         "SYS-004",
+        "ALG-001",
+        "ALG-002",
         "DVT-005"
       ]
     },
@@ -67,6 +69,7 @@
       "key": "certification_metrology",
       "name": "认证与计量",
       "documentCodes": [
+        "TEST-004",
         "DVT-004",
         "CERT-001",
         "CERT-002"
@@ -97,6 +100,9 @@
       "key": "field_installation",
       "name": "现场安装",
       "documentCodes": [
+        "FS-002",
+        "ME-002",
+        "TEST-005",
         "DVT-007",
         "REL-004"
       ]
@@ -139,6 +145,8 @@
       "name": "测量与信号链",
       "documentCodes": [
         "SYS-003",
+        "HW-001",
+        "TEST-002",
         "TEST-003"
       ]
     },

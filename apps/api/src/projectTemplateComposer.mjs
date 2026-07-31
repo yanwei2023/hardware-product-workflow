@@ -1,7 +1,7 @@
 import {
   getCapabilityPacks,
   getCompanyDocumentDefinitions,
-  getProductPacks,
+  getProjectTypes,
 } from "./companyStandardStore.mjs";
 import { findLifecycleTemplate } from "./lifecycleTemplateStore.mjs";
 
@@ -26,21 +26,17 @@ function assertKnownKeys(selectedKeys, definitions, label) {
 
 function sourceIsSelected(
   document,
-  template,
+  projectTypeKey,
   selectedCapabilityKeys,
-  selectedProductPackKeys,
 ) {
   if (document.sourceCategory === "COMPANY_COMMON") {
     return true;
   }
   if (document.sourceCategory === "PROJECT_TYPE") {
-    return document.sourceKey === template.projectTypeKey;
+    return document.sourceKey === projectTypeKey;
   }
   if (document.sourceCategory === "CAPABILITY_PACK") {
     return selectedCapabilityKeys.has(document.sourceKey);
-  }
-  if (document.sourceCategory === "PRODUCT_PACK") {
-    return selectedProductPackKeys.has(document.sourceKey);
   }
   return false;
 }
@@ -56,13 +52,16 @@ export function composeProjectTemplate(input = {}) {
     );
   }
 
+  const projectTypeKey = String(input.projectTypeKey || "").trim();
+  assertKnownKeys([projectTypeKey], getProjectTypes(), "project type");
   const capabilityKeys = normalizeSelectedKeys(input.capabilityKeys, "capabilityKeys");
   const productPackKeys = normalizeSelectedKeys(input.productPackKeys, "productPackKeys");
+  if (productPackKeys.length > 0) {
+    throw new Error("product packs are not supported by the product-neutral core");
+  }
   assertKnownKeys(capabilityKeys, getCapabilityPacks(), "capability pack");
-  assertKnownKeys(productPackKeys, getProductPacks(), "product pack");
 
   const selectedCapabilityKeys = new Set(capabilityKeys);
-  const selectedProductPackKeys = new Set(productPackKeys);
   const documentsByCode = new Map(
     getCompanyDocumentDefinitions().map((item) => [item.code, item]),
   );
@@ -75,9 +74,8 @@ export function composeProjectTemplate(input = {}) {
         .filter(Boolean)
         .filter((document) => sourceIsSelected(
           document,
-          template,
+          projectTypeKey,
           selectedCapabilityKeys,
-          selectedProductPackKeys,
         ))
         .sort((left, right) => left.sequence - right.sequence)
         .map((document) => {
@@ -114,8 +112,8 @@ export function composeProjectTemplate(input = {}) {
       name: template.name,
       version: template.version,
     },
+    projectTypeKey,
     selectedCapabilityKeys: capabilityKeys,
-    selectedProductPackKeys: productPackKeys,
     phases,
     summary: {
       phaseCount: phases.length,

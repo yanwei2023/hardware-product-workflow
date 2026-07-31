@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { composeProjectTemplate } from "./projectTemplateComposer.mjs";
 
-test("generic new product preview excludes HFCT documents unless selected", () => {
+test("generic new product preview includes no unselected capability documents", () => {
   const result = composeProjectTemplate({
     templateKey: "company_product_lifecycle_v1_0",
+    projectTypeKey: "new_product_development",
   });
   const codes = result.phases.flatMap((phase) => (
     phase.documentRequirements.map((item) => item.documentCode)
@@ -15,11 +16,15 @@ test("generic new product preview excludes HFCT documents unless selected", () =
   assert.ok(!codes.includes("HW-001"));
 });
 
-test("selected capability and product packs add only their documents", () => {
+test("selected capabilities add only their documents", () => {
   const result = composeProjectTemplate({
     templateKey: "company_product_lifecycle_v1_0",
-    capabilityKeys: ["electronic_hardware", "embedded_firmware"],
-    productPackKeys: ["hfct"],
+    projectTypeKey: "new_product_development",
+    capabilityKeys: [
+      "electronic_hardware",
+      "embedded_firmware",
+      "field_installation",
+    ],
   });
   const codes = result.phases.flatMap((phase) => (
     phase.documentRequirements.map((item) => item.documentCode)
@@ -28,11 +33,13 @@ test("selected capability and product packs add only their documents", () => {
   assert.ok(codes.includes("FW-001"));
   assert.ok(codes.includes("FS-002"));
   assert.ok(!codes.includes("FW-002"));
+  assert.equal("selectedProductPackKeys" in result, false);
 });
 
 test("conditional documents remain unresolved in the preview", () => {
   const result = composeProjectTemplate({
     templateKey: "company_product_lifecycle_v1_0",
+    projectTypeKey: "new_product_development",
   });
   const poc = result.phases
     .flatMap((phase) => phase.documentRequirements)
@@ -42,7 +49,7 @@ test("conditional documents remain unresolved in the preview", () => {
   assert.ok(result.summary.unresolvedApplicabilityCount > 0);
 });
 
-test("unknown templates and packs produce explicit validation errors", () => {
+test("unknown templates, project types, and capabilities produce explicit validation errors", () => {
   assert.throws(
     () => composeProjectTemplate({ templateKey: "unknown" }),
     /unknown lifecycle template/,
@@ -50,6 +57,7 @@ test("unknown templates and packs produce explicit validation errors", () => {
   assert.throws(
     () => composeProjectTemplate({
       templateKey: "company_product_lifecycle_v1_0",
+      projectTypeKey: "new_product_development",
       capabilityKeys: ["unknown"],
     }),
     /unknown capability pack/,
@@ -57,9 +65,17 @@ test("unknown templates and packs produce explicit validation errors", () => {
   assert.throws(
     () => composeProjectTemplate({
       templateKey: "company_product_lifecycle_v1_0",
-      productPackKeys: ["unknown"],
+      projectTypeKey: "unknown",
     }),
-    /unknown product pack/,
+    /unknown project type/,
+  );
+  assert.throws(
+    () => composeProjectTemplate({
+      templateKey: "company_product_lifecycle_v1_0",
+      projectTypeKey: "new_product_development",
+      productPackKeys: ["legacy"],
+    }),
+    /product packs are not supported/,
   );
 });
 

@@ -42,7 +42,7 @@
 - Changes: `composeProjectTemplate({ templateKey, projectTypeKey, capabilityKeys })`.
 - Produces: no product-specific name, `PRODUCT_PACK` source, or default product pack.
 
-- [ ] **Step 1: Write failing product-neutral standards tests**
+- [x] **Step 1: Write failing product-neutral standards tests**
 
 Add tests that independently assert the forbidden defaults and the corrected source mappings:
 
@@ -75,7 +75,7 @@ test("project preview is selected by project type and capabilities only", () => 
 });
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -85,7 +85,7 @@ node --test apps/api/src/companyStandardStore.test.mjs apps/api/src/projectTempl
 
 Expected: FAIL because the `hfct` pack, names, `PRODUCT_PACK` sources, and product-pack composer input still exist.
 
-- [ ] **Step 3: Generalize the eight document definitions**
+- [x] **Step 3: Generalize the eight document definitions**
 
 Apply the exact mappings from correction spec section 8:
 
@@ -111,7 +111,7 @@ Move each code into the owning capability pack and set:
 
 Remove `projectTypeKey` from the company lifecycle template because project type is an S0 result, not a platform default.
 
-- [ ] **Step 4: Remove product packs from the composer contract**
+- [x] **Step 4: Remove product packs from the composer contract**
 
 Make project type explicit and validated:
 
@@ -126,11 +126,11 @@ export function composeProjectTemplate(input = {}) {
 
 Keep `/standards/product-packs` returning `{ productPacks: [] }` for compatibility. Reject non-empty legacy `productPackKeys` with `product packs are not supported by the product-neutral core`.
 
-- [ ] **Step 5: Run focused tests and verify GREEN**
+- [x] **Step 5: Run focused tests and verify GREEN**
 
 Run the same focused test command. Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add schemas/company-document-definition-registry.json schemas/capability-pack-registry.json schemas/product-pack-registry.json schemas/company-product-lifecycle-template.json apps/api/src/companyStandardStore.mjs apps/api/src/companyStandardStore.test.mjs apps/api/src/projectTemplateComposer.mjs apps/api/src/projectTemplateComposer.test.mjs apps/api/src/server.test.mjs

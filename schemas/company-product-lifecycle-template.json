@@ -3,7 +3,6 @@
   "name": "公司产品全生命周期流程",
   "version": "1.0.0",
   "description": "公司级产品开发及产品交付项目的S0-S10标准流程，用于组合项目文档需求预览。",
-  "projectTypeKey": "new_product_development",
   "compatibilityMode": "DOCUMENT_REQUIREMENTS_PREVIEW",
   "phases": [
     {

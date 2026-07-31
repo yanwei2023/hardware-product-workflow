@@ -29,9 +29,19 @@ test("company standards preserve the approved requirement-level totals", () => {
   assert.deepEqual(totals, { MANDATORY: 87, CONDITIONAL: 8, CONTROLLED: 5 });
 });
 
-test("company standards reference declared project and pack sources", () => {
+test("company standards reference declared project and capability sources", () => {
   assert.ok(getProjectTypes().some((item) => item.key === "new_product_development"));
   assert.ok(getCapabilityPacks().some((item) => item.key === "electronic_hardware"));
-  assert.ok(getProductPacks().some((item) => item.key === "hfct"));
+  assert.equal(getProductPacks().length, 0);
+  assert.deepEqual(
+    getCompanyDocumentDefinitions().filter((item) => /HFCT|局放/.test(item.name)),
+    [],
+  );
+  assert.deepEqual(
+    getCompanyDocumentDefinitions().filter(
+      (item) => item.sourceCategory === "PRODUCT_PACK",
+    ),
+    [],
+  );
   assert.deepEqual(validateCompanyStandards(), []);
 });

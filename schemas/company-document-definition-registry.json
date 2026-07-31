@@ -356,10 +356,10 @@
     {
       "sequence": 23,
       "code": "FS-002",
-      "name": "HFCT 安装与接地拓扑适配性研究报告",
+      "name": "安装环境与系统接口适配性研究报告",
       "phaseKey": "s2_requirements_feasibility",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "field_installation",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "系统工程师",
       "reviewRoles": [
@@ -564,10 +564,10 @@
     {
       "sequence": 36,
       "code": "HW-001",
-      "name": "HFCT 传感器硬件设计说明书",
+      "name": "核心传感与检测单元硬件设计说明书",
       "phaseKey": "s4_detailed_design",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "measurement_signal_chain",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "硬件工程师",
       "reviewRoles": [
@@ -676,10 +676,10 @@
     {
       "sequence": 43,
       "code": "ALG-001",
-      "name": "局放信号处理与诊断算法设计说明书",
+      "name": "信号处理与诊断算法设计说明书",
       "phaseKey": "s4_detailed_design",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "algorithm_ai",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "算法工程师",
       "reviewRoles": [
@@ -694,8 +694,8 @@
       "code": "ALG-002",
       "name": "多通道关联与干扰抑制设计说明书",
       "phaseKey": "s4_detailed_design",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "algorithm_ai",
       "defaultRequirementLevel": "CONDITIONAL",
       "ownerRole": "算法工程师",
       "reviewRoles": [
@@ -756,10 +756,10 @@
     {
       "sequence": 48,
       "code": "ME-002",
-      "name": "HFCT 安装附件与测试接口设计说明书",
+      "name": "安装附件与测试接口设计说明书",
       "phaseKey": "s4_detailed_design",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "field_installation",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "结构工程师",
       "reviewRoles": [
@@ -852,10 +852,10 @@
     {
       "sequence": 54,
       "code": "TEST-002",
-      "name": "HFCT 传感器性能测试规范",
+      "name": "核心传感与检测单元性能测试规范",
       "phaseKey": "s5_evt",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "measurement_signal_chain",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "测试负责人",
       "reviewRoles": [
@@ -884,10 +884,10 @@
     {
       "sequence": 56,
       "code": "TEST-004",
-      "name": "局放模拟源与校准测试方案",
+      "name": "模拟源与校准测试方案",
       "phaseKey": "s5_evt",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "certification_metrology",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "测试负责人",
       "reviewRoles": [
@@ -900,10 +900,10 @@
     {
       "sequence": 57,
       "code": "TEST-005",
-      "name": "样柜与多接地拓扑验证方案",
+      "name": "典型应用场景与安装拓扑验证方案",
       "phaseKey": "s5_evt",
-      "sourceCategory": "PRODUCT_PACK",
-      "sourceKey": "hfct",
+      "sourceCategory": "CAPABILITY_PACK",
+      "sourceKey": "field_installation",
       "defaultRequirementLevel": "MANDATORY",
       "ownerRole": "测试负责人",
       "reviewRoles": [

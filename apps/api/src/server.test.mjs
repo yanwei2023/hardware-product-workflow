@@ -534,7 +534,7 @@ test("standards endpoints expose lifecycle templates and document definitions", 
 
   const productPacks = await dispatch("/standards/product-packs");
   assert.equal(productPacks.status, 200);
-  assert.ok(productPacks.body.productPacks.some((item) => item.key === "hfct"));
+  assert.deepEqual(productPacks.body.productPacks, []);
 });
 
 test("project preview composes selected packs without persisting a project", async () => {
@@ -543,8 +543,8 @@ test("project preview composes selected packs without persisting a project", asy
     method: "POST",
     body: JSON.stringify({
       templateKey: "company_product_lifecycle_v1_0",
+      projectTypeKey: "new_product_development",
       capabilityKeys: ["electronic_hardware"],
-      productPackKeys: [],
     }),
   });
   assert.equal(preview.status, 200);
@@ -571,7 +571,10 @@ test("read-only runtime permits project preview but still rejects project creati
   workflow.setRuntimeWriteModeForTest("read-only");
   const preview = await dispatch("/projects/preview", {
     method: "POST",
-    body: JSON.stringify({ templateKey: "company_product_lifecycle_v1_0" }),
+    body: JSON.stringify({
+      templateKey: "company_product_lifecycle_v1_0",
+      projectTypeKey: "new_product_development",
+    }),
   });
   const create = await dispatch("/projects", {
     method: "POST",
