@@ -1,6 +1,6 @@
 # Company Lifecycle Compatibility Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a read-only company lifecycle standards foundation and project-template preview to the existing application without changing existing project creation, persisted stores, APIs, or pilot behavior.
 
@@ -69,7 +69,7 @@
 - `DocumentDefinition.sourceCategory` is one of `COMPANY_COMMON`, `PROJECT_TYPE`, `CAPABILITY_PACK`, `PRODUCT_PACK`.
 - `DocumentDefinition.defaultRequirementLevel` is one of `MANDATORY`, `CONDITIONAL`, `CONTROLLED`.
 
-- [ ] **Step 1: Write the failing registry validation tests**
+- [x] **Step 1: Write the failing registry validation tests**
 
 Create `apps/api/src/companyStandardStore.test.mjs`:
 
@@ -110,7 +110,7 @@ test("company standards reference declared project and pack sources", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify the missing module failure**
+- [x] **Step 2: Run the test and verify the missing module failure**
 
 Run:
 
@@ -120,7 +120,7 @@ node --test apps/api/src/companyStandardStore.test.mjs
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `companyStandardStore.mjs`.
 
-- [ ] **Step 3: Create the four JSON registries**
+- [x] **Step 3: Create the four JSON registries**
 
 Use section 14 of the approved design specification as the exact 100-row source. Store each document as:
 
@@ -212,7 +212,7 @@ Create one product pack:
 }
 ```
 
-- [ ] **Step 4: Implement the standards loader and validator**
+- [x] **Step 4: Implement the standards loader and validator**
 
 Create `apps/api/src/companyStandardStore.mjs`:
 
@@ -297,7 +297,7 @@ export function validateCompanyStandards() {
 
 The validator must also report a non-company document that is missing from its source registry's `documentCodes`. This makes the document definition and its owning project/capability/product registry agree in both directions.
 
-- [ ] **Step 5: Run the focused test**
+- [x] **Step 5: Run the focused test**
 
 Run:
 
@@ -307,7 +307,7 @@ node --test apps/api/src/companyStandardStore.test.mjs
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 6: Commit the standards registries**
+- [x] **Step 6: Commit the standards registries**
 
 ```bash
 git add schemas/company-document-definition-registry.json schemas/project-type-registry.json schemas/capability-pack-registry.json schemas/product-pack-registry.json apps/api/src/companyStandardStore.mjs apps/api/src/companyStandardStore.test.mjs
@@ -330,7 +330,7 @@ git commit -m "Add company lifecycle standards registries"
 - Produces: `findLifecycleTemplate(templateKey: string): LifecycleTemplate | null`
 - Produces: `validateLifecycleTemplates(): string[]`
 
-- [ ] **Step 1: Write the failing lifecycle-template tests**
+- [x] **Step 1: Write the failing lifecycle-template tests**
 
 ```js
 import test from "node:test";
@@ -363,7 +363,7 @@ test("lifecycle registry exposes discoverable summaries", () => {
 });
 ```
 
-- [ ] **Step 2: Run and verify the missing module failure**
+- [x] **Step 2: Run and verify the missing module failure**
 
 Run:
 
@@ -373,7 +373,7 @@ node --test apps/api/src/lifecycleTemplateStore.test.mjs
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND`.
 
-- [ ] **Step 3: Create the company lifecycle template**
+- [x] **Step 3: Create the company lifecycle template**
 
 Create `schemas/company-product-lifecycle-template.json` with:
 
@@ -411,7 +411,7 @@ S9: DEL-001 through DEL-004, OPS-001 through OPS-003
 S10: CHG-001, QA-001, REL-007, LCM-001 through LCM-003
 ```
 
-- [ ] **Step 4: Implement registry lookup and validation**
+- [x] **Step 4: Implement registry lookup and validation**
 
 Create `lifecycle-template-registry.json` with ordered metadata for:
 
@@ -430,7 +430,7 @@ Validation must report:
 - document codes missing from the company document registry;
 - company documents omitted from the S0-S10 template.
 
-- [ ] **Step 5: Run the focused test**
+- [x] **Step 5: Run the focused test**
 
 Run:
 
@@ -440,7 +440,7 @@ node --test apps/api/src/lifecycleTemplateStore.test.mjs
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 6: Commit the lifecycle templates**
+- [x] **Step 6: Commit the lifecycle templates**
 
 ```bash
 git add schemas/company-product-lifecycle-template.json schemas/lifecycle-template-registry.json apps/api/src/lifecycleTemplateStore.mjs apps/api/src/lifecycleTemplateStore.test.mjs
@@ -495,7 +495,7 @@ composeProjectTemplate(input: {
 }
 ```
 
-- [ ] **Step 1: Write failing composition tests**
+- [x] **Step 1: Write failing composition tests**
 
 ```js
 import test from "node:test";
@@ -544,7 +544,7 @@ test("unknown templates and packs produce explicit validation errors", () => {
 });
 ```
 
-- [ ] **Step 2: Run and verify the missing module failure**
+- [x] **Step 2: Run and verify the missing module failure**
 
 Run:
 
@@ -554,7 +554,7 @@ node --test apps/api/src/projectTemplateComposer.test.mjs
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND`.
 
-- [ ] **Step 3: Implement deterministic composition**
+- [x] **Step 3: Implement deterministic composition**
 
 Composition rules:
 
@@ -577,7 +577,7 @@ const applicabilityStatus =
 
 Sort phases by sequence and documents by the canonical `sequence`. Never mutate imported JSON objects.
 
-- [ ] **Step 4: Run the focused test**
+- [x] **Step 4: Run the focused test**
 
 Run:
 
@@ -587,7 +587,7 @@ node --test apps/api/src/projectTemplateComposer.test.mjs
 
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Commit the composer**
+- [x] **Step 5: Commit the composer**
 
 ```bash
 git add apps/api/src/projectTemplateComposer.mjs apps/api/src/projectTemplateComposer.test.mjs
@@ -613,7 +613,7 @@ git commit -m "Add lifecycle template preview composer"
 - Produces: `GET /standards/product-packs`
 - Produces: `POST /projects/preview`
 
-- [ ] **Step 1: Add failing HTTP tests**
+- [x] **Step 1: Add failing HTTP tests**
 
 Add tests to `apps/api/src/server.test.mjs`:
 
@@ -673,7 +673,7 @@ test("read-only runtime permits project preview but still rejects project creati
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and verify 404 failures**
+- [x] **Step 2: Run the focused tests and verify 404 failures**
 
 Run:
 
@@ -683,7 +683,7 @@ node --test --test-name-pattern="standards endpoints|project preview" apps/api/s
 
 Expected: FAIL because the new routes return 404.
 
-- [ ] **Step 3: Add pure exported API functions**
+- [x] **Step 3: Add pure exported API functions**
 
 Add:
 
@@ -724,11 +724,11 @@ export function previewProjectTemplate(body = {}) {
 
 Filter `GET /standards/document-definitions` by optional `phaseKey`, `sourceCategory`, and `sourceKey` query parameters without mutating the registry.
 
-- [ ] **Step 4: Add routes using existing response helpers**
+- [x] **Step 4: Add routes using existing response helpers**
 
 Register the five `GET /standards/...` routes and `POST /projects/preview` before the generic 404 route. The preview route must read its JSON body, call `previewProjectTemplate()`, and pass its `statusCode` and `body` to the existing `writeJson()` helper. Keep `POST /projects` untouched.
 
-- [ ] **Step 5: Update runtime write classification**
+- [x] **Step 5: Update runtime write classification**
 
 In `apps/api/src/runtimeWritePolicy.mjs`, keep all existing mutation classification behavior but treat these two POST routes as non-persistent:
 
@@ -741,7 +741,7 @@ const nonPersistentPostPaths = new Set([
 
 Extend `apps/api/src/runtimeWritePolicy.test.mjs` so `isRuntimeMutationRequest("POST", "/projects/preview")` is false while `POST /projects` remains true.
 
-- [ ] **Step 6: Run focused and full API tests**
+- [x] **Step 6: Run focused and full API tests**
 
 Run:
 
@@ -753,7 +753,7 @@ node --test apps/api/src/server.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the read-only API**
+- [x] **Step 7: Commit the read-only API**
 
 ```bash
 git add apps/api/src/server.mjs apps/api/src/server.test.mjs apps/api/src/runtimeWritePolicy.mjs apps/api/src/runtimeWritePolicy.test.mjs
@@ -773,7 +773,7 @@ git commit -m "Expose lifecycle standards preview API"
 - Produces: a `LifecycleTemplatePreview` component rendered inside the existing Projects view.
 - Does not alter the existing Create Project button or its `POST /projects` body.
 
-- [ ] **Step 1: Add preview state and loading behavior**
+- [x] **Step 1: Add preview state and loading behavior**
 
 Inside the existing project-management component, add:
 
@@ -792,7 +792,7 @@ Load the three registries with the existing `api()` helper when the Projects vie
 
 Because `POST /projects/preview` is computational and non-persistent, add it to the existing `mutationRequest` exception alongside `/projects/import/validate`. Do not weaken the read-only guard for any other POST route.
 
-- [ ] **Step 2: Add the preview action**
+- [x] **Step 2: Add the preview action**
 
 ```tsx
 async function previewLifecycleTemplate() {
@@ -814,7 +814,7 @@ async function previewLifecycleTemplate() {
 }
 ```
 
-- [ ] **Step 3: Render a separate read-only preview panel**
+- [x] **Step 3: Render a separate read-only preview panel**
 
 Render:
 
@@ -828,11 +828,11 @@ Render:
 
 Do not add the selected template or packs to the existing `POST /projects` request in this batch.
 
-- [ ] **Step 4: Add scoped styles**
+- [x] **Step 4: Add scoped styles**
 
 Add only classes prefixed with `.lifecycle-preview-` for checkbox grids, summary rows, and phase rows. Reuse existing panel, metric, button, and badge styles.
 
-- [ ] **Step 5: Build the React application**
+- [x] **Step 5: Build the React application**
 
 Run:
 
@@ -842,7 +842,7 @@ npm run web:build
 
 Expected: Vite build succeeds with no TypeScript errors.
 
-- [ ] **Step 6: Commit the preview UI**
+- [x] **Step 6: Commit the preview UI**
 
 ```bash
 git add apps/web/src/App.tsx apps/web/src/styles.css
@@ -860,7 +860,7 @@ git commit -m "Add company lifecycle preview to project page"
 - Documents the exact behavior delivered by Tasks 1-5.
 - Declares persisted S0-S10 project creation, project-level overrides, version signoff, and baselines as subsequent plans.
 
-- [ ] **Step 1: Update project-creation documentation**
+- [x] **Step 1: Update project-creation documentation**
 
 Document:
 
@@ -885,7 +885,7 @@ Include a preview request:
 
 State explicitly that this batch is read-only and that existing `POST /projects` behavior is unchanged.
 
-- [ ] **Step 2: Run standards validation tests**
+- [x] **Step 2: Run standards validation tests**
 
 ```bash
 node --test apps/api/src/companyStandardStore.test.mjs apps/api/src/lifecycleTemplateStore.test.mjs apps/api/src/projectTemplateComposer.test.mjs
@@ -893,7 +893,7 @@ node --test apps/api/src/companyStandardStore.test.mjs apps/api/src/lifecycleTem
 
 Expected: PASS.
 
-- [ ] **Step 3: Run the complete verification suite**
+- [x] **Step 3: Run the complete verification suite**
 
 ```bash
 npm run check
@@ -908,7 +908,7 @@ Expected:
 - the current JSON store remains valid;
 - no whitespace errors.
 
-- [ ] **Step 4: Confirm no persistence drift**
+- [x] **Step 4: Confirm no persistence drift**
 
 Run:
 
@@ -918,7 +918,7 @@ git diff -- schemas/database.sql migrations/001_initial_schema.sql apps/api/src/
 
 Expected: no output. This batch must not change persisted schemas.
 
-- [ ] **Step 5: Commit the documentation**
+- [x] **Step 5: Commit the documentation**
 
 ```bash
 git add docs/project-creation.md
