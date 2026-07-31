@@ -1,12 +1,15 @@
 # 人机协同硬件开发流程系统
 
-这是一个面向公司内部局域网部署的硬件产品开发流程管理系统骨架。
+这是一个面向公司内部局域网部署、服务于公司所有产品开发和产品交付项目的流程
+管理系统。平台标准与具体产品解耦；HFCT 或其他产品只能作为使用者创建的项目，
+不能成为平台默认模板。
 
 系统的核心规则很明确：
 
 - Agent 负责执行工作包、生成草稿、检查遗漏、准备证据。
 - 人类负责审核、修改、批准、驳回，并承担最终责任。
 - 后台流程引擎控制项目状态；必要步骤、交付物、审核或证据缺失时，阶段门必须被卡住。
+- 工作包就绪、成果被退回或 Gate 获批后，系统自动排队相应 AgentJob。
 
 ## 仓库结构
 
@@ -19,16 +22,22 @@ schemas        共享领域模型与数据库草案
 infra          本地部署配置
 ```
 
-## 第一阶段目标
+## 默认产品项目流程
 
-先搭建最小可运行的流程主干：
+```text
+创建 S0 候选
+→ Agent 自动执行 S0 工作包
+→ 对应人员审核
+→ S0 Gate 批准并冻结立项基线
+→ Agent 提交项目正式配置蓝图
+→ 项目负责人审核
+→ 发布 S1-S10 并自动派发 S1
+→ Agent 执行 / 人员审核 / Gate 批准 / 自动派发下一阶段
+```
 
-1. 根据硬件开发阶段模板创建项目。
-2. 自动生成每个阶段必需的工作包。
-3. 让 Agent 生成草稿、检查结果和风险发现。
-4. 将 Agent 输出路由给对应人类负责人审核。
-5. 在必要审批和证据齐全前，阶段门保持阻塞。
-6. 对每一次 Agent 行为和人类决策写入审计记录。
+新界面通过 `POST /projects/candidates` 创建候选项目，创建时只有 S0。S0 Gate
+批准前不生成任何 S1-S10 正式对象。`POST /projects` 保留旧七阶段项目兼容，但
+不再是默认新项目入口。
 
 ## 本地开发
 
@@ -102,8 +111,12 @@ docs/postgres-migration.md
 - `schemas/domain.ts` 定义共享流程模型。
 - `schemas/agent-registry.json` 定义第一版角色 Agent 配置草案。
 - `schemas/hardware-phase-template.json` 定义第一版硬件开发阶段模板。
+- `schemas/s0-candidate-template.json` 定义产品无关的 S0 候选工作。
+- `schemas/company-product-lifecycle-template.json` 定义公司 S0-S10 方法骨架。
 - `apps/api/src/gateEngine.ts` 检查阶段门是阻塞还是可通过。
 - `apps/api/src/artifactValidator.mjs` 检查 Agent 输出是否满足交付物模板要求。
+- `apps/api/src/projectLifecycleCompiler.mjs` 根据冻结的 S0 立项基线确定性编译项目蓝图。
+- `apps/api/src/agentDispatcher.mjs` 对就绪、返工和新阶段工作进行幂等 Agent 派发。
 - `apps/api/src/server.mjs` 提供本地可运行 API、静态工作台、项目快照、阶段门、审核、风险、通知和导入导出链路。
 - `Dockerfile` 构建生产镜像时会先构建 React 工作台，并由 API 服务优先托管 `apps/web/dist`；未构建时本地仍回退到 `apps/static`。
 - `/health` 用于 API 活性检查，`/ready` 会同时校验当前 store 文件，可作为容器 healthcheck。
@@ -114,7 +127,9 @@ docs/postgres-migration.md
 - `HARDWARE_FLOW_MAX_JSON_BODY_BYTES` 可调整 JSON 请求体大小上限；默认 `1048576` bytes。
 - `HARDWARE_FLOW_REQUEST_TIMEOUT_MS` 可调整单个 HTTP 请求超时；默认 `120000` ms。
 - `apps/static` 提供无构建依赖的本地工作台，保留错误请求 ID 提示、备份恢复和检查点回滚入口。
-- `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，覆盖总览、项目、项目快照导入、本地数据运维、演示数据重置、角色负责人配置、工作包计划/证据/审核、阶段门审核包、风险台账、待办、通知和审计主流程。
+- `apps/web/src/App.tsx` 提供真实 API 驱动的 React 工作台，默认创建 S0 候选，
+  支持立项定义、项目绑定蓝图预览、Agent 队列提示，并继续覆盖旧项目、快照导入、
+  本地数据运维、角色配置、工作包证据/审核、阶段门、风险、待办、通知和审计。
 - `agents/worker/worker.py` 展示受控 Agent 输出协议。
 - `schemas/database.sql` 定义当前 PostgreSQL 目标表结构。
 - `migrations/001_initial_schema.sql` 提供第一版可执行 PostgreSQL 初始化迁移。

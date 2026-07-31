@@ -465,7 +465,7 @@ git commit -m "Add S0 candidate graph and Agent dispatch"
 - Produces: `publishProjectBlueprint(projectId, blueprintArtifactId, actorUserId)`.
 - Extends: `checkGate`, `approveGate`, `runAgentWorkPackage`, `submitHumanReview`.
 
-- [ ] **Step 1: Write failing end-to-end workflow tests**
+- [x] **Step 1: Write failing end-to-end workflow tests**
 
 Add a helper that creates a candidate and assert:
 
@@ -492,7 +492,7 @@ Cover these independent transitions:
 6. requesting revision automatically queues one replacement job;
 7. approving a normal Gate queues the newly active phase.
 
-- [ ] **Step 2: Run workflow tests and verify RED**
+- [x] **Step 2: Run workflow tests and verify RED**
 
 Run:
 
@@ -502,7 +502,7 @@ node --test apps/api/src/workflow.test.mjs apps/api/src/server.test.mjs
 
 Expected: FAIL because the candidate endpoints and transitions do not exist.
 
-- [ ] **Step 3: Add candidate creation and definition update**
+- [x] **Step 3: Add candidate creation and definition update**
 
 `createProjectCandidate` sets:
 
@@ -532,7 +532,7 @@ Append the S0 graph, queue ready Agent work, audit `PROJECT_CANDIDATE_CREATED`, 
 
 Definition update validates known project and capability keys, increments `version`, updates `updatedAt` and `updatedByUserId`, audits `INITIATION_DEFINITION_UPDATED`, and never creates S1-S10 objects.
 
-- [ ] **Step 4: Add S0 Gate blockers and blueprint work**
+- [x] **Step 4: Add S0 Gate blockers and blueprint work**
 
 For an S0 candidate gate, append one blocker per missing or invalid definition field. After all normal Gate evidence and definition checks pass:
 
@@ -544,7 +544,7 @@ For an S0 candidate gate, append one blocker per missing or invalid definition f
 
 `runAgentWorkPackage` detects `metadata.workType === "PROJECT_BLUEPRINT"`, compiles from the frozen baseline, renders the blueprint template, validates it, and stores the structured blueprint in `artifact.content.blueprint`.
 
-- [ ] **Step 5: Publish only after human blueprint approval**
+- [x] **Step 5: Publish only after human blueprint approval**
 
 After `submitHumanReviewInStore` approves a blueprint artifact:
 
@@ -565,7 +565,7 @@ S0 approval, blueprint publication, and any ordinary Gate approval that also app
 records must use the existing full-store persistence path rather than the gate-only incremental
 transaction, because the latter intentionally rejects unrelated row changes.
 
-- [ ] **Step 6: Add HTTP routes**
+- [x] **Step 6: Add HTTP routes**
 
 Register:
 
@@ -578,7 +578,7 @@ POST  /projects/:id/blueprint/publish
 
 The publish route requires `actorUserId` and `blueprintArtifactId`. The internal review hook calls the same exported function.
 
-- [ ] **Step 7: Run workflow and HTTP tests**
+- [x] **Step 7: Run workflow and HTTP tests**
 
 Run:
 
@@ -588,7 +588,7 @@ node --test apps/api/src/workflow.test.mjs apps/api/src/server.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/api/src/server.mjs apps/api/src/server.test.mjs apps/api/src/workflow.test.mjs apps/api/src/storeRepository.mjs apps/api/src/storeRepository.test.mjs
@@ -609,7 +609,7 @@ git commit -m "Orchestrate S0 approval and blueprint publication"
 - Preview posts to `/projects/:id/blueprint/preview`.
 - Product-pack controls are removed.
 
-- [ ] **Step 1: Build once before UI edits to establish GREEN**
+- [x] **Step 1: Build once before UI edits to establish GREEN**
 
 Run:
 
@@ -619,7 +619,7 @@ npm run web:build
 
 Expected: PASS.
 
-- [ ] **Step 2: Replace the default creation action**
+- [x] **Step 2: Replace the default creation action**
 
 Collect `name` and `productConcept`, then:
 
@@ -632,7 +632,7 @@ api("/projects/candidates", {
 
 Label the action “创建 S0 立项候选” and state that later stages are not generated until approval.
 
-- [ ] **Step 3: Add the S0 definition editor**
+- [x] **Step 3: Add the S0 definition editor**
 
 When `project.project.definition.lifecycleMode === "S0_COMPILED"` and the current phase is S0, show:
 
@@ -644,7 +644,7 @@ When `project.project.definition.lifecycleMode === "S0_COMPILED"` and the curren
 
 Save through the PATCH endpoint and refresh the project view.
 
-- [ ] **Step 4: Convert preview to project-bound blueprint preview**
+- [x] **Step 4: Convert preview to project-bound blueprint preview**
 
 Remove product-pack state, requests, controls, and copy. For a candidate with a complete definition, call `/projects/:id/blueprint/preview`; otherwise explain which S0 fields still block compilation.
 
@@ -656,7 +656,7 @@ Show:
 - queued Agent tasks;
 - human review required before publication.
 
-- [ ] **Step 5: Build and visually inspect**
+- [x] **Step 5: Build and visually inspect**
 
 Run:
 
@@ -668,7 +668,7 @@ Then start the app and inspect the candidate creation, S0 edit, Agent queue, blu
 
 Expected: build passes; no HFCT or product-pack controls appear; legacy project pages remain usable.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/App.tsx apps/web/src/styles.css
@@ -690,7 +690,7 @@ git commit -m "Make S0 candidates the default project flow"
 - Documents the candidate-to-blueprint-to-active flow and legacy compatibility.
 - Marks completed plan steps only after their test and commit evidence exists.
 
-- [ ] **Step 1: Update user and API documentation**
+- [x] **Step 1: Update user and API documentation**
 
 Document:
 
@@ -708,7 +708,7 @@ Document:
 Explicitly state that `POST /projects` is legacy compatibility and
 `POST /projects/candidates` is the default new-project path.
 
-- [ ] **Step 2: Run focused regression tests**
+- [x] **Step 2: Run focused regression tests**
 
 Run:
 
@@ -718,7 +718,7 @@ node --test apps/api/src/companyStandardStore.test.mjs apps/api/src/projectTempl
 
 Expected: PASS with zero failures.
 
-- [ ] **Step 3: Run the complete project verification**
+- [x] **Step 3: Run the complete project verification**
 
 Run:
 
@@ -736,7 +736,7 @@ Expected:
 - `git diff --check` has no output;
 - status contains only the plan checkbox/documentation update before the final commit.
 
-- [ ] **Step 4: Review requirement coverage**
+- [x] **Step 4: Review requirement coverage**
 
 Confirm every acceptance item in correction spec section 12 has code or test evidence. Record any deliberately deferred item explicitly; do not report it as complete.
 
@@ -746,3 +746,45 @@ Confirm every acceptance item in correction spec section 12 has code or test evi
 git add README.md docs/project-creation.md docs/workflow-spine.md docs/agent-definitions.md docs/superpowers/plans/2026-07-31-s0-agent-driven-lifecycle.md
 git commit -m "Document the Agent-driven lifecycle flow"
 ```
+
+---
+
+### Task 8: Prove LAN Pilot Readiness and Publish the Handoff
+
+**Files:**
+- Create: `apps/api/src/s0LifecycleRehearsal.mjs`
+- Create: `apps/api/src/s0LifecycleRehearsal.test.mjs`
+- Modify: `package.json`
+- Modify: `docs/internal-pilot.md`
+- Modify: `docs/lan-deployment.md`
+- Create: `自动接续说明.md`
+
+- [ ] **Step 1: Add an isolated S0-to-S1 rehearsal**
+
+Use a temporary JSON store to create an S0 candidate, save a complete initiation definition,
+process and approve S0 work, approve S0 Gate, process and approve the blueprint, publish
+S1-S10, and verify S1 Agent jobs are queued.
+
+- [ ] **Step 2: Include the S0 rehearsal in the pilot gate**
+
+Add `pilot:rehearse:s0` and run it from `pilot:check` alongside the legacy EVT rehearsal.
+
+- [ ] **Step 3: Run the complete pilot check**
+
+Run `npm run pilot:check`. PostgreSQL preflight may report an environment blocker when
+`DATABASE_URL` is absent, but JSON-backed LAN pilot checks must pass.
+
+- [ ] **Step 4: Start in LAN mode and verify live endpoints**
+
+Start with a temporary store, `HOST=0.0.0.0`, a non-default port, and a pilot access code.
+Verify `/health`, `/ready`, `/runtime/network`, protected data access, candidate creation, and
+the React workbench.
+
+- [ ] **Step 5: Create cross-device handoff and commit**
+
+Document exact clone, branch, install, verification, LAN start, access-code, data-volume, and
+known-boundary instructions in `自动接续说明.md`.
+
+- [ ] **Step 6: Push the verified branch to GitHub**
+
+Push `codex/agent-driven-lifecycle` and confirm the remote branch points to the final commit.
