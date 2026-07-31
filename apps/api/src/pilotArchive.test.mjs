@@ -54,10 +54,14 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.equal(manifest.acceptanceCriteria.some((item) => item.includes("npm run pilot:check")), true);
   assert.equal(Array.isArray(manifest.runbookSteps), true);
   assert.equal(manifest.runbookSteps.some((item) => item.includes("创建一个试点项目")), true);
+  assert.equal(manifest.runbookSteps.some((item) => item.includes("创建 S0 候选")), true);
+  assert.equal(manifest.runbookSteps.some((item) => item.includes("审核项目蓝图")), true);
   assert.equal(manifest.runbookSteps.some((item) => item.includes("导出项目快照")), true);
   assert.equal(Array.isArray(manifest.boundaries), true);
   assert.equal(manifest.boundaries.some((item) => item.includes("用户登录")), true);
   assert.equal(manifest.boundaries.some((item) => item.includes("PostgreSQL 运行时读写")), true);
+  assert.equal(manifest.boundaries.some((item) => item.includes("外部大模型")), true);
+  assert.equal(manifest.boundaries.some((item) => item.includes("异步 Agent 队列不作为")), false);
   assert.equal(manifest.issueReport.templatePath, "pilot-issue-report.md");
   assert.equal(manifest.issueReport.requiredFields.includes("请求 ID"), true);
   assert.equal(manifest.issueReport.requiredFields.includes("是否需要回滚"), true);
@@ -130,6 +134,8 @@ test("pilot archive writes review, risk, runtime, and import artifacts", () => {
   assert.match(handoffMarkdown, /npm run pilot:check 通过，且 \/ready 返回 200/);
   assert.match(handoffMarkdown, /建议试点流程/);
   assert.match(handoffMarkdown, /创建一个试点项目/);
+  assert.match(handoffMarkdown, /创建 S0 候选/);
+  assert.match(handoffMarkdown, /审核项目蓝图/);
   assert.match(handoffMarkdown, /导出项目快照 JSON 和 Markdown/);
   assert.match(handoffMarkdown, /第一轮试点边界/);
   assert.match(handoffMarkdown, /用户登录和单点登录不作为第一轮内部试点验收项/);

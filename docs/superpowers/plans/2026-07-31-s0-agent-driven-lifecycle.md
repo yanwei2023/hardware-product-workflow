@@ -740,7 +740,7 @@ Expected:
 
 Confirm every acceptance item in correction spec section 12 has code or test evidence. Record any deliberately deferred item explicitly; do not report it as complete.
 
-- [ ] **Step 5: Commit final documentation**
+- [x] **Step 5: Commit final documentation**
 
 ```bash
 git add README.md docs/project-creation.md docs/workflow-spine.md docs/agent-definitions.md docs/superpowers/plans/2026-07-31-s0-agent-driven-lifecycle.md
@@ -754,27 +754,30 @@ git commit -m "Document the Agent-driven lifecycle flow"
 **Files:**
 - Create: `apps/api/src/s0LifecycleRehearsal.mjs`
 - Create: `apps/api/src/s0LifecycleRehearsal.test.mjs`
+- Modify: `apps/api/src/pilotPlan.mjs`
+- Modify: `apps/api/src/pilotArchive.test.mjs`
 - Modify: `package.json`
+- Modify: `README.md`
 - Modify: `docs/internal-pilot.md`
 - Modify: `docs/lan-deployment.md`
 - Create: `自动接续说明.md`
 
-- [ ] **Step 1: Add an isolated S0-to-S1 rehearsal**
+- [x] **Step 1: Add an isolated S0-to-S1 rehearsal**
 
 Use a temporary JSON store to create an S0 candidate, save a complete initiation definition,
 process and approve S0 work, approve S0 Gate, process and approve the blueprint, publish
 S1-S10, and verify S1 Agent jobs are queued.
 
-- [ ] **Step 2: Include the S0 rehearsal in the pilot gate**
+- [x] **Step 2: Include the S0 rehearsal in the pilot gate**
 
 Add `pilot:rehearse:s0` and run it from `pilot:check` alongside the legacy EVT rehearsal.
 
-- [ ] **Step 3: Run the complete pilot check**
+- [x] **Step 3: Run the complete pilot check**
 
 Run `npm run pilot:check`. PostgreSQL preflight may report an environment blocker when
 `DATABASE_URL` is absent, but JSON-backed LAN pilot checks must pass.
 
-- [ ] **Step 4: Start in LAN mode and verify live endpoints**
+- [x] **Step 4: Start in LAN mode and verify live endpoints**
 
 Start with a temporary store, `HOST=0.0.0.0`, a non-default port, and a pilot access code.
 Verify `/health`, `/ready`, `/runtime/network`, protected data access, candidate creation, and

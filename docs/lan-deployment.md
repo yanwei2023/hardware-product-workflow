@@ -1,6 +1,6 @@
 # 内部局域网部署说明
 
-当前版本是最小可运行原型，适合在公司内网或单台开发机上试用流程主干。
+当前版本已具备局域网模拟试点所需的流程主干：新项目从 S0 候选开始，Agent 默认执行工作并交由相应人员审核；S0 Gate 和项目蓝图经人类批准后发布 S1-S10，后续阶段门批准会自动推进并派发下一阶段 Agent 工作。
 
 ## 适用场景
 
@@ -10,7 +10,14 @@
 
 ## 本机启动
 
-在项目根目录执行：
+首次安装或每次切换到新的已验证版本后，在项目根目录执行：
+
+```text
+npm install
+npm run pilot:check
+```
+
+确认检查通过后启动：
 
 ```text
 npm start
@@ -57,6 +64,14 @@ HARDWARE_FLOW_PILOT_ACCESS_CODE=your-code npm run start:lan
 - React 工作台和静态备用工作台都会提示输入访问码，并保存在当前浏览器本地。
 
 这只是内部试点保护，不替代正式用户登录、SSO 或细粒度权限审计。
+
+页面打开后，应先创建一个候选项目并确认：
+
+- 初始只出现 S0，不提前生成 S1-S10；
+- S0 工作包自动进入 Agent 队列；
+- S0 Agent 输出需由绑定人员审核；
+- S0 Gate 批准后由 Agent 生成项目蓝图；
+- 项目负责人批准蓝图后才发布 S1-S10，并自动排队 S1 Agent 工作。
 
 ## Docker 启动
 
@@ -163,6 +178,8 @@ data/demo-store.json
 
 这个文件不会提交到 GitHub。多机开发时，每台机器会有自己的本地演示数据。
 
+作为局域网共享服务时，应由一台主机持续运行，并把 `data` 目录放在持久化磁盘或 Docker volume；其他电脑只通过浏览器访问该主机，不能各自启动后期待数据自动合并。升级或迁移前先创建检查点并备份整个数据目录。
+
 后台写入本地 JSON 时会先保留同目录 `.bak` 备份，再原子替换主文件；点击“重置演示数据”前也会留下最近一次旧数据备份。
 
 如果主文件损坏，先运行 `npm run store:doctor` 确认状态，再运行 `npm run store:restore-backup` 从 `.bak` 恢复。恢复动作会额外保留当前主文件的 `*.pre-restore-时间.bak` 副本，便于排查损坏原因。
@@ -176,8 +193,19 @@ data/demo-store.json
 ```text
 git clone git@github.com:yanwei2023/hardware-product-workflow.git
 cd hardware-product-workflow
-npm start
+git switch codex/agent-driven-lifecycle
+npm install
+npm run pilot:check
+HARDWARE_FLOW_PILOT_ACCESS_CODE=your-code npm run start:lan
 ```
+
+如果新电脑没有配置 GitHub SSH 密钥，可改用：
+
+```text
+git clone --branch codex/agent-driven-lifecycle https://github.com/yanwei2023/hardware-product-workflow.git
+```
+
+在该分支合并到 `main` 之前，安装和继续开发都应明确切换到 `codex/agent-driven-lifecycle`，避免误用旧的默认分支版本。
 
 日常同步：
 
@@ -193,6 +221,7 @@ git push
 
 - 还没有接入用户登录；
 - PostgreSQL 已有迁移、启动快照、精确镜像和部分原生增量事务桥接，但默认试点运行仍使用 JSON store；
-- 还没有接入真实大模型 Agent；
+- Agent 队列、模板校验和确定性输出已可模拟完整流程，但还没有接入外部大模型、模型账号和成本治理；
+- 100 份受控文档的默认分级和项目蓝图已具备；单份项目文档的等级手动调整、条件适用 N/A 和降级例外审批闭环尚未完成；
 - 还没有接入飞书、企业微信通知；
 - 还没有生产级反向代理、TLS 和数据库级备份策略。
