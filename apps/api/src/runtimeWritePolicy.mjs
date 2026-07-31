@@ -44,7 +44,13 @@ export function isRuntimeMutationRequest(method, pathname) {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(normalizedMethod)) {
     return false;
   }
-  return !(normalizedMethod === "POST" && nonPersistentPostPaths.has(pathname));
+  const nonPersistentProjectPreview =
+    normalizedMethod === "POST"
+    && /^\/projects\/[^/]+\/blueprint\/preview$/.test(pathname);
+  return !(
+    normalizedMethod === "POST"
+    && (nonPersistentPostPaths.has(pathname) || nonPersistentProjectPreview)
+  );
 }
 
 export function checkRuntimeWriteAccess(policy, method, pathname) {

@@ -61,6 +61,13 @@ test("runtime mutation classification preserves read and validation requests", (
   assert.equal(isRuntimeMutationRequest("OPTIONS", "/projects"), false);
   assert.equal(isRuntimeMutationRequest("POST", "/projects/import/validate"), false);
   assert.equal(isRuntimeMutationRequest("POST", "/projects/preview"), false);
+  assert.equal(
+    isRuntimeMutationRequest(
+      "POST",
+      "/projects/project-1/blueprint/preview",
+    ),
+    false,
+  );
   assert.equal(isRuntimeMutationRequest("POST", "/projects"), true);
   assert.equal(isRuntimeMutationRequest("PATCH", "/risks/risk-1/mitigation"), true);
   assert.equal(isRuntimeMutationRequest("DELETE", "/projects/project-1"), true);

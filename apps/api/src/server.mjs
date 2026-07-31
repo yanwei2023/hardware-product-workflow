@@ -95,6 +95,17 @@ import {
 } from "./companyStandardStore.mjs";
 import { getLifecycleTemplateSummaries } from "./lifecycleTemplateStore.mjs";
 import { composeProjectTemplate } from "./projectTemplateComposer.mjs";
+import { buildS0CandidateGraph } from "./candidateProjectBuilder.mjs";
+import {
+  queueReadyAgentJobs,
+  queueRevisionAgentJob,
+} from "./agentDispatcher.mjs";
+import {
+  buildPublishedProjectGraph,
+  compileProjectBlueprint,
+  renderProjectBlueprintMarkdown,
+  validateInitiationDefinition,
+} from "./projectLifecycleCompiler.mjs";
 
 export { createDemoStore } from "./demoStoreFactory.mjs";
 
@@ -137,6 +148,19 @@ const allowedReviewDecisions = new Set(["APPROVE", "APPROVE_WITH_CONDITIONS", "R
 const allowedRiskStatuses = new Set(["OPEN", "ACCEPTED", "CLOSED"]);
 const allowedRiskSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 const closedWorkPackageStatuses = new Set(["HUMAN_APPROVED", "LOCKED", "REJECTED", "CANCELLED"]);
+const initiationDefinitionFields = [
+  "productConcept",
+  "projectTypeKey",
+  "targetMarkets",
+  "customerScenarios",
+  "capabilityKeys",
+  "technicalScope",
+  "complianceRequirements",
+  "supplyMode",
+  "deliveryModel",
+  "operationsRequirements",
+  "riskLevel",
+];
 
 function validationError(message, details = {}) {
   return {
@@ -1661,15 +1685,37 @@ function currentGateCheck() {
 }
 
 export function checkGate(gateId) {
-  const readiness = getGateReadinessReadModel(store, gateId);
-  if (!readiness) {
+  const baseReadiness = getGateReadinessReadModel(store, gateId);
+  if (!baseReadiness) {
     return null;
   }
 
-  if (readiness.status === "APPROVED") {
-    return readiness;
+  if (baseReadiness.status === "APPROVED") {
+    return baseReadiness;
   }
 
+  const gate = findGate(store, gateId);
+  const phase = gate ? findPhase(store, gate.phaseId) : null;
+  const project = gate ? findProject(store, gate.projectId) : null;
+  const initiationBlockers = (
+    project?.definition?.lifecycleMode === "S0_COMPILED"
+    && phase?.phaseKey === "s0_governance"
+  )
+    ? validateInitiationDefinition(project.definition.initiation || {})
+        .map((error) => ({
+          code: "INCOMPLETE_INITIATION_DEFINITION",
+          sourceCode: error.code,
+          field: error.field,
+          message: error.message,
+          relatedObjectId: project.id,
+        }))
+    : [];
+  const blockers = [...baseReadiness.blockers, ...initiationBlockers];
+  const readiness = {
+    ...baseReadiness,
+    status: blockers.length > 0 ? "BLOCKED" : "READY",
+    blockers,
+  };
   updateGateReadinessInStore(store, gateId, readiness.status);
   persistStore();
 
@@ -2242,6 +2288,310 @@ function slugifyProjectName(name) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return ascii || `project-${Date.now()}`;
+}
+
+export function createProjectCandidate(body = {}) {
+  const name = String(body.name || "").trim();
+  const productConcept = String(body.productConcept || "").trim();
+  if (!name) {
+    return validationError("项目名称不能为空");
+  }
+  if (!productConcept) {
+    return validationError("产品构想不能为空");
+  }
+
+  const projectId = uniqueProjectIdFromName(name);
+  const now = new Date().toISOString();
+  const actorUserId = body.userId || "user-project-manager";
+  const project = {
+    id: projectId,
+    name,
+    productLine: body.productLine || "",
+    ownerUserId: actorUserId,
+    currentPhaseId: `${projectId}-phase-s0_governance`,
+    status: "S0_DRAFT",
+    definition: {
+      lifecycleMode: "S0_COMPILED",
+      lifecycleTemplateKey: "company_product_lifecycle_v1_0",
+      initiation: {
+        version: 1,
+        productConcept,
+        projectTypeKey: null,
+        targetMarkets: [],
+        customerScenarios: [],
+        capabilityKeys: [],
+        technicalScope: [],
+        complianceRequirements: [],
+        supplyMode: "",
+        deliveryModel: "",
+        operationsRequirements: [],
+        riskLevel: null,
+        updatedAt: now,
+        updatedByUserId: actorUserId,
+      },
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+  const graph = buildS0CandidateGraph(project);
+  addProjectGraphInStore(store, { project, ...graph });
+  const agentJobs = queueReadyAgentJobs(store, {
+    projectId,
+    phaseId: project.currentPhaseId,
+    requestedByUserId: actorUserId,
+  });
+
+  audit("PROJECT_CANDIDATE_CREATED", "human", actorUserId, "project", projectId, {
+    lifecycleMode: project.definition.lifecycleMode,
+    phaseKey: "s0_governance",
+    agentJobCount: agentJobs.length,
+  });
+  persistStore();
+
+  return {
+    statusCode: 201,
+    body: getActiveProjectView(),
+  };
+}
+
+export function updateInitiationDefinition(projectId, body = {}) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return { statusCode: 404, body: { error: "项目不存在" } };
+  }
+  if (project.definition?.lifecycleMode !== "S0_COMPILED") {
+    return {
+      statusCode: 409,
+      body: { error: "该项目不使用 S0 编译式生命周期" },
+    };
+  }
+  if (project.definition.initiationBaseline) {
+    return {
+      statusCode: 409,
+      body: { error: "S0 立项基线已经冻结，不能继续修改" },
+    };
+  }
+
+  const previous = project.definition.initiation || {};
+  const next = structuredClone(previous);
+  const arrayFields = new Set([
+    "targetMarkets",
+    "customerScenarios",
+    "capabilityKeys",
+    "technicalScope",
+    "complianceRequirements",
+    "operationsRequirements",
+  ]);
+  for (const field of initiationDefinitionFields) {
+    if (!Object.hasOwn(body, field)) {
+      continue;
+    }
+    if (arrayFields.has(field)) {
+      if (!Array.isArray(body[field])) {
+        return validationError(`${field} 必须是数组`);
+      }
+      next[field] = [
+        ...new Set(
+          body[field]
+            .map((item) => String(item || "").trim())
+            .filter(Boolean),
+        ),
+      ];
+    } else {
+      next[field] = typeof body[field] === "string"
+        ? body[field].trim()
+        : body[field];
+    }
+  }
+
+  const validationErrors = validateInitiationDefinition(next);
+  const invalidErrors = validationErrors.filter(
+    (error) => error.code !== "MISSING_INITIATION_FIELD",
+  );
+  if (invalidErrors.length > 0) {
+    return {
+      statusCode: 400,
+      body: {
+        error: "立项定义包含无效配置",
+        validationErrors: invalidErrors,
+      },
+    };
+  }
+
+  const actorUserId = body.actorUserId || body.userId || "user-project-manager";
+  const now = new Date().toISOString();
+  next.version = Number(previous.version || 0) + 1;
+  next.updatedAt = now;
+  next.updatedByUserId = actorUserId;
+  project.definition.initiation = next;
+  project.status = validationErrors.length === 0 ? "S0_IN_REVIEW" : "S0_DRAFT";
+  project.updatedAt = now;
+
+  audit("INITIATION_DEFINITION_UPDATED", "human", actorUserId, "project", project.id, {
+    version: next.version,
+    complete: validationErrors.length === 0,
+    missingFields: validationErrors.map((error) => error.field),
+  });
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: {
+      project,
+      definition: next,
+      validationErrors,
+    },
+  };
+}
+
+export function previewProjectBlueprint(projectId) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return { statusCode: 404, body: { error: "项目不存在" } };
+  }
+  const definition = project.definition?.initiationBaseline
+    || project.definition?.initiation;
+  try {
+    return {
+      statusCode: 200,
+      body: compileProjectBlueprint({ project, definition }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 422,
+      body: {
+        error: "立项定义尚不能生成项目蓝图",
+        validationErrors: error.validationErrors || [],
+      },
+    };
+  }
+}
+
+export function publishProjectBlueprint(
+  projectId,
+  blueprintArtifactId,
+  actorUserId,
+) {
+  const project = findProject(store, projectId);
+  if (!project) {
+    return { statusCode: 404, body: { error: "项目不存在" } };
+  }
+  if (project.definition?.activeBaseline) {
+    return {
+      statusCode: 200,
+      body: {
+        published: false,
+        alreadyPublished: true,
+        project,
+        baseline: project.definition.activeBaseline,
+      },
+    };
+  }
+
+  const artifact = store.artifactVersions.find(
+    (item) => (
+      item.id === blueprintArtifactId
+      && item.artifactType === "PROJECT_BLUEPRINT"
+      && item.status === "APPROVED"
+    ),
+  );
+  if (!artifact) {
+    return {
+      statusCode: 409,
+      body: { error: "找不到已批准的项目正式配置蓝图" },
+    };
+  }
+  const workPackage = findWorkPackage(store, artifact.workPackageId);
+  const rolePair = workPackage
+    ? findRolePair(store, workPackage.rolePairId)
+    : null;
+  const permission = canApproveWorkPackage(actorUserId, rolePair);
+  if (!permission.allowed) {
+    return {
+      statusCode: 403,
+      body: {
+        error: "当前用户无权发布项目正式配置蓝图",
+        reason: permission.reason,
+      },
+    };
+  }
+
+  const blueprint = artifact.content?.blueprint;
+  if (!blueprint || blueprint.projectId !== projectId) {
+    return {
+      statusCode: 409,
+      body: { error: "蓝图内容不存在或不属于该项目" },
+    };
+  }
+  const existingFormalPhases = store.phases.filter(
+    (phase) => (
+      phase.projectId === projectId
+      && phase.phaseKey !== "s0_governance"
+    ),
+  );
+  if (existingFormalPhases.length > 0) {
+    return {
+      statusCode: 409,
+      body: { error: "项目已经存在未登记的正式阶段，不能重复发布蓝图" },
+    };
+  }
+
+  const graph = buildPublishedProjectGraph(project, blueprint);
+  const existingRolePairIds = new Set(
+    store.rolePairs
+      .filter((item) => item.projectId === projectId)
+      .map((item) => item.id),
+  );
+  store.phases.push(...graph.phases);
+  store.gates.push(...graph.gates);
+  store.rolePairs.push(
+    ...graph.rolePairs.filter((item) => !existingRolePairIds.has(item.id)),
+  );
+  store.gateRequirements.push(...graph.gateRequirements);
+  store.workPackages.push(...graph.workPackages);
+
+  const firstPhase = graph.phases[0];
+  const now = new Date().toISOString();
+  project.currentPhaseId = firstPhase.id;
+  project.status = "IN_PROGRESS";
+  project.updatedAt = now;
+  project.definition.activeBaseline = {
+    version: 1,
+    blueprintVersion: blueprint.blueprintVersion,
+    blueprintArtifactId: artifact.id,
+    sourceInitiationBaselineVersion:
+      blueprint.sourceInitiationBaselineVersion,
+    lifecycleTemplateKey: blueprint.lifecycleTemplateKey,
+    lifecycleTemplateVersion: blueprint.lifecycleTemplateVersion,
+    publishedAt: now,
+    publishedByUserId: actorUserId,
+  };
+  const agentJobs = queueReadyAgentJobs(store, {
+    projectId,
+    phaseId: firstPhase.id,
+    requestedByUserId: actorUserId,
+  });
+
+  audit("PROJECT_BLUEPRINT_PUBLISHED", "human", actorUserId, "project", projectId, {
+    blueprintArtifactId: artifact.id,
+    phaseCount: graph.phases.length,
+    workPackageCount: graph.workPackages.length,
+    agentJobCount: agentJobs.length,
+  });
+  persistStore();
+
+  return {
+    statusCode: 200,
+    body: {
+      published: true,
+      alreadyPublished: false,
+      project,
+      baseline: project.definition.activeBaseline,
+      phases: graph.phases,
+      workPackages: graph.workPackages,
+      agentJobs,
+    },
+  };
 }
 
 export function createProject(body = {}) {
@@ -2941,6 +3291,29 @@ export function runAgentWorkPackage(body) {
     };
   }
 
+  let blueprint = null;
+  let generatedDraftMarkdown = body.draftMarkdown
+    || artifactTemplate.contentMarkdown;
+  if (workPackage.metadata?.workType === "PROJECT_BLUEPRINT") {
+    const project = findProject(store, workPackage.projectId);
+    try {
+      blueprint = compileProjectBlueprint({
+        project,
+        definition: project?.definition?.initiationBaseline,
+      });
+      generatedDraftMarkdown = body.draftMarkdown
+        || renderProjectBlueprintMarkdown(blueprint);
+    } catch (error) {
+      return {
+        statusCode: 422,
+        body: {
+          error: "冻结的 S0 立项基线不能生成项目正式配置蓝图",
+          validationErrors: error.validationErrors || [],
+        },
+      };
+    }
+  }
+
   const agentRun = {
     id: randomUUID(),
     workPackageId: workPackage.id,
@@ -2953,7 +3326,7 @@ export function runAgentWorkPackage(body) {
     createdAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
   };
-  const draftMarkdown = body.draftMarkdown || artifactTemplate.contentMarkdown;
+  const draftMarkdown = generatedDraftMarkdown;
   const validation = validateArtifactMarkdown(draftMarkdown, artifactTemplate);
 
   if (validation.status !== "PASSED") {
@@ -3009,6 +3382,7 @@ export function runAgentWorkPackage(body) {
       requiredReviewRoles: artifactTemplate.requiredReviewRoles,
       draftMarkdown,
       validation,
+      ...(blueprint ? { blueprint } : {}),
     },
   };
 
@@ -3122,6 +3496,28 @@ export function submitHumanReview(body) {
   }
 
   submitHumanReviewInStore(store, workPackage.id, pendingArtifact.id, review);
+  let revisionJob = null;
+  let publication = null;
+  if (body.decision === "REQUEST_REVISION") {
+    revisionJob = queueRevisionAgentJob(store, workPackage, {
+      requestedByUserId: reviewerUserId,
+    });
+  }
+  if (
+    (body.decision === "APPROVE"
+      || body.decision === "APPROVE_WITH_CONDITIONS")
+    && workPackage.metadata?.workType === "PROJECT_BLUEPRINT"
+  ) {
+    publication = publishProjectBlueprint(
+      workPackage.projectId,
+      pendingArtifact.id,
+      reviewerUserId,
+    );
+    if (publication.statusCode !== 200) {
+      persistStore();
+      return publication;
+    }
+  }
 
   audit("HUMAN_REVIEW_SUBMITTED", "human", review.reviewerUserId, "workPackage", workPackage.id, {
     decision: review.decision,
@@ -3144,16 +3540,29 @@ export function submitHumanReview(body) {
       objectId: workPackage.id,
     });
   }
-  persistStore({
-    incrementalMutation: {
-      kind: "human-review-submit",
-      workPackageId: workPackage.id,
-      artifactId: pendingArtifact.id,
-      reviewId: review.id,
-    },
-  });
+  if (revisionJob || publication) {
+    persistStore();
+  } else {
+    persistStore({
+      incrementalMutation: {
+        kind: "human-review-submit",
+        workPackageId: workPackage.id,
+        artifactId: pendingArtifact.id,
+        reviewId: review.id,
+      },
+    });
+  }
 
-  return { statusCode: 201, body: { review, workPackage, latestGateCheck: currentGateCheck() } };
+  return {
+    statusCode: 201,
+    body: {
+      review,
+      workPackage,
+      revisionJob,
+      publication: publication?.body || null,
+      latestGateCheck: currentGateCheck(),
+    },
+  };
 }
 
 export function completeConditionalApproval(reviewId, body = {}) {
@@ -3536,6 +3945,12 @@ export function approveGate(gateId, body = {}) {
     };
   }
   const reviewPack = getGateReviewPack(gateId);
+  const phaseBeforeApproval = findPhase(store, gate.phaseId);
+  const projectBeforeApproval = findProject(store, gate.projectId);
+  const isCandidateS0 = (
+    projectBeforeApproval?.definition?.lifecycleMode === "S0_COMPILED"
+    && phaseBeforeApproval?.phaseKey === "s0_governance"
+  );
 
   const approval = approveGateInStore(store, gate.id, {
     approvedByUserId: actorUserId,
@@ -3543,6 +3958,71 @@ export function approveGate(gateId, body = {}) {
   });
   const phase = approval.phase;
   const project = approval.project;
+  let dispatchedAgentJobs = [];
+  if (isCandidateS0) {
+    const now = new Date().toISOString();
+    project.definition.initiationBaseline = {
+      ...structuredClone(project.definition.initiation),
+      approvedAt: gate.approvedAt,
+      approvedByUserId: actorUserId,
+    };
+    project.status = "CONFIGURATION_DRAFT";
+    project.currentPhaseId = phase.id;
+    project.updatedAt = now;
+
+    let blueprintWorkPackage = store.workPackages.find(
+      (item) => (
+        item.projectId === project.id
+        && item.metadata?.workType === "PROJECT_BLUEPRINT"
+      ),
+    );
+    if (!blueprintWorkPackage) {
+      const projectManagerPair = store.rolePairs.find(
+        (item) => (
+          item.projectId === project.id
+          && item.roleKey === "project_manager"
+        ),
+      );
+      blueprintWorkPackage = {
+        id: `${project.id}-wp-project-blueprint`,
+        projectId: project.id,
+        phaseId: phase.id,
+        rolePairId: projectManagerPair.id,
+        title: "项目正式配置蓝图",
+        requiredArtifactType: "PROJECT_BLUEPRINT",
+        artifactTemplateKey: "project_blueprint_v1_0",
+        requiredForGate: false,
+        status: "READY_FOR_AGENT",
+        metadata: {
+          workType: "PROJECT_BLUEPRINT",
+          sourceInitiationBaselineVersion:
+            project.definition.initiationBaseline.version,
+          artifactTemplateVersion: "1.0.0",
+        },
+      };
+      store.workPackages.push(blueprintWorkPackage);
+    }
+    dispatchedAgentJobs = queueReadyAgentJobs(store, {
+      projectId: project.id,
+      phaseId: phase.id,
+      requestedByUserId: actorUserId,
+    }).filter((job) => job.workPackageId === blueprintWorkPackage.id);
+  } else if (approval.nextPhase) {
+    for (const workPackage of store.workPackages.filter(
+      (item) => (
+        item.projectId === project.id
+        && item.phaseId === approval.nextPhase.id
+        && item.status === "NOT_STARTED"
+      ),
+    )) {
+      workPackage.status = "READY_FOR_AGENT";
+    }
+    dispatchedAgentJobs = queueReadyAgentJobs(store, {
+      projectId: project.id,
+      phaseId: approval.nextPhase.id,
+      requestedByUserId: actorUserId,
+    });
+  }
   const approvalPack = createGateApprovalPack(gate, reviewPack, {
     approvedByUserId: actorUserId,
     approvedAt: gate.approvedAt,
@@ -3561,13 +4041,17 @@ export function approveGate(gateId, body = {}) {
     objectType: "gate",
     objectId: gate.id,
   });
-  persistStore({
-    incrementalMutation: {
-      kind: "gate-approval",
-      gateId: gate.id,
-      approvalPackId: approvalPack.id,
-    },
-  });
+  if (dispatchedAgentJobs.length > 0 || isCandidateS0) {
+    persistStore();
+  } else {
+    persistStore({
+      incrementalMutation: {
+        kind: "gate-approval",
+        gateId: gate.id,
+        approvalPackId: approvalPack.id,
+      },
+    });
+  }
 
   return {
     statusCode: 200,
@@ -3576,6 +4060,7 @@ export function approveGate(gateId, body = {}) {
       approvalPack,
       project,
       phases: store.phases,
+      agentJobs: dispatchedAgentJobs,
     },
   };
 }
@@ -3632,6 +4117,32 @@ async function handleCreateDemoRisk(req, res) {
 
 async function handleCreateProject(req, res) {
   const result = createProject(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleCreateProjectCandidate(req, res) {
+  const result = createProjectCandidate(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handleUpdateInitiationDefinition(req, res, projectId) {
+  const result = updateInitiationDefinition(projectId, await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handlePreviewProjectBlueprint(req, res, projectId) {
+  await readJson(req);
+  const result = previewProjectBlueprint(projectId);
+  return writeJson(res, result.statusCode, result.body);
+}
+
+async function handlePublishProjectBlueprint(req, res, projectId) {
+  const body = await readJson(req);
+  const result = publishProjectBlueprint(
+    projectId,
+    body.blueprintArtifactId,
+    body.actorUserId || body.userId || "",
+  );
   return writeJson(res, result.statusCode, result.body);
 }
 
@@ -3873,6 +4384,10 @@ export const server = http.createServer(async (req, res) => {
       return await handlePreviewProjectTemplate(req, res);
     }
 
+    if (req.method === "POST" && url.pathname === "/projects/candidates") {
+      return await handleCreateProjectCandidate(req, res);
+    }
+
     if (req.method === "POST" && url.pathname === "/projects") {
       return await handleCreateProject(req, res);
     }
@@ -3883,6 +4398,39 @@ export const server = http.createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/projects/import") {
       return await handleImportProject(req, res);
+    }
+
+    const initiationDefinitionMatch = url.pathname.match(
+      /^\/projects\/([^/]+)\/initiation-definition$/,
+    );
+    if (req.method === "PATCH" && initiationDefinitionMatch) {
+      return await handleUpdateInitiationDefinition(
+        req,
+        res,
+        initiationDefinitionMatch[1],
+      );
+    }
+
+    const blueprintPreviewMatch = url.pathname.match(
+      /^\/projects\/([^/]+)\/blueprint\/preview$/,
+    );
+    if (req.method === "POST" && blueprintPreviewMatch) {
+      return await handlePreviewProjectBlueprint(
+        req,
+        res,
+        blueprintPreviewMatch[1],
+      );
+    }
+
+    const blueprintPublishMatch = url.pathname.match(
+      /^\/projects\/([^/]+)\/blueprint\/publish$/,
+    );
+    if (req.method === "POST" && blueprintPublishMatch) {
+      return await handlePublishProjectBlueprint(
+        req,
+        res,
+        blueprintPublishMatch[1],
+      );
     }
 
     const cloneProjectMatch = url.pathname.match(/^\/projects\/([^/]+)\/clone$/);

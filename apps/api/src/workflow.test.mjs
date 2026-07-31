@@ -54,6 +54,67 @@ function completeWorkPackages(workPackages, idPrefix = "") {
   }
 }
 
+function drainQueuedAgentJobs() {
+  let processedCount = 0;
+  while (true) {
+    const result = workflow.processNextAgentJob({
+      workerId: "test-agent-worker",
+    });
+    if (!result.body.processed) {
+      return processedCount;
+    }
+    assert.equal(result.statusCode, 200);
+    processedCount += 1;
+  }
+}
+
+function completeCandidateS0() {
+  const created = workflow.createProjectCandidate({
+    name: "通用新产品候选",
+    productConcept: "解决目标客户的现场检测问题",
+    userId: "user-project-manager",
+  });
+  assert.equal(created.statusCode, 201);
+
+  const projectId = created.body.project.id;
+  const definition = workflow.updateInitiationDefinition(projectId, {
+    actorUserId: "user-project-manager",
+    projectTypeKey: "new_product_development",
+    targetMarkets: ["工业客户"],
+    customerScenarios: ["现场检测"],
+    capabilityKeys: ["electronic_hardware", "measurement_signal_chain"],
+    technicalScope: ["硬件"],
+    complianceRequirements: ["目标市场准入要求"],
+    supplyMode: "自研加外协",
+    deliveryModel: "产品发布后项目交付",
+    operationsRequirements: ["培训", "售后"],
+    riskLevel: "MEDIUM",
+  });
+  assert.equal(definition.statusCode, 200);
+  assert.equal(drainQueuedAgentJobs(), 10);
+
+  const project = workflow.getDemoProject();
+  for (const workPackage of project.workPackages.filter(
+    (item) => item.requiredForGate,
+  )) {
+    const rolePair = project.rolePairs.find(
+      (item) => item.id === workPackage.rolePairId,
+    );
+    const review = workflow.submitHumanReview({
+      workPackageId: workPackage.id,
+      reviewerUserId: rolePair.humanUserId,
+      decision: "APPROVE",
+      comment: "S0 测试批准。",
+    });
+    assert.equal(review.statusCode, 201);
+  }
+
+  return {
+    projectId,
+    gateId: `${projectId}-gate-s0_governance`,
+  };
+}
+
 function makeImportableSnapshot(snapshot, projectId = "project-importable") {
   const renamed = structuredClone(snapshot);
   renamed.project.id = projectId;
@@ -296,7 +357,17 @@ test("requesting revision removes the stale artifact from pending review", () =>
   });
 
   assert.equal(reviewResult.statusCode, 201);
-  assert.equal(reviewResult.body.workPackage.status, "NEEDS_AGENT_REVISION");
+  assert.equal(reviewResult.body.workPackage.status, "READY_FOR_AGENT");
+  assert.equal(
+    workflow.getDemoProject().agentJobs.some(
+      (job) => (
+        job.workPackageId === "wp-evt_exit-evt_test_report"
+        && job.status === "QUEUED"
+        && job.dispatchReason === "HUMAN_REQUESTED_REVISION"
+      ),
+    ),
+    true,
+  );
 
   const detail = workflow.getWorkPackageDetail("wp-evt_exit-evt_test_report");
   assert.equal(detail.artifacts.at(-1).status, "NEEDS_REVISION");
@@ -963,6 +1034,126 @@ test("project creation rejects unknown active phase keys", () => {
   assert.ok(result.body.allowedPhaseKeys.includes("evt_exit"));
 });
 
+test("candidate project creates S0 only and reports incomplete definition blockers", () => {
+  const result = workflow.createProjectCandidate({
+    name: "通用候选项目",
+    productConcept: "面向目标客户的新产品",
+    userId: "user-project-manager",
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.project.status, "S0_DRAFT");
+  assert.deepEqual(
+    result.body.phases.map((phase) => phase.phaseKey),
+    ["s0_governance"],
+  );
+  assert.equal(result.body.workPackages.length, 10);
+  assert.equal(result.body.agentJobs.length, 10);
+  assert.equal(
+    result.body.phases.some((phase) => phase.phaseKey === "s1_market_definition"),
+    false,
+  );
+
+  const gate = workflow.checkGate(
+    `${result.body.project.id}-gate-s0_governance`,
+  );
+  assert.equal(gate.status, "BLOCKED");
+  assert.equal(
+    gate.blockers.some(
+      (blocker) => blocker.code === "INCOMPLETE_INITIATION_DEFINITION",
+    ),
+    true,
+  );
+});
+
+test("S0 approval creates an Agent blueprint and human approval publishes S1-S10 once", () => {
+  const { projectId, gateId } = completeCandidateS0();
+  assert.equal(workflow.checkGate(gateId).status, "READY");
+
+  const s0Approval = workflow.approveGate(gateId, {
+    userId: "user-project-manager",
+    comment: "S0 证据和立项定义已确认。",
+  });
+
+  assert.equal(s0Approval.statusCode, 200);
+  assert.equal(s0Approval.body.project.status, "CONFIGURATION_DRAFT");
+  assert.equal(
+    s0Approval.body.phases.some(
+      (phase) => phase.phaseKey === "s1_market_definition",
+    ),
+    false,
+  );
+
+  const configurationView = workflow.getDemoProject();
+  const blueprintWorkPackage = configurationView.workPackages.find(
+    (item) => item.metadata?.workType === "PROJECT_BLUEPRINT",
+  );
+  assert.ok(blueprintWorkPackage);
+  assert.equal(
+    configurationView.agentJobs.filter(
+      (job) => (
+        job.workPackageId === blueprintWorkPackage.id
+        && job.status === "QUEUED"
+      ),
+    ).length,
+    1,
+  );
+
+  const blueprintRun = workflow.processNextAgentJob({
+    workerId: "test-agent-worker",
+  });
+  assert.equal(blueprintRun.statusCode, 200);
+  const blueprintArtifact = blueprintRun.body.result.artifact;
+  assert.equal(blueprintArtifact.artifactType, "PROJECT_BLUEPRINT");
+  assert.equal(blueprintArtifact.content.blueprint.phases.length, 10);
+
+  const review = workflow.submitHumanReview({
+    workPackageId: blueprintWorkPackage.id,
+    reviewerUserId: "user-project-manager",
+    decision: "APPROVE",
+    comment: "批准发布项目正式执行基线。",
+  });
+  assert.equal(review.statusCode, 201);
+  assert.equal(review.body.publication.published, true);
+
+  const active = workflow.getDemoProject();
+  assert.equal(active.project.status, "IN_PROGRESS");
+  assert.equal(active.phases.length, 11);
+  assert.equal(active.phases[0].phaseKey, "s0_governance");
+  assert.equal(active.phases[1].phaseKey, "s1_market_definition");
+  assert.equal(
+    active.project.currentPhaseId,
+    `${projectId}-phase-s1_market_definition`,
+  );
+  assert.equal(
+    active.agentJobs.some(
+      (job) => (
+        job.status === "QUEUED"
+        && active.workPackages.find(
+          (item) => (
+            item.id === job.workPackageId
+            && item.phaseId === active.project.currentPhaseId
+          ),
+        )
+      ),
+    ),
+    true,
+  );
+
+  const phaseCount = active.phases.length;
+  const workPackageCount = active.workPackages.length;
+  const repeated = workflow.publishProjectBlueprint(
+    projectId,
+    blueprintArtifact.id,
+    "user-project-manager",
+  );
+  assert.equal(repeated.statusCode, 200);
+  assert.equal(repeated.body.published, false);
+  assert.equal(repeated.body.alreadyPublished, true);
+  assert.equal(workflow.getDemoProject().phases.length, phaseCount);
+  assert.equal(workflow.getDemoProject().workPackages.length, workPackageCount);
+});
+
 test("gate approval locks the current phase and advances to the next phase", () => {
   completeEvtWorkPackages();
   workflow.updateRiskStatus("risk-thermal-margin", "ACCEPTED", {
@@ -997,6 +1188,20 @@ test("gate approval locks the current phase and advances to the next phase", () 
   const project = workflow.getDemoProject();
   assert.equal(project.phases.find((phase) => phase.id === "phase-evt_exit").status, "LOCKED");
   assert.equal(project.phases.find((phase) => phase.id === "phase-dvt_exit").status, "GATE_BLOCKED");
+  assert.equal(
+    project.agentJobs.some(
+      (job) => (
+        job.status === "QUEUED"
+        && project.workPackages.some(
+          (item) => (
+            item.id === job.workPackageId
+            && item.phaseId === "phase-dvt_exit"
+          ),
+        )
+      ),
+    ),
+    true,
+  );
   assert.equal(workflow.getGateApprovalPack("gate-evt_exit").id, result.body.approvalPack.id);
 
   const snapshot = workflow.getProjectSnapshot("project-smart-controller");

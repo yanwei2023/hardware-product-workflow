@@ -567,6 +567,50 @@ test("project preview rejects unknown standard keys", async () => {
   assert.match(result.body.error, /unknown lifecycle template/);
 });
 
+test("candidate project HTTP flow creates S0 and updates its initiation definition", async () => {
+  const created = await dispatch("/projects/candidates", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "HTTP 候选项目",
+      productConcept: "通用工业检测产品",
+      userId: "user-project-manager",
+    }),
+  });
+
+  assert.equal(created.status, 201);
+  assert.deepEqual(
+    created.body.phases.map((phase) => phase.phaseKey),
+    ["s0_governance"],
+  );
+  assert.equal(created.body.agentJobs.length, 10);
+
+  const projectId = created.body.project.id;
+  const updated = await dispatch(
+    `/projects/${projectId}/initiation-definition`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        actorUserId: "user-project-manager",
+        projectTypeKey: "new_product_development",
+        targetMarkets: ["工业客户"],
+        capabilityKeys: ["electronic_hardware"],
+        supplyMode: "自研",
+        deliveryModel: "产品交付",
+        riskLevel: "MEDIUM",
+      }),
+    },
+  );
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.definition.version, 2);
+
+  const preview = await dispatch(`/projects/${projectId}/blueprint/preview`, {
+    method: "POST",
+    body: "{}",
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.summary.phaseCount, 10);
+});
+
 test("read-only runtime permits project preview but still rejects project creation", async () => {
   workflow.setRuntimeWriteModeForTest("read-only");
   const preview = await dispatch("/projects/preview", {
@@ -1445,7 +1489,7 @@ test("unauthorized approval attempt returns a clear permission error", async () 
   assert.equal(result.body.error, "当前用户无权批准该工作包");
 });
 
-test("review endpoint can request agent revision", async () => {
+test("review endpoint automatically requeues an Agent revision", async () => {
   await dispatch("/agent-runs", {
     method: "POST",
     body: JSON.stringify({
@@ -1466,7 +1510,12 @@ test("review endpoint can request agent revision", async () => {
   });
 
   assert.equal(result.status, 201);
-  assert.equal(result.body.workPackage.status, "NEEDS_AGENT_REVISION");
+  assert.equal(result.body.workPackage.status, "READY_FOR_AGENT");
+  assert.equal(result.body.revisionJob.status, "QUEUED");
+  assert.equal(
+    result.body.revisionJob.workPackageId,
+    "wp-evt_exit-evt_test_report",
+  );
 });
 
 test("review endpoint requires comments for revision or rejection", async () => {
