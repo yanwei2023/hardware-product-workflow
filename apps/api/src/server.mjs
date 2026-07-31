@@ -87,6 +87,14 @@ import { bootstrapRuntimeStore } from "./runtimeStoreBootstrap.mjs";
 import { createDemoStore } from "./demoStoreFactory.mjs";
 import { checkRuntimeWriteAccess, resolveRuntimeWritePolicy } from "./runtimeWritePolicy.mjs";
 import { createRuntimePersistence } from "./runtimePersistence.mjs";
+import {
+  getCapabilityPacks,
+  getCompanyDocumentDefinitions,
+  getProductPacks,
+  getProjectTypes,
+} from "./companyStandardStore.mjs";
+import { getLifecycleTemplateSummaries } from "./lifecycleTemplateStore.mjs";
+import { composeProjectTemplate } from "./projectTemplateComposer.mjs";
 
 export { createDemoStore } from "./demoStoreFactory.mjs";
 
@@ -138,6 +146,60 @@ function validationError(message, details = {}) {
       ...details,
     },
   };
+}
+
+export function getLifecycleStandards() {
+  return {
+    statusCode: 200,
+    body: { templates: getLifecycleTemplateSummaries() },
+  };
+}
+
+export function getDocumentStandards(filters = {}) {
+  const documents = getCompanyDocumentDefinitions()
+    .filter((item) => !filters.phaseKey || item.phaseKey === filters.phaseKey)
+    .filter(
+      (item) => !filters.sourceCategory
+        || item.sourceCategory === filters.sourceCategory,
+    )
+    .filter((item) => !filters.sourceKey || item.sourceKey === filters.sourceKey)
+    .map((item) => ({ ...item }));
+  return {
+    statusCode: 200,
+    body: { documents },
+  };
+}
+
+export function getProjectTypeStandards() {
+  return {
+    statusCode: 200,
+    body: { projectTypes: getProjectTypes() },
+  };
+}
+
+export function getCapabilityPackStandards() {
+  return {
+    statusCode: 200,
+    body: { capabilityPacks: getCapabilityPacks() },
+  };
+}
+
+export function getProductPackStandards() {
+  return {
+    statusCode: 200,
+    body: { productPacks: getProductPacks() },
+  };
+}
+
+export function previewProjectTemplate(body = {}) {
+  try {
+    return {
+      statusCode: 200,
+      body: composeProjectTemplate(body),
+    };
+  } catch (error) {
+    return validationError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function dateOnly(value = new Date()) {
@@ -3573,6 +3635,11 @@ async function handleCreateProject(req, res) {
   return writeJson(res, result.statusCode, result.body);
 }
 
+async function handlePreviewProjectTemplate(req, res) {
+  const result = previewProjectTemplate(await readJson(req));
+  return writeJson(res, result.statusCode, result.body);
+}
+
 async function handleStorageRestoreBackup(req, res) {
   const result = restoreStorageBackup(await readJson(req));
   return writeJson(res, result.statusCode, result.body);
@@ -3769,8 +3836,41 @@ export const server = http.createServer(async (req, res) => {
       return writeJson(res, 200, resetDemoStore());
     }
 
+    if (req.method === "GET" && url.pathname === "/standards/lifecycle-templates") {
+      const result = getLifecycleStandards();
+      return writeJson(res, result.statusCode, result.body);
+    }
+
+    if (req.method === "GET" && url.pathname === "/standards/document-definitions") {
+      const result = getDocumentStandards({
+        phaseKey: url.searchParams.get("phaseKey") || undefined,
+        sourceCategory: url.searchParams.get("sourceCategory") || undefined,
+        sourceKey: url.searchParams.get("sourceKey") || undefined,
+      });
+      return writeJson(res, result.statusCode, result.body);
+    }
+
+    if (req.method === "GET" && url.pathname === "/standards/project-types") {
+      const result = getProjectTypeStandards();
+      return writeJson(res, result.statusCode, result.body);
+    }
+
+    if (req.method === "GET" && url.pathname === "/standards/capability-packs") {
+      const result = getCapabilityPackStandards();
+      return writeJson(res, result.statusCode, result.body);
+    }
+
+    if (req.method === "GET" && url.pathname === "/standards/product-packs") {
+      const result = getProductPackStandards();
+      return writeJson(res, result.statusCode, result.body);
+    }
+
     if (req.method === "GET" && url.pathname === "/projects/demo") {
       return writeJson(res, 200, getActiveProjectView());
+    }
+
+    if (req.method === "POST" && url.pathname === "/projects/preview") {
+      return await handlePreviewProjectTemplate(req, res);
     }
 
     if (req.method === "POST" && url.pathname === "/projects") {

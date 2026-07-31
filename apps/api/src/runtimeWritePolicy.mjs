@@ -1,4 +1,8 @@
 export const runtimeWriteModes = ["auto", "read-write", "read-only"];
+const nonPersistentPostPaths = new Set([
+  "/projects/import/validate",
+  "/projects/preview",
+]);
 
 export function normalizeRuntimeWriteMode(value = "auto") {
   const mode = String(value || "auto").trim().toLowerCase();
@@ -40,7 +44,7 @@ export function isRuntimeMutationRequest(method, pathname) {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(normalizedMethod)) {
     return false;
   }
-  return !(normalizedMethod === "POST" && pathname === "/projects/import/validate");
+  return !(normalizedMethod === "POST" && nonPersistentPostPaths.has(pathname));
 }
 
 export function checkRuntimeWriteAccess(policy, method, pathname) {

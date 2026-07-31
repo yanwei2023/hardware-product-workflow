@@ -501,6 +501,86 @@ test("project endpoint returns the current workflow snapshot", async () => {
   assert.equal(result.body.projectSummaries[0].openConditionalApprovalCount, 0);
 });
 
+test("standards endpoints expose lifecycle templates and document definitions", async () => {
+  const templates = await dispatch("/standards/lifecycle-templates");
+  assert.equal(templates.status, 200);
+  assert.ok(
+    templates.body.templates.some(
+      (item) => item.templateKey === "company_product_lifecycle_v1_0",
+    ),
+  );
+
+  const documents = await dispatch(
+    "/standards/document-definitions?phaseKey=s0_governance",
+  );
+  assert.equal(documents.status, 200);
+  assert.equal(documents.body.documents.length, 10);
+
+  const projectTypes = await dispatch("/standards/project-types");
+  assert.equal(projectTypes.status, 200);
+  assert.ok(
+    projectTypes.body.projectTypes.some(
+      (item) => item.key === "new_product_development",
+    ),
+  );
+
+  const capabilityPacks = await dispatch("/standards/capability-packs");
+  assert.equal(capabilityPacks.status, 200);
+  assert.ok(
+    capabilityPacks.body.capabilityPacks.some(
+      (item) => item.key === "electronic_hardware",
+    ),
+  );
+
+  const productPacks = await dispatch("/standards/product-packs");
+  assert.equal(productPacks.status, 200);
+  assert.ok(productPacks.body.productPacks.some((item) => item.key === "hfct"));
+});
+
+test("project preview composes selected packs without persisting a project", async () => {
+  const before = (await dispatch("/projects/demo")).body.projectSummaries.length;
+  const preview = await dispatch("/projects/preview", {
+    method: "POST",
+    body: JSON.stringify({
+      templateKey: "company_product_lifecycle_v1_0",
+      capabilityKeys: ["electronic_hardware"],
+      productPackKeys: [],
+    }),
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.summary.phaseCount, 11);
+  assert.ok(
+    preview.body.phases.some(
+      (phase) => phase.phaseKey === "s4_detailed_design",
+    ),
+  );
+  const after = (await dispatch("/projects/demo")).body.projectSummaries.length;
+  assert.equal(after, before);
+});
+
+test("project preview rejects unknown standard keys", async () => {
+  const result = await dispatch("/projects/preview", {
+    method: "POST",
+    body: JSON.stringify({ templateKey: "unknown" }),
+  });
+  assert.equal(result.status, 400);
+  assert.match(result.body.error, /unknown lifecycle template/);
+});
+
+test("read-only runtime permits project preview but still rejects project creation", async () => {
+  workflow.setRuntimeWriteModeForTest("read-only");
+  const preview = await dispatch("/projects/preview", {
+    method: "POST",
+    body: JSON.stringify({ templateKey: "company_product_lifecycle_v1_0" }),
+  });
+  const create = await dispatch("/projects", {
+    method: "POST",
+    body: JSON.stringify({ name: "should-not-be-created" }),
+  });
+  assert.equal(preview.status, 200);
+  assert.equal(create.status, 409);
+});
+
 test("project snapshot endpoints export current project state", async () => {
   const jsonResult = await dispatch("/projects/project-smart-controller/snapshot");
   assert.equal(jsonResult.status, 200);
