@@ -72,6 +72,10 @@ const riskSeverityOptions = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const apiBase = import.meta.env.VITE_API_BASE || "";
 const pilotAccessStorageKey = "hardware-flow-pilot-access-code";
+const nonPersistentPostPaths = new Set([
+  "/projects/import/validate",
+  "/projects/preview",
+]);
 let runtimeWritable = true;
 
 type ApiRequestOptions = RequestInit & { allowError?: boolean };
@@ -114,7 +118,8 @@ function errorMessage(error: unknown): UiMessage {
 async function api(path: string, options: ApiRequestOptions = {}) {
   const { allowError = false, ...fetchOptions } = options;
   const method = String(fetchOptions.method || "GET").toUpperCase();
-  const mutationRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method) && path !== "/projects/import/validate";
+  const mutationRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+    && !(method === "POST" && nonPersistentPostPaths.has(path));
   if (!runtimeWritable && mutationRequest) {
     throw new ApiError("当前运行时为只读模式", null, null);
   }
@@ -704,6 +709,83 @@ function Projects({
   const [importRaw, setImportRaw] = useState("");
   const [importValidation, setImportValidation] = useState<any | null>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [lifecycleTemplates, setLifecycleTemplates] = useState<any[]>([]);
+  const [capabilityPacks, setCapabilityPacks] = useState<any[]>([]);
+  const [productPacks, setProductPacks] = useState<any[]>([]);
+  const [previewTemplateKey, setPreviewTemplateKey] = useState(
+    "company_product_lifecycle_v1_0",
+  );
+  const [previewCapabilityKeys, setPreviewCapabilityKeys] = useState<string[]>([]);
+  const [previewProductPackKeys, setPreviewProductPackKeys] = useState<string[]>([]);
+  const [templatePreview, setTemplatePreview] = useState<any | null>(null);
+  const [previewError, setPreviewError] = useState("");
+  const [previewBusy, setPreviewBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadLifecycleStandards() {
+      try {
+        const [templateResult, capabilityResult, productResult] = await Promise.all([
+          api("/standards/lifecycle-templates"),
+          api("/standards/capability-packs"),
+          api("/standards/product-packs"),
+        ]);
+        if (!active) return;
+        setLifecycleTemplates(
+          (templateResult.templates || []).filter(
+            (item: any) => item.compatibilityMode === "DOCUMENT_REQUIREMENTS_PREVIEW",
+          ),
+        );
+        setCapabilityPacks(capabilityResult.capabilityPacks || []);
+        setProductPacks(productResult.productPacks || []);
+      } catch (error) {
+        if (!active) return;
+        setPreviewError(
+          `生命周期标准加载失败：${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    loadLifecycleStandards();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function togglePreviewKey(
+    key: string,
+    selectedKeys: string[],
+    setSelectedKeys: (keys: string[]) => void,
+  ) {
+    setTemplatePreview(null);
+    setSelectedKeys(
+      selectedKeys.includes(key)
+        ? selectedKeys.filter((item) => item !== key)
+        : [...selectedKeys, key],
+    );
+  }
+
+  async function previewLifecycleTemplate() {
+    setPreviewBusy(true);
+    setPreviewError("");
+    try {
+      const result = await api("/projects/preview", {
+        method: "POST",
+        body: JSON.stringify({
+          templateKey: previewTemplateKey,
+          capabilityKeys: previewCapabilityKeys,
+          productPackKeys: previewProductPackKeys,
+        }),
+      });
+      setTemplatePreview(result);
+    } catch (error) {
+      setTemplatePreview(null);
+      setPreviewError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
 
   function parseImportSnapshot() {
     if (!importRaw.trim()) {
@@ -852,6 +934,120 @@ function Projects({
             ))}
           </tbody>
         </table>
+      </article>
+      <article className="panel span-3 lifecycle-preview-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>公司产品全生命周期标准预览</h2>
+            <p className="muted">当前为标准预览，不会创建或修改项目。</p>
+          </div>
+          <button
+            disabled={previewBusy || lifecycleTemplates.length === 0}
+            onClick={previewLifecycleTemplate}
+          >
+            {previewBusy ? "生成中…" : "生成预览"}
+          </button>
+        </div>
+
+        <div className="lifecycle-preview-selector-grid">
+          <label>
+            生命周期模板
+            <select
+              value={previewTemplateKey}
+              onChange={(event) => {
+                setPreviewTemplateKey(event.target.value);
+                setTemplatePreview(null);
+              }}
+            >
+              {lifecycleTemplates.map((item: any) => (
+                <option key={item.templateKey} value={item.templateKey}>
+                  {item.name}（{item.version}）
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <section className="lifecycle-preview-pack-section">
+          <h3>专业能力包</h3>
+          <div className="lifecycle-preview-checkbox-grid">
+            {capabilityPacks.map((item: any) => (
+              <label className="lifecycle-preview-checkbox" key={item.key}>
+                <input
+                  checked={previewCapabilityKeys.includes(item.key)}
+                  onChange={() => togglePreviewKey(
+                    item.key,
+                    previewCapabilityKeys,
+                    setPreviewCapabilityKeys,
+                  )}
+                  type="checkbox"
+                />
+                <span>{item.name}</span>
+                <small>{item.documentCodes.length} 份</small>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="lifecycle-preview-pack-section">
+          <h3>产品专用包</h3>
+          <div className="lifecycle-preview-checkbox-grid">
+            {productPacks.map((item: any) => (
+              <label className="lifecycle-preview-checkbox" key={item.key}>
+                <input
+                  checked={previewProductPackKeys.includes(item.key)}
+                  onChange={() => togglePreviewKey(
+                    item.key,
+                    previewProductPackKeys,
+                    setPreviewProductPackKeys,
+                  )}
+                  type="checkbox"
+                />
+                <span>{item.name}</span>
+                <small>{item.documentCodes.length} 份</small>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {previewError ? (
+          <p className="lifecycle-preview-error" role="alert">{previewError}</p>
+        ) : null}
+
+        {templatePreview ? (
+          <>
+            <div className="lifecycle-preview-summary">
+              {[
+                ["阶段", templatePreview.summary.phaseCount],
+                ["文档", templatePreview.summary.documentCount],
+                ["必需", templatePreview.summary.mandatoryCount],
+                ["条件适用", templatePreview.summary.conditionalCount],
+                ["普通受控", templatePreview.summary.controlledCount],
+                ["待判定", templatePreview.summary.unresolvedApplicabilityCount],
+              ].map(([label, value]) => (
+                <div className="lifecycle-preview-summary-card" key={String(label)}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="lifecycle-preview-phase-list">
+              {templatePreview.phases.map((phase: any) => (
+                <div className="lifecycle-preview-phase-row" key={phase.phaseKey}>
+                  <div>
+                    <strong>{phase.name}</strong>
+                    <span>{phase.gateName}</span>
+                  </div>
+                  <b>{phase.documentRequirements.length} 份文档</b>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="muted lifecycle-preview-empty">
+            选择适用的能力包或产品包后生成预览。
+          </p>
+        )}
       </article>
       <article className="panel span-3">
         <h2>当前项目角色配对</h2>
