@@ -169,7 +169,7 @@ git diff --check has no output
 status lists only the guide, README, and this plan checkbox update
 ```
 
-- [ ] **Step 4: Commit the guide**
+- [x] **Step 4: Commit the guide**
 
 ```bash
 git add README.md 局域网安装与产品开发模拟测试指南.md docs/superpowers/plans/2026-07-31-lan-installation-and-simulation-guide.md
@@ -185,7 +185,7 @@ git commit -m "Add LAN installation and product simulation guide"
 - Consumes: committed guide and verified branch.
 - Produces: a GitHub branch whose remote SHA equals local `HEAD`.
 
-- [ ] **Step 1: Push the current branch**
+- [x] **Step 1: Push the current branch**
 
 Run:
 
@@ -193,7 +193,7 @@ Run:
 git push origin codex/agent-driven-lifecycle
 ```
 
-- [ ] **Step 2: Confirm remote equality**
+- [x] **Step 2: Confirm remote equality**
 
 Run:
 
@@ -204,7 +204,7 @@ git ls-remote --heads origin codex/agent-driven-lifecycle
 
 Expected: both commands show the same 40-character SHA.
 
-- [ ] **Step 3: Record publication and push the audit update**
+- [x] **Step 3: Record publication and push the audit update**
 
 Mark all plan steps complete, commit only this plan, push again, and repeat the SHA comparison:
 
