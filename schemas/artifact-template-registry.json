@@ -450,6 +450,42 @@
         "放行建议",
         "审核结论"
       ]
+    },
+    {
+      "artifactType": "COMPANY_CONTROLLED_DOCUMENT",
+      "templateKey": "company_controlled_document_v1_0",
+      "name": "公司受控文档通用模板",
+      "path": "templates/artifacts/company-controlled-document.md",
+      "requiredReviewRoles": [
+        "项目经理"
+      ],
+      "requiredSections": [
+        "基本信息",
+        "目的与范围",
+        "输入依据",
+        "正文",
+        "证据与引用",
+        "风险与未决问题",
+        "审核结论"
+      ]
+    },
+    {
+      "artifactType": "PROJECT_BLUEPRINT",
+      "templateKey": "project_blueprint_v1_0",
+      "name": "项目正式配置蓝图模板",
+      "path": "templates/artifacts/project-blueprint.md",
+      "requiredReviewRoles": [
+        "项目经理",
+        "质量负责人"
+      ],
+      "requiredSections": [
+        "立项基线",
+        "流程配置",
+        "文档配置",
+        "Agent 配置",
+        "规则判定",
+        "审核结论"
+      ]
     }
   ]
 }

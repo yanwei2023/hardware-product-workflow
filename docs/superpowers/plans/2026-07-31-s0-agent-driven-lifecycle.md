@@ -241,7 +241,7 @@ git commit -m "Persist lifecycle definition metadata"
 - Produces: `buildPublishedProjectGraph(project, blueprint): ProjectGraph`.
 - Produces: `renderProjectBlueprintMarkdown(blueprint): string`.
 
-- [ ] **Step 1: Write failing definition and compiler tests**
+- [x] **Step 1: Write failing definition and compiler tests**
 
 Cover completeness, determinism, product-neutral selection, and graph creation:
 
@@ -273,7 +273,7 @@ test("published graph contains S1-S10 and no duplicate S0", () => {
 });
 ```
 
-- [ ] **Step 2: Run the compiler test and verify RED**
+- [x] **Step 2: Run the compiler test and verify RED**
 
 Run:
 
@@ -283,7 +283,7 @@ node --test apps/api/src/projectLifecycleCompiler.test.mjs
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND`.
 
-- [ ] **Step 3: Add the two controlled Markdown templates**
+- [x] **Step 3: Add the two controlled Markdown templates**
 
 Register:
 
@@ -309,7 +309,7 @@ and:
 }
 ```
 
-- [ ] **Step 4: Implement the compiler**
+- [x] **Step 4: Implement the compiler**
 
 Use `composeProjectTemplate` to select requirements. Convert selected `CONDITIONAL` items to a fail-safe effective `MANDATORY` status with trace reason `CONDITIONAL_DEFAULT_APPLICABLE`; keep `CONTROLLED` non-gating.
 
@@ -337,7 +337,7 @@ const executionByOwnerRole = {
 
 The first active S1 work packages receive `READY_FOR_AGENT`; later work packages receive `NOT_STARTED`. Each mandatory requirement creates one gate requirement.
 
-- [ ] **Step 5: Run compiler and artifact validation tests**
+- [x] **Step 5: Run compiler and artifact validation tests**
 
 Run:
 
@@ -347,7 +347,7 @@ node --test apps/api/src/projectLifecycleCompiler.test.mjs apps/api/src/workflow
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add templates/artifacts/company-controlled-document.md templates/artifacts/project-blueprint.md schemas/artifact-template-registry.json apps/api/src/projectLifecycleCompiler.mjs apps/api/src/projectLifecycleCompiler.test.mjs
