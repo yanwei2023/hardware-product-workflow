@@ -27,5 +27,8 @@ data/*.json
 # Local preview artifacts
 frontend-preview.png
 
+# Isolated Codex development worktrees
+.worktrees/
+
 data/*.bak
 data/evidence-files/
