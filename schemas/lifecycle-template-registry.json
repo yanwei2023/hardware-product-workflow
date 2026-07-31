@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "templates": [
+    {
+      "templateKey": "standard_hardware_development_v0_1",
+      "name": "标准硬件产品开发流程模板",
+      "version": "0.1.0",
+      "sourceFile": "hardware-phase-template.json",
+      "compatibilityMode": "LEGACY_WORK_PACKAGES"
+    },
+    {
+      "templateKey": "company_product_lifecycle_v1_0",
+      "name": "公司产品全生命周期流程",
+      "version": "1.0.0",
+      "sourceFile": "company-product-lifecycle-template.json",
+      "compatibilityMode": "DOCUMENT_REQUIREMENTS_PREVIEW"
+    }
+  ]
+}

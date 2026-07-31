@@ -1,0 +1,198 @@
+{
+  "templateKey": "company_product_lifecycle_v1_0",
+  "name": "公司产品全生命周期流程",
+  "version": "1.0.0",
+  "description": "公司级产品开发及产品交付项目的S0-S10标准流程，用于组合项目文档需求预览。",
+  "projectTypeKey": "new_product_development",
+  "compatibilityMode": "DOCUMENT_REQUIREMENTS_PREVIEW",
+  "phases": [
+    {
+      "phaseKey": "s0_governance",
+      "name": "S0 立项与治理",
+      "sequence": 0,
+      "gateName": "立项评审",
+      "documentCodes": [
+        "PM-001",
+        "PM-002",
+        "PM-003",
+        "PM-004",
+        "PM-005",
+        "PM-006",
+        "CM-001",
+        "CM-002",
+        "CM-003",
+        "CM-004"
+      ]
+    },
+    {
+      "phaseKey": "s1_market_definition",
+      "name": "S1 市场与产品定义",
+      "sequence": 10,
+      "gateName": "市场与概念评审",
+      "documentCodes": [
+        "MR-001",
+        "MR-002",
+        "MR-003",
+        "MR-004",
+        "MR-005",
+        "MR-006",
+        "MR-007",
+        "MR-008"
+      ]
+    },
+    {
+      "phaseKey": "s2_requirements_feasibility",
+      "name": "S2 需求与可行性",
+      "sequence": 20,
+      "gateName": "需求与可行性评审",
+      "documentCodes": [
+        "PRD-001",
+        "REQ-001",
+        "REQ-002",
+        "FS-001",
+        "FS-002",
+        "FS-003",
+        "UX-001",
+        "COST-001",
+        "FMEA-001",
+        "REVIEW-002"
+      ]
+    },
+    {
+      "phaseKey": "s3_system_design",
+      "name": "S3 系统总体设计",
+      "sequence": 30,
+      "gateName": "总体设计评审",
+      "documentCodes": [
+        "SYS-001",
+        "SYS-002",
+        "SYS-003",
+        "SYS-004",
+        "SYS-005",
+        "SYS-006",
+        "SYS-007"
+      ]
+    },
+    {
+      "phaseKey": "s4_detailed_design",
+      "name": "S4 详细设计",
+      "sequence": 40,
+      "gateName": "详细设计评审",
+      "documentCodes": [
+        "HW-001",
+        "HW-002",
+        "HW-003",
+        "HW-004",
+        "HW-005",
+        "FW-001",
+        "FW-002",
+        "ALG-001",
+        "ALG-002",
+        "SW-001",
+        "SW-002",
+        "ME-001",
+        "ME-002",
+        "DFMEA-002",
+        "REVIEW-003"
+      ]
+    },
+    {
+      "phaseKey": "s5_evt",
+      "name": "S5 EVT 工程验证",
+      "sequence": 50,
+      "gateName": "EVT 阶段评审",
+      "documentCodes": [
+        "EVT-001",
+        "EVT-002",
+        "TEST-001",
+        "TEST-002",
+        "TEST-003",
+        "TEST-004",
+        "TEST-005",
+        "BUG-001",
+        "EVT-003",
+        "REVIEW-004"
+      ]
+    },
+    {
+      "phaseKey": "s6_dvt",
+      "name": "S6 DVT 设计验证",
+      "sequence": 60,
+      "gateName": "DVT 阶段评审",
+      "documentCodes": [
+        "DVT-001",
+        "DVT-002",
+        "DVT-003",
+        "DVT-004",
+        "DVT-005",
+        "DVT-006",
+        "DVT-007",
+        "DVT-008",
+        "REVIEW-005"
+      ]
+    },
+    {
+      "phaseKey": "s7_pvt",
+      "name": "S7 PVT 生产验证",
+      "sequence": 70,
+      "gateName": "PVT 与量产准备评审",
+      "documentCodes": [
+        "MFG-001",
+        "MFG-002",
+        "MFG-003",
+        "MFG-004",
+        "MFG-005",
+        "SCM-001",
+        "PVT-001",
+        "PVT-002",
+        "REVIEW-006"
+      ]
+    },
+    {
+      "phaseKey": "s8_release",
+      "name": "S8 产品发布",
+      "sequence": 80,
+      "gateName": "产品发布评审",
+      "documentCodes": [
+        "CERT-001",
+        "CERT-002",
+        "REL-001",
+        "REL-002",
+        "REL-003",
+        "REL-004",
+        "REL-005",
+        "REL-006",
+        "REVIEW-007"
+      ]
+    },
+    {
+      "phaseKey": "s9_delivery_operations",
+      "name": "S9 交付与运维",
+      "sequence": 90,
+      "gateName": "交付与运维评审",
+      "documentCodes": [
+        "DEL-001",
+        "DEL-002",
+        "DEL-003",
+        "DEL-004",
+        "OPS-001",
+        "OPS-002",
+        "OPS-003"
+      ]
+    },
+    {
+      "phaseKey": "s10_lifecycle",
+      "name": "S10 生命周期管理",
+      "sequence": 100,
+      "gateName": "生命周期评审",
+      "documentCodes": [
+        "CHG-001",
+        "QA-001",
+        "REL-007",
+        "LCM-001",
+        "LCM-002",
+        "LCM-003"
+      ]
+    }
+  ]
+}
