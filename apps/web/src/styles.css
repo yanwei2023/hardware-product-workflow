@@ -429,6 +429,54 @@ h3 {
   margin-bottom: 0;
 }
 
+.candidate-boundary {
+  align-items: start;
+  background: #edf7fb;
+  border: 1px solid #b9dbe8;
+  border-radius: 6px;
+  color: #265d73;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.candidate-boundary span {
+  color: #4c6572;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.definition-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.definition-actions {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.definition-ready {
+  background: #e7f5ef;
+  border: 1px solid #b7decf;
+  border-radius: 6px;
+  color: #176044;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.definition-pending {
+  background: #fff7df;
+  border: 1px solid #f0d891;
+  border-radius: 6px;
+  color: #795a09;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 .lifecycle-preview-selector-grid {
   display: grid;
   grid-template-columns: minmax(280px, 520px);
@@ -821,7 +869,8 @@ h3 {
 .badge.HUMAN_APPROVED,
 .badge.READY,
 .badge.CLOSED,
-.badge.DONE {
+.badge.DONE,
+.badge.COMPLETED {
   background: #e7f5ef;
   border-color: #b7decf;
   color: #176044;
@@ -840,10 +889,21 @@ h3 {
 .badge.GATE_READY,
 .badge.PENDING_REVIEW,
 .badge.DUE_SOON,
-.badge.AGENT_DRAFT_READY {
+.badge.AGENT_DRAFT_READY,
+.badge.CONFIGURATION_DRAFT {
   background: #fff7df;
   border-color: #f0d891;
   color: #795a09;
+}
+
+.badge.S0_DRAFT,
+.badge.S0_IN_REVIEW,
+.badge.READY_FOR_AGENT,
+.badge.QUEUED,
+.badge.RUNNING {
+  background: #edf7fb;
+  border-color: #b9dbe8;
+  color: #265d73;
 }
 
 .risk-plan {
@@ -900,6 +960,8 @@ h3 {
   .command-copy,
   .copyable-text,
   .checkpoint-list li,
+  .definition-actions,
+  .definition-grid,
   .issue-report-grid,
   .lifecycle-preview-checkbox-grid,
   .lifecycle-preview-selector-grid,

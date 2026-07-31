@@ -25,9 +25,16 @@ const statusText: Record<string, string> = {
   GATE_READY: "阶段门可通过",
   NOT_STARTED: "未开始",
   IN_PROGRESS: "进行中",
+  S0_DRAFT: "S0 定义中",
+  S0_IN_REVIEW: "S0 待评审",
+  CONFIGURATION_DRAFT: "蓝图配置中",
+  COMPLETED: "已完成",
   HUMAN_APPROVED: "人类已批准",
   AGENT_DRAFT_READY: "草稿待审",
   NEEDS_AGENT_REVISION: "需要修改",
+  READY_FOR_AGENT: "待 Agent 执行",
+  QUEUED: "已排队",
+  RUNNING: "执行中",
   PENDING: "待处理",
   PENDING_REVIEW: "待审核",
   NEEDS_REVISION: "需要修改",
@@ -118,8 +125,10 @@ function errorMessage(error: unknown): UiMessage {
 async function api(path: string, options: ApiRequestOptions = {}) {
   const { allowError = false, ...fetchOptions } = options;
   const method = String(fetchOptions.method || "GET").toUpperCase();
+  const projectBlueprintPreview = method === "POST"
+    && /^\/projects\/[^/]+\/blueprint\/preview$/.test(path);
   const mutationRequest = ["POST", "PUT", "PATCH", "DELETE"].includes(method)
-    && !(method === "POST" && nonPersistentPostPaths.has(path));
+    && !(method === "POST" && (nonPersistentPostPaths.has(path) || projectBlueprintPreview));
   if (!runtimeWritable && mutationRequest) {
     throw new ApiError("当前运行时为只读模式", null, null);
   }
@@ -705,40 +714,40 @@ function Projects({
   users,
 }: any) {
   const [name, setName] = useState("");
-  const [productLine, setProductLine] = useState("");
+  const [productConcept, setProductConcept] = useState("");
   const [importRaw, setImportRaw] = useState("");
   const [importValidation, setImportValidation] = useState<any | null>(null);
   const [importBusy, setImportBusy] = useState(false);
-  const [lifecycleTemplates, setLifecycleTemplates] = useState<any[]>([]);
+  const [projectTypes, setProjectTypes] = useState<any[]>([]);
   const [capabilityPacks, setCapabilityPacks] = useState<any[]>([]);
-  const [productPacks, setProductPacks] = useState<any[]>([]);
-  const [previewTemplateKey, setPreviewTemplateKey] = useState(
-    "company_product_lifecycle_v1_0",
-  );
-  const [previewCapabilityKeys, setPreviewCapabilityKeys] = useState<string[]>([]);
-  const [previewProductPackKeys, setPreviewProductPackKeys] = useState<string[]>([]);
-  const [templatePreview, setTemplatePreview] = useState<any | null>(null);
+  const [definitionDraft, setDefinitionDraft] = useState<any>({});
+  const [blueprintPreview, setBlueprintPreview] = useState<any | null>(null);
   const [previewError, setPreviewError] = useState("");
   const [previewBusy, setPreviewBusy] = useState(false);
+  const activeProject = project.project;
+  const activePhase = project.phases.find(
+    (item: any) => item.id === activeProject.currentPhaseId,
+  );
+  const isCompiledCandidate = (
+    activeProject.definition?.lifecycleMode === "S0_COMPILED"
+    && activePhase?.phaseKey === "s0_governance"
+  );
+  const initiationFrozen = Boolean(
+    activeProject.definition?.initiationBaseline,
+  );
 
   useEffect(() => {
     let active = true;
 
     async function loadLifecycleStandards() {
       try {
-        const [templateResult, capabilityResult, productResult] = await Promise.all([
-          api("/standards/lifecycle-templates"),
+        const [projectTypeResult, capabilityResult] = await Promise.all([
+          api("/standards/project-types"),
           api("/standards/capability-packs"),
-          api("/standards/product-packs"),
         ]);
         if (!active) return;
-        setLifecycleTemplates(
-          (templateResult.templates || []).filter(
-            (item: any) => item.compatibilityMode === "DOCUMENT_REQUIREMENTS_PREVIEW",
-          ),
-        );
+        setProjectTypes(projectTypeResult.projectTypes || []);
         setCapabilityPacks(capabilityResult.capabilityPacks || []);
-        setProductPacks(productResult.productPacks || []);
       } catch (error) {
         if (!active) return;
         setPreviewError(
@@ -753,16 +762,31 @@ function Projects({
     };
   }, []);
 
-  function togglePreviewKey(
-    key: string,
-    selectedKeys: string[],
-    setSelectedKeys: (keys: string[]) => void,
-  ) {
-    setTemplatePreview(null);
-    setSelectedKeys(
-      selectedKeys.includes(key)
-        ? selectedKeys.filter((item) => item !== key)
-        : [...selectedKeys, key],
+  useEffect(() => {
+    setDefinitionDraft(
+      structuredClone(activeProject.definition?.initiation || {}),
+    );
+    setBlueprintPreview(null);
+    setPreviewError("");
+  }, [
+    activeProject.id,
+    activeProject.definition?.initiation?.version,
+    activeProject.definition?.activeBaseline?.version,
+  ]);
+
+  function setDefinitionField(field: string, value: unknown) {
+    setDefinitionDraft((current: any) => ({ ...current, [field]: value }));
+    setBlueprintPreview(null);
+    setPreviewError("");
+  }
+
+  function toggleCapability(key: string) {
+    const selected = definitionDraft.capabilityKeys || [];
+    setDefinitionField(
+      "capabilityKeys",
+      selected.includes(key)
+        ? selected.filter((item: string) => item !== key)
+        : [...selected, key],
     );
   }
 
@@ -770,22 +794,42 @@ function Projects({
     setPreviewBusy(true);
     setPreviewError("");
     try {
-      const result = await api("/projects/preview", {
+      const result = await api(
+        `/projects/${activeProject.id}/blueprint/preview`,
+        {
         method: "POST",
-        body: JSON.stringify({
-          templateKey: previewTemplateKey,
-          capabilityKeys: previewCapabilityKeys,
-          productPackKeys: previewProductPackKeys,
-        }),
-      });
-      setTemplatePreview(result);
+        body: "{}",
+        },
+      );
+      setBlueprintPreview(result);
     } catch (error) {
-      setTemplatePreview(null);
+      setBlueprintPreview(null);
       setPreviewError(error instanceof Error ? error.message : String(error));
     } finally {
       setPreviewBusy(false);
     }
   }
+
+  function commaList(value: string) {
+    return [
+      ...new Set(
+        value.split(/[,，、\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  const missingDefinitionFields = [
+    ["projectTypeKey", "项目类型", Boolean(definitionDraft.projectTypeKey)],
+    ["targetMarkets", "目标市场", Boolean(definitionDraft.targetMarkets?.length)],
+    ["capabilityKeys", "产品能力范围", Boolean(definitionDraft.capabilityKeys?.length)],
+    ["supplyMode", "供应模式", Boolean(definitionDraft.supplyMode)],
+    ["deliveryModel", "交付模式", Boolean(definitionDraft.deliveryModel)],
+    ["riskLevel", "风险等级", Boolean(definitionDraft.riskLevel)],
+  ].filter(([, , complete]) => !complete);
+  const definitionDirty = JSON.stringify(definitionDraft)
+    !== JSON.stringify(activeProject.definition?.initiation || {});
 
   function parseImportSnapshot() {
     if (!importRaw.trim()) {
@@ -831,13 +875,38 @@ function Projects({
   return (
     <section className="content-grid projects-grid">
       <article className="panel">
-        <h2>创建项目</h2>
+        <h2>创建 S0 立项候选</h2>
+        <p className="muted">
+          新项目只生成 S0 和首批 Agent 工作；S1–S10 将在立项与配置蓝图均获人工批准后生成。
+        </p>
         <label>项目名称<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label>产品线<input value={productLine} onChange={(event) => setProductLine(event.target.value)} /></label>
-        <button disabled={busy || !name.trim()} onClick={() => runAction("项目已创建", () => api("/projects", {
-          method: "POST",
-          body: JSON.stringify({ name, productLine }),
-        }))}>创建</button>
+        <label>
+          产品构想
+          <textarea
+            placeholder="拟开发什么产品、为谁解决什么问题"
+            rows={4}
+            value={productConcept}
+            onChange={(event) => setProductConcept(event.target.value)}
+          />
+        </label>
+        <button
+          disabled={busy || !name.trim() || !productConcept.trim()}
+          onClick={() => runAction("S0 立项候选已创建，Agent 工作已派发", async () => {
+            await api("/projects/candidates", {
+              method: "POST",
+              body: JSON.stringify({
+                name,
+                productConcept,
+                userId: actorUserId,
+              }),
+            });
+            setName("");
+            setProductConcept("");
+            setSelectedWorkPackageId(null);
+          })}
+        >
+          创建 S0 立项候选
+        </button>
       </article>
       <article className="panel span-2">
         <h2>项目列表</h2>
@@ -935,120 +1004,252 @@ function Projects({
           </tbody>
         </table>
       </article>
-      <article className="panel span-3 lifecycle-preview-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>公司产品全生命周期标准预览</h2>
-            <p className="muted">当前为标准预览，不会创建或修改项目。</p>
+      {isCompiledCandidate ? (
+        <article className="panel span-3 lifecycle-preview-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>S0 立项定义与正式流程配置</h2>
+              <p className="muted">
+                当前状态：{statusText[activeProject.status] || activeProject.status} · 定义版本
+                {" "}{definitionDraft.version || 1}。S0 批准前系统边界为 S0，不能提前生成 S1–S10。
+              </p>
+            </div>
+            {badge(initiationFrozen ? "LOCKED" : activeProject.status)}
           </div>
-          <button
-            disabled={previewBusy || lifecycleTemplates.length === 0}
-            onClick={previewLifecycleTemplate}
-          >
-            {previewBusy ? "生成中…" : "生成预览"}
-          </button>
-        </div>
 
-        <div className="lifecycle-preview-selector-grid">
-          <label>
-            生命周期模板
-            <select
-              value={previewTemplateKey}
-              onChange={(event) => {
-                setPreviewTemplateKey(event.target.value);
-                setTemplatePreview(null);
-              }}
-            >
-              {lifecycleTemplates.map((item: any) => (
-                <option key={item.templateKey} value={item.templateKey}>
-                  {item.name}（{item.version}）
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <section className="lifecycle-preview-pack-section">
-          <h3>专业能力包</h3>
-          <div className="lifecycle-preview-checkbox-grid">
-            {capabilityPacks.map((item: any) => (
-              <label className="lifecycle-preview-checkbox" key={item.key}>
-                <input
-                  checked={previewCapabilityKeys.includes(item.key)}
-                  onChange={() => togglePreviewKey(
-                    item.key,
-                    previewCapabilityKeys,
-                    setPreviewCapabilityKeys,
-                  )}
-                  type="checkbox"
-                />
-                <span>{item.name}</span>
-                <small>{item.documentCodes.length} 份</small>
-              </label>
-            ))}
+          <div className="candidate-boundary">
+            <strong>{initiationFrozen ? "S0 基线已冻结" : "S0 候选边界生效"}</strong>
+            <span>
+              {initiationFrozen
+                ? "Agent 正在生成或已提交项目配置蓝图；只有人员批准蓝图后才发布正式阶段。"
+                : `当前已排队 ${project.agentJobs.filter((item: any) => item.status === "QUEUED").length} 个 Agent 任务，输出必须逐项由对应人员审核。`}
+            </span>
           </div>
-        </section>
 
-        <section className="lifecycle-preview-pack-section">
-          <h3>产品专用包</h3>
-          <div className="lifecycle-preview-checkbox-grid">
-            {productPacks.map((item: any) => (
-              <label className="lifecycle-preview-checkbox" key={item.key}>
-                <input
-                  checked={previewProductPackKeys.includes(item.key)}
-                  onChange={() => togglePreviewKey(
-                    item.key,
-                    previewProductPackKeys,
-                    setPreviewProductPackKeys,
-                  )}
-                  type="checkbox"
-                />
-                <span>{item.name}</span>
-                <small>{item.documentCodes.length} 份</small>
-              </label>
-            ))}
+          <div className="definition-grid">
+            <label>
+              项目类型
+              <select
+                disabled={initiationFrozen}
+                value={definitionDraft.projectTypeKey || ""}
+                onChange={(event) => setDefinitionField("projectTypeKey", event.target.value)}
+              >
+                <option value="">请选择</option>
+                {projectTypes.map((item: any) => (
+                  <option key={item.key} value={item.key}>{item.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              目标市场
+              <input
+                disabled={initiationFrozen}
+                placeholder="工业客户，海外市场"
+                value={(definitionDraft.targetMarkets || []).join("，")}
+                onChange={(event) => setDefinitionField("targetMarkets", commaList(event.target.value))}
+              />
+            </label>
+            <label>
+              客户场景
+              <input
+                disabled={initiationFrozen}
+                placeholder="现场检测，远程运维"
+                value={(definitionDraft.customerScenarios || []).join("，")}
+                onChange={(event) => setDefinitionField("customerScenarios", commaList(event.target.value))}
+              />
+            </label>
+            <label>
+              技术范围
+              <input
+                disabled={initiationFrozen}
+                placeholder="硬件，固件，软件"
+                value={(definitionDraft.technicalScope || []).join("，")}
+                onChange={(event) => setDefinitionField("technicalScope", commaList(event.target.value))}
+              />
+            </label>
+            <label>
+              合规要求
+              <input
+                disabled={initiationFrozen}
+                placeholder="市场准入，行业标准"
+                value={(definitionDraft.complianceRequirements || []).join("，")}
+                onChange={(event) => setDefinitionField("complianceRequirements", commaList(event.target.value))}
+              />
+            </label>
+            <label>
+              供应模式
+              <input
+                disabled={initiationFrozen}
+                placeholder="自研、外协或组合"
+                value={definitionDraft.supplyMode || ""}
+                onChange={(event) => setDefinitionField("supplyMode", event.target.value)}
+              />
+            </label>
+            <label>
+              交付模式
+              <input
+                disabled={initiationFrozen}
+                placeholder="标准产品、项目交付或组合"
+                value={definitionDraft.deliveryModel || ""}
+                onChange={(event) => setDefinitionField("deliveryModel", event.target.value)}
+              />
+            </label>
+            <label>
+              运营要求
+              <input
+                disabled={initiationFrozen}
+                placeholder="培训，售后，备件"
+                value={(definitionDraft.operationsRequirements || []).join("，")}
+                onChange={(event) => setDefinitionField("operationsRequirements", commaList(event.target.value))}
+              />
+            </label>
+            <label>
+              风险等级
+              <select
+                disabled={initiationFrozen}
+                value={definitionDraft.riskLevel || ""}
+                onChange={(event) => setDefinitionField("riskLevel", event.target.value)}
+              >
+                <option value="">请选择</option>
+                {riskSeverityOptions.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
           </div>
-        </section>
 
-        {previewError ? (
-          <p className="lifecycle-preview-error" role="alert">{previewError}</p>
-        ) : null}
-
-        {templatePreview ? (
-          <>
-            <div className="lifecycle-preview-summary">
-              {[
-                ["阶段", templatePreview.summary.phaseCount],
-                ["文档", templatePreview.summary.documentCount],
-                ["必需", templatePreview.summary.mandatoryCount],
-                ["条件适用", templatePreview.summary.conditionalCount],
-                ["普通受控", templatePreview.summary.controlledCount],
-                ["待判定", templatePreview.summary.unresolvedApplicabilityCount],
-              ].map(([label, value]) => (
-                <div className="lifecycle-preview-summary-card" key={String(label)}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
+          <section className="lifecycle-preview-pack-section">
+            <h3>产品能力范围</h3>
+            <div className="lifecycle-preview-checkbox-grid">
+              {capabilityPacks.map((item: any) => (
+                <label className="lifecycle-preview-checkbox" key={item.key}>
+                  <input
+                    checked={(definitionDraft.capabilityKeys || []).includes(item.key)}
+                    disabled={initiationFrozen}
+                    onChange={() => toggleCapability(item.key)}
+                    type="checkbox"
+                  />
+                  <span>{item.name}</span>
+                  <small>{item.documentCodes.length} 份标准文档</small>
+                </label>
               ))}
             </div>
-            <div className="lifecycle-preview-phase-list">
-              {templatePreview.phases.map((phase: any) => (
-                <div className="lifecycle-preview-phase-row" key={phase.phaseKey}>
-                  <div>
-                    <strong>{phase.name}</strong>
-                    <span>{phase.gateName}</span>
+          </section>
+
+          <div className="definition-actions">
+            <div>
+              {missingDefinitionFields.length > 0 ? (
+                <p className="lifecycle-preview-error">
+                  尚缺：{missingDefinitionFields.map(([, label]) => label).join("、")}
+                </p>
+              ) : definitionDirty ? (
+                <p className="definition-pending">
+                  字段已完整，请先保存为当前 S0 定义版本，再生成蓝图预览。
+                </p>
+              ) : (
+                <p className="definition-ready">立项结构化字段已完整，可结合 S0 交付物提交 Gate 审核。</p>
+              )}
+            </div>
+            <div className="actions">
+              <button
+                disabled={busy || initiationFrozen || !definitionDirty}
+                onClick={() => runAction("S0 立项定义已保存", () => api(
+                  `/projects/${activeProject.id}/initiation-definition`,
+                  {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                      ...definitionDraft,
+                      actorUserId,
+                    }),
+                  },
+                ))}
+              >
+                保存立项定义
+              </button>
+              <button
+                className="ghost"
+                disabled={
+                  previewBusy
+                  || missingDefinitionFields.length > 0
+                  || definitionDirty
+                }
+                onClick={previewLifecycleTemplate}
+              >
+                {previewBusy ? "编译中…" : "预览项目配置蓝图"}
+              </button>
+            </div>
+          </div>
+
+          {previewError ? (
+            <p className="lifecycle-preview-error" role="alert">{previewError}</p>
+          ) : null}
+
+          {blueprintPreview ? (
+            <>
+              <div className="lifecycle-preview-summary">
+                {[
+                  ["正式阶段", blueprintPreview.summary.phaseCount],
+                  ["适用文档", blueprintPreview.summary.documentCount],
+                  ["必需", blueprintPreview.summary.mandatoryCount],
+                  ["普通受控", blueprintPreview.summary.controlledCount],
+                  ["Agent 配置", blueprintPreview.summary.agentAssignmentCount],
+                  ["待人工审核", 1],
+                ].map(([label, value]) => (
+                  <div className="lifecycle-preview-summary-card" key={String(label)}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
                   </div>
-                  <b>{phase.documentRequirements.length} 份文档</b>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="lifecycle-preview-phase-list">
+                {blueprintPreview.phases.map((phase: any) => (
+                  <div className="lifecycle-preview-phase-row" key={phase.phaseKey}>
+                    <div>
+                      <strong>{phase.name}</strong>
+                      <span>{phase.gateName}</span>
+                    </div>
+                    <b>{phase.documentCount} 份文档</b>
+                  </div>
+                ))}
+              </div>
+              <p className="muted lifecycle-preview-empty">
+                此处只是确定性预览，不会发布流程。S0 Gate 批准后由 Agent 正式提交蓝图，项目负责人审核批准后才生成这些阶段和 Agent 任务。
+              </p>
+            </>
+          ) : (
+            <p className="muted lifecycle-preview-empty">
+              完成立项字段后可编译当前项目的 S1–S10 配置预览；预览不修改项目。
+            </p>
+          )}
+        </article>
+      ) : (
+        <article className="panel span-3 lifecycle-preview-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>当前项目生命周期</h2>
+              <p className="muted">
+                此项目采用既有兼容流程。新建产品项目请使用上方“S0 立项候选”入口。
+              </p>
             </div>
-          </>
-        ) : (
-          <p className="muted lifecycle-preview-empty">
-            选择适用的能力包或产品包后生成预览。
-          </p>
-        )}
-      </article>
+            {badge(activeProject.status)}
+          </div>
+          <div className="lifecycle-preview-summary">
+            <div className="lifecycle-preview-summary-card">
+              <span>阶段</span><strong>{project.phases.length}</strong>
+            </div>
+            <div className="lifecycle-preview-summary-card">
+              <span>工作包</span><strong>{project.workPackages.length}</strong>
+            </div>
+            <div className="lifecycle-preview-summary-card">
+              <span>Agent 任务</span><strong>{project.agentJobs?.length || 0}</strong>
+            </div>
+            <div className="lifecycle-preview-summary-card">
+              <span>待人工审核</span>
+              <strong>{project.artifactVersions.filter((item: any) => item.status === "PENDING_REVIEW").length}</strong>
+            </div>
+          </div>
+        </article>
+      )}
       <article className="panel span-3">
         <h2>当前项目角色配对</h2>
         <table>
